@@ -128,10 +128,13 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response, next: N
     // 6. 流式 vs 非流式处理
     // ------------------------------------------------------------------
     if (isStreaming) {
-      await pipeSSEStream(upstreamResponse, res, virtualModel.id);
+      const { inputTokens, outputTokens, cacheHit } = await pipeSSEStream(upstreamResponse, res, virtualModel.id);
       logger.info("Streaming request completed", {
         requestId,
         durationMs: Date.now() - startTime,
+        inputTokens,
+        outputTokens,
+        cacheHit,
       });
     } else {
       let responseBody: Record<string, unknown>;

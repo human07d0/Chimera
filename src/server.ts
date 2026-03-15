@@ -3,6 +3,8 @@ import { config } from "./config";
 import { logger } from "./utils/logger";
 import { chatRouter } from "./routes/chat";
 import { modelsRouter } from "./routes/models";
+// 新增监控模块导入
+import { monitorRouter, monitorMiddleware } from "./monitor";
 
 export function createApp(): express.Application {
   const app = express();
@@ -57,13 +59,19 @@ export function createApp(): express.Application {
   });
 
   // --------------------------------------------------------------------------
+  // 监控路由（不需要鉴权）
+  // --------------------------------------------------------------------------
+  app.use("/monitor", monitorRouter);
+
+  // --------------------------------------------------------------------------
   // 鉴权中间件（作用于 /v1/* 路由）
   // --------------------------------------------------------------------------
   app.use("/v1", authMiddleware);
 
+    // --------------------------------------------------------------------------
+  // API 路由（添加监控中间件）
   // --------------------------------------------------------------------------
-  // API 路由
-  // --------------------------------------------------------------------------
+  app.use("/v1", monitorMiddleware);
   app.use("/v1", modelsRouter);
   app.use("/v1", chatRouter);
 

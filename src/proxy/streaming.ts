@@ -12,7 +12,7 @@ export async function pipeSSEStream(
   upstreamResponse: globalThis.Response,
   clientRes: ExpressResponse,
   virtualModelId: string
-): Promise<void> {
+): Promise<{ inputTokens: number; outputTokens: number; cacheHit: boolean }> {
   // 设置 SSE 响应头
   clientRes.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   clientRes.setHeader("Cache-Control", "no-cache, no-transform");
@@ -20,12 +20,17 @@ export async function pipeSSEStream(
   clientRes.setHeader("X-Accel-Buffering", "no"); // 禁用 nginx 缓冲
   clientRes.flushHeaders();
 
+  // 用于存储最终的使用信息
+  let inputTokens = 0;
+  let outputTokens = 0;
+  let cacheHit = false;
+
   const body = upstreamResponse.body;
   if (!body) {
     logger.warn("Upstream SSE response has no body");
     clientRes.write("data: [DONE]\n\n");
     clientRes.end();
-    return;
+    return { inputTokens, outputTokens, cacheHit };
   }
 
   const reader = body.getReader();
@@ -71,6 +76,24 @@ export async function pipeSSEStream(
         try {
           const parsed = JSON.parse(dataContent) as Record<string, unknown>;
           parsed["model"] = virtualModelId;
+
+          // 提取使用信息
+          const usage = parsed["usage"];
+          if (usage && typeof usage === "object") {
+            const usageObj = usage as Record<string, unknown>;
+            inputTokens =
+              (usageObj["prompt_tokens"] as number) ||
+              (usageObj["input_tokens"] as number) ||
+              inputTokens;
+            outputTokens =
+              (usageObj["completion_tokens"] as number) ||
+              (usageObj["output_tokens"] as number) ||
+              outputTokens;
+            cacheHit =
+              (usageObj["cache_hit"] as boolean) ||
+              cacheHit;
+          }
+
           clientRes.write(`data: ${JSON.stringify(parsed)}\n\n`);
         } catch {
           // JSON 解析失败：原样转发，避免数据丢失
@@ -106,4 +129,7 @@ export async function pipeSSEStream(
     reader.releaseLock();
     clientRes.end();
   }
+
+  return { inputTokens, outputTokens, cacheHit };
 }
+
