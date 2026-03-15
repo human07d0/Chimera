@@ -10,6 +10,25 @@ export function createApp(): express.Application {
   // --------------------------------------------------------------------------
   // 基础中间件
   // --------------------------------------------------------------------------
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, OPTIONS, PUT, DELETE"
+    );
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, api-key, x-requested-with"
+    );
+
+    // 处理预检请求 (OPTIONS)
+    if (_req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+    next();
+  });
+
   app.use(express.json({ limit: "10mb" }));
 
   // --------------------------------------------------------------------------
@@ -97,7 +116,8 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (!providedKey) {
     res.status(401).json({
       error: {
-        message: "Missing API key. Provide it via 'Authorization: Bearer <key>' or 'api-key: <key>' header.",
+        message:
+          "Missing API key. Provide it via 'Authorization: Bearer <key>' or 'api-key: <key>' header.",
         type: "authentication_error",
         code: "missing_api_key",
       },
@@ -135,3 +155,4 @@ function extractApiKey(req: Request): string | null {
 
   return null;
 }
+
