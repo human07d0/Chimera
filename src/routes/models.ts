@@ -1,7 +1,7 @@
 import { Router, Request, Response } from "express";
 import { VIRTUAL_MODELS } from "../models/presets";
 
-export const modelsRouter = Router();
+export const modelsRouter: import("express").Router = Router();
 
 /**
  * GET /v1/models

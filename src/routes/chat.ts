@@ -5,7 +5,7 @@ import { transformRequest, transformResponse, ChatCompletionRequest } from "../p
 import { pipeSSEStream } from "../proxy/streaming";
 import { logger } from "../utils/logger";
 
-export const chatRouter = Router();
+export const chatRouter: import("express").Router = Router();
 
 chatRouter.post("/chat/completions", async (req: Request, res: Response, next: NextFunction) => {
   const requestId = generateRequestId();
