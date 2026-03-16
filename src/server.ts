@@ -1,4 +1,6 @@
 import express, { Request, Response, NextFunction } from "express";
+import fs from "fs";
+import path from "path";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 import { chatRouter } from "./routes/chat";
@@ -34,6 +36,14 @@ export function createApp(): express.Application {
   app.use(express.json({ limit: "10mb" }));
 
   // --------------------------------------------------------------------------
+  // 静态文件服务 (PWA)
+  // --------------------------------------------------------------------------
+  const publicDir = resolveStaticDir("public");
+
+  if (publicDir) {
+    app.use(express.static(publicDir));
+  }
+  // --------------------------------------------------------------------------
   // 请求日志（仅记录元信息，不记录 body）
   // --------------------------------------------------------------------------
   app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -68,7 +78,7 @@ export function createApp(): express.Application {
   // --------------------------------------------------------------------------
   app.use("/v1", authMiddleware);
 
-    // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // API 路由（添加监控中间件）
   // --------------------------------------------------------------------------
   app.use("/v1", monitorMiddleware);
@@ -105,8 +115,23 @@ export function createApp(): express.Application {
       },
     });
   });
-
   return app;
+}
+
+function resolveStaticDir(dirName: string): string | null {
+  const candidates = [
+    path.join(__dirname, dirName),
+    path.join(process.cwd(), dirName),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  logger.warn(`Static directory not found: ${dirName}`);
+  return null;
 }
 
 // --------------------------------------------------------------------------

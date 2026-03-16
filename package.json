@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
-    "build": "tsc",
+    "build": "tsc && node scripts/copy-static.cjs",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit"
   },

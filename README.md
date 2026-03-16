@@ -143,8 +143,10 @@ print(response.choices[0].message.content)
 服务启动后，浏览器访问：
 
 ```text
-http://localhost:3000/monitor
+http://localhost:3000/
 ```
+
+或者直接访问 `/monitor` 也可以。
 
 监控数据以内存方式存储，最多保留 10,000 条记录，如果你重启进程，历史监控记录会清空。
 
