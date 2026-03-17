@@ -4,9 +4,9 @@ import { getRecentCalls, getCallStats } from "./storage";
 // 创建监控路由 - 添加类型注解以解决编译错误
 export const monitorRouter: Router = Router();
 
-// /monitor 重定向到 /
-monitorRouter.get("/", (req: Request, res: Response) => {
-  res.redirect('/');
+// /monitor 重定向到当前路由根，避免在子路径部署时跳转到站点根
+monitorRouter.get("/", (_req: Request, res: Response) => {
+  res.redirect("./");
 });
 
 // 获取监控统计数据

@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mimo Proxy</title>
     <meta name="theme-color" content="#16213e">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="manifest" href="./manifest.json">
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -160,7 +160,7 @@
         // 加载监控数据
         async function loadData() {
             try {
-                const statsRes = await fetch('/monitor/stats?days=3');
+                const statsRes = await fetch('./monitor/stats?days=3');
                 const statsData = await statsRes.json();
                 if (statsData.success) {
                     const s = statsData.data;
@@ -171,7 +171,7 @@
                     document.getElementById('totalOutputTokens').textContent = s.totalOutputTokens.toLocaleString();
                 }
 
-                const callsRes = await fetch('/monitor/calls?days=3');
+                const callsRes = await fetch('./monitor/calls?days=3');
                 const callsData = await callsRes.json();
                 const tbody = document.getElementById('callsTable');
                 
@@ -198,7 +198,7 @@
         
         // 注册 Service Worker
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js').catch(console.error);
+            navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(console.error);
         }
     </script>
 </body>

@@ -1,11 +1,11 @@
-const CACHE_NAME = 'mimo-proxy-v1';
+const CACHE_NAME = 'mimo-proxy-v2';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icon-192x192.png',
-  '/icon-512x512.png',
-  '/favicon.ico'
+  './',
+  './index.html',
+  './manifest.json',
+  './icon-192x192.png',
+  './icon-512x512.png',
+  './favicon.ico'
 ];
 
 // Install event - cache assets
@@ -44,7 +44,7 @@ self.addEventListener('fetch', (event) => {
       .catch(() => {
         // Return offline page for navigation requests
         if (event.request.mode === 'navigate') {
-          return caches.match('/');
+          return caches.match('./');
         }
       })
   );
