@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mimo-proxy-v2';
+const CACHE_NAME = 'mimo-proxy-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
@@ -44,7 +44,7 @@ self.addEventListener('fetch', (event) => {
       .catch(() => {
         // Return offline page for navigation requests
         if (event.request.mode === 'navigate') {
-          return caches.match('./');
+          return caches.match('./index.html');
         }
       })
   );
