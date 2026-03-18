@@ -126,7 +126,7 @@ print(response.choices[0].message.content)
 # response.choices[0].message.reasoning_content
 ```
 
-## 监控与费用统计
+## 监控与费用统计（内存态）
 
 代理内置了一个简单的监控页面，可以查看最近几天内的所有调用情况，包括：
 
@@ -148,7 +148,7 @@ http://localhost:3000/
 
 或者直接访问 `/monitor` 也可以。
 
-监控数据以内存方式存储，最多保留 10,000 条记录，如果你重启进程，历史监控记录会清空。
+监控数据仅保存在进程内存中（`src/monitor/storage.ts`），最多保留 10,000 条；进程重启后数据会被清空，不做任何持久化。
 
 > 设计上默认是“单用户”使用，因此没有区分不同用户的概念，也不会显示或统计 userId。
 
@@ -180,5 +180,5 @@ http://localhost:3000/
 | `GET`  | `/v1/models/:id`       | 获取单个虚拟模型信息       |
 | `POST` | `/v1/chat/completions` | 对话补全（支持流式 SSE）   |
 | `GET`  | `/monitor`             | 监控页面（最近 3 天调用）  |
-| `GET`  | `/monitor/stats`       | 监控统计数据（JSON）       |
-| `GET`  | `/monitor/calls`       | 监控明细数据（JSON，打表） |
+| `GET`  | `/monitor/stats`       | 监控统计数据（JSON，内存态）       |
+| `GET`  | `/monitor/calls`       | 监控明细数据（JSON，内存态） |
