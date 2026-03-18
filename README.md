@@ -43,6 +43,36 @@ npm install
 # pnpm install
 ```
 
+> 使用 pnpm 时，本项目已在 `pnpm-workspace.yaml` 显式允许 `sqlite3` 原生构建（`allowBuilds.sqlite3=true`）。
+
+
+### Termux 安装（Android）
+
+> 适用于 `MONITOR_STORAGE=sqlite` 场景；已迁移到 `sqlite3 + sqlite`，不再依赖 `better-sqlite3`。
+
+```bash
+pkg update && pkg upgrade
+pkg install nodejs-lts python make clang sqlite
+
+cd mimo-proxy
+npm install
+npm run build
+```
+
+如需使用 sqlite 持久化，建议显式设置：
+
+```dotenv
+MONITOR_STORAGE=sqlite
+MONITOR_SQLITE_PATH=./data/monitor.db
+```
+
+常见问题：
+- `sqlite3` 编译失败：先确认已安装 `python make clang`，再删除 `node_modules` 后重装。
+- 数据目录权限问题：确保当前目录可写，必要时手动创建 `./data`。
+- 若需快速恢复服务：临时切换 `MONITOR_STORAGE=memory`。
+- 可手动执行 `npm run check:native:sqlite3`（或 `pnpm run check:native:sqlite3`）检查 sqlite3 原生绑定是否就绪。
+
+
 ### 配置
 
 ```bash
@@ -72,7 +102,10 @@ npm start
 # npm run dev
 ```
 
+当 `MONITOR_STORAGE=sqlite` 时，`npm start` 会先执行 `check:native:sqlite3` 自检，若缺少 sqlite3 原生绑定会直接报错并给出修复指引。
+
 服务默认监听：`http://0.0.0.0:3000`。
+
 
 ### Docker 运行
 
@@ -126,31 +159,53 @@ print(response.choices[0].message.content)
 # response.choices[0].message.reasoning_content
 ```
 
-## 监控与费用统计（内存态）
+## 监控与费用统计（memory / sqlite）
 
-代理内置了一个简单的监控页面，可以查看最近几天内的所有调用情况，包括：
+代理内置监控页面，默认采集 `/v1/chat/completions` 的**请求级元信息**（不落盘 prompt/response 原文）：
 
-- 时间
-- 使用的模型
-- 输入 tokens 数（prompt_tokens）
-- 缓存命中 tokens 数（prompt_tokens_details.cached_tokens）
-- 输出 tokens 数（completion_tokens）
-- 每次调用耗时（毫秒）
-- 按小米官方计价规则计算出的费用
+- `request_id`
+- `ts_start` / `ts_end` / `latency_ms`
+- `path` / `method` / `status_code`
+- `model_requested` / `model_upstream`
+- `stream` / `chunks` / `bytes_out` / `first_token_ms`
+- `input_tokens` / `output_tokens` / `cached_prompt_tokens` / `cost`
+- `error_type`
 
 ### 打开监控页面
 
-服务启动后，浏览器访问：
+服务启动后访问：
 
 ```text
 http://localhost:3000/
 ```
 
-或者直接访问 `/monitor` 也可以。
+或：`/monitor`。
 
-监控数据仅保存在进程内存中（`src/monitor/storage.ts`），最多保留 10,000 条；进程重启后数据会被清空，不做任何持久化。
+### 存储模式
 
-> 设计上默认是“单用户”使用，因此没有区分不同用户的概念，也不会显示或统计 userId。
+- `MONITOR_STORAGE=memory`（默认）
+  - 进程内存保存，重启丢失
+  - 适合本地开发和轻量场景
+- `MONITOR_STORAGE=sqlite`
+  - 数据写入 `MONITOR_SQLITE_PATH`（默认 `./data/monitor.db`）
+  - 支持重启后保留历史记录
+  - 使用 WAL 模式与异步队列，尽量降低对主链路影响
+
+### 回滚方式
+
+若 sqlite 模式出现问题，可立即回滚到内存模式：
+
+```dotenv
+MONITOR_STORAGE=memory
+```
+
+重启服务后生效，不影响 `/v1/chat/completions` 主流程。
+
+### Docker 运行注意事项
+
+- 当前监控持久化实现为 `sqlite3 + sqlite`（异步驱动）。
+- 使用 sqlite 模式时建议挂载数据目录（例如 `./data:/app/data`），避免容器重建导致监控数据丢失。
+- 若容器内原生模块安装失败，可优先检查镜像架构与 Node 版本一致性。
 
 ## 配置参考
 
@@ -169,7 +224,13 @@ http://localhost:3000/
 | `WEB_SEARCH_COUNTRY`      |   ❌   | `China`                      | 搜索地理位置 - 国家                           |
 | `WEB_SEARCH_REGION`       |   ❌   | `Beijing`                    | 搜索地理位置 - 省份                           |
 | `WEB_SEARCH_CITY`         |   ❌   | `Beijing`                    | 搜索地理位置 - 城市                           |
-| `LOG_LEVEL`               |   ❌   | `info`                       | 日志级别：`error` / `warn` / `info` / `debug` |
+| `MONITOR_STORAGE`         |   ❌   | `memory`                    | Monitor 存储后端：`memory` / `sqlite`                 |
+| `MONITOR_SQLITE_PATH`     |   ❌   | `./data/monitor.db`         | SQLite 文件路径（仅 `MONITOR_STORAGE=sqlite` 生效）   |
+| `MONITOR_RETENTION_DAYS`  |   ❌   | `30`                        | 监控数据保留天数（定时清理）                         |
+| `MONITOR_FLUSH_INTERVAL_MS` | ❌   | `200`                       | 异步写入队列定时 flush 间隔（毫秒）                   |
+| `MONITOR_FLUSH_BATCH_SIZE` |  ❌   | `100`                       | 异步写入队列单次批量大小                              |
+| `MONITOR_QUEUE_MAX_SIZE`  |   ❌   | `10000`                     | 异步队列最大长度，超限后丢弃并记录计数               |
+| `LOG_LEVEL`               |   ❌   | `info`                      | 日志级别：`error` / `warn` / `info` / `debug` |
 
 ## 接口列表
 
@@ -180,5 +241,6 @@ http://localhost:3000/
 | `GET`  | `/v1/models/:id`       | 获取单个虚拟模型信息       |
 | `POST` | `/v1/chat/completions` | 对话补全（支持流式 SSE）   |
 | `GET`  | `/monitor`             | 监控页面（最近 3 天调用）  |
-| `GET`  | `/monitor/stats`       | 监控统计数据（JSON，内存态）       |
-| `GET`  | `/monitor/calls`       | 监控明细数据（JSON，内存态） |
+| `GET`  | `/monitor/stats`       | 监控统计数据（JSON）                |
+| `GET`  | `/monitor/calls`       | 监控明细数据（JSON）                |
+| `POST` | `/monitor/prune`       | 手动清理历史数据（默认仅 dev 或鉴权） |

@@ -9,6 +9,8 @@ export const chatRouter: import("express").Router = Router();
 
 chatRouter.post("/chat/completions", async (req: Request, res: Response, next: NextFunction) => {
   const requestId = generateRequestId();
+  res.locals.requestId = requestId;
+
   const startTime = Date.now();
 
   try {

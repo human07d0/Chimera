@@ -1,7 +1,9 @@
 import { config } from "./config";
-import { createApp } from "./server";
-import { logger } from "./utils/logger";
 import { VIRTUAL_MODELS } from "./models/presets";
+import { getStorage } from "./monitor/storage/factory";
+import { storageWorker } from "./monitor/storage/worker";
+import { createApp, stopCleanupTask } from "./server";
+import { logger } from "./utils/logger";
 
 // 启动前校验
 function validateConfig(): void {
@@ -22,6 +24,9 @@ function printStartupInfo(): void {
   logger.info(`  Model    : ${config.upstream.model}`);
   logger.info(`  Auth     : ${config.proxyApiKey ? "enabled" : "DISABLED (no PROXY_API_KEY)"}`);
   logger.info(`  Log level: ${config.logLevel}`);
+  logger.info(
+    `  Monitor  : storage=${config.monitor.storage}, retention=${config.monitor.retentionDays}d, flushInterval=${config.monitor.flushIntervalMs}ms, flushBatch=${config.monitor.flushBatchSize}, queueMax=${config.monitor.queueMaxSize}`
+  );
   logger.info("");
   logger.info("  Available virtual models:");
   for (const m of VIRTUAL_MODELS) {
@@ -40,35 +45,72 @@ function printStartupInfo(): void {
 async function main(): Promise<void> {
   validateConfig();
 
-  const app = createApp();
+  // 先初始化存储，确保数据库连接准备好
+  await getStorage();
 
+  const app = createApp();
   const server = app.listen(config.server.port, config.server.host, () => {
     printStartupInfo();
-    logger.info(
-      `  Listening on http://${config.server.host}:${config.server.port}`
-    );
+    logger.info(`  Listening on http://${config.server.host}:${config.server.port}`);
     logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   });
 
+  let isShuttingDown = false;
+
   // 优雅关闭
-  const shutdown = (signal: string): void => {
+  const shutdown = async (signal: string): Promise<void> => {
+    if (isShuttingDown) {
+      logger.info(`Received ${signal} during shutdown, ignoring duplicate signal`);
+      return;
+    }
+
+    isShuttingDown = true;
     logger.info(`Received ${signal}, shutting down gracefully...`);
-    server.close(() => {
-      logger.info("Server closed.");
-      process.exit(0);
-    });
-    // 强制退出超时
-    setTimeout(() => {
+
+    const forceExitTimer = setTimeout(() => {
       logger.error("Forced exit after timeout");
       process.exit(1);
     }, 10_000);
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        server.close((err?: Error) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+          resolve();
+        });
+      });
+
+      logger.info("Server closed.");
+      stopCleanupTask();
+      await storageWorker.shutdown();
+
+      clearTimeout(forceExitTimer);
+      process.exit(0);
+    } catch (error) {
+      logger.error("Graceful shutdown failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      stopCleanupTask();
+      clearTimeout(forceExitTimer);
+      process.exit(1);
+    }
   };
 
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
-  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => {
+    void shutdown("SIGTERM");
+  });
+
+  process.on("SIGINT", () => {
+    void shutdown("SIGINT");
+  });
 }
 
 main().catch((err) => {
   console.error("Fatal startup error:", err);
   process.exit(1);
 });
+
+

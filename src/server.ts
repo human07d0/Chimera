@@ -1,12 +1,14 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { NextFunction, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
-import { config } from "./config";
-import { logger } from "./utils/logger";
+import { monitorRouter, monitorMiddleware } from "./monitor";
+import { getStorage } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { modelsRouter } from "./routes/models";
-// 新增监控模块导入
-import { monitorRouter, monitorMiddleware } from "./monitor";
+import { config } from "./config";
+import { logger } from "./utils/logger";
+
+let cleanupInterval: NodeJS.Timeout | null = null;
 
 export function createApp(): express.Application {
   const app = express();
@@ -16,10 +18,7 @@ export function createApp(): express.Application {
   // --------------------------------------------------------------------------
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header(
-      "Access-Control-Allow-Methods",
-      "GET, POST, OPTIONS, PUT, DELETE"
-    );
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
     res.header(
       "Access-Control-Allow-Headers",
       "Content-Type, Authorization, api-key, x-requested-with"
@@ -30,6 +29,7 @@ export function createApp(): express.Application {
       res.sendStatus(204);
       return;
     }
+
     next();
   });
 
@@ -39,10 +39,10 @@ export function createApp(): express.Application {
   // 静态文件服务 (PWA)
   // --------------------------------------------------------------------------
   const publicDir = resolveStaticDir("public");
-
   if (publicDir) {
     app.use(express.static(publicDir));
   }
+
   // --------------------------------------------------------------------------
   // 请求日志（仅记录元信息，不记录 body）
   // --------------------------------------------------------------------------
@@ -115,7 +115,58 @@ export function createApp(): express.Application {
       },
     });
   });
+
+  // --------------------------------------------------------------------------
+  // 启动定时清理任务（启动时执行一次，之后每 24h 一次）
+  // --------------------------------------------------------------------------
+  startCleanupTask();
+
   return app;
+}
+
+function startCleanupTask(): void {
+  const cleanup = async () => {
+    try {
+      const storage = await getStorage();
+      const retentionDays = config.monitor.retentionDays;
+      const startTime = Date.now();
+      const deletedCount = await storage.prune(retentionDays);
+
+      logger.info("Daily cleanup completed", {
+        retentionDays,
+        deletedCount,
+        durationMs: Date.now() - startTime,
+      });
+    } catch (error) {
+      logger.error("Daily cleanup failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  };
+
+  // 立即执行一次（启动时）
+  void cleanup();
+
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+  }
+
+  // 每天执行一次
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  cleanupInterval = setInterval(() => {
+    void cleanup();
+  }, oneDayMs);
+
+  logger.info(`Daily cleanup task scheduled (every ${oneDayMs}ms)`);
+}
+
+export function stopCleanupTask(): void {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+    logger.info("Daily cleanup task stopped");
+  }
 }
 
 function resolveStaticDir(dirName: string): string | null {
@@ -188,4 +239,5 @@ function extractApiKey(req: Request): string | null {
 
   return null;
 }
+
 
