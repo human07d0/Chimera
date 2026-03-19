@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
-        node-version: [20]
+        node-version: [24]
 
     steps:
       - name: Checkout
@@ -20,9 +20,7 @@ jobs:
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
+        # 移除version指定，让它使用package.json中的packageManager字段
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -48,3 +46,4 @@ jobs:
         run: |
           $env:MONITOR_STORAGE='sqlite'
           pnpm run check:native:sqlite3
+
