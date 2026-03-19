@@ -63,7 +63,8 @@ export function createApp(): express.Application {
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
-      upstreamModel: config.upstream.model,
+      upstreamModels: config.upstream.enabledModels,
+      defaultUpstreamModel: config.upstream.defaultModel,
       auth: config.proxyApiKey ? "enabled" : "disabled",
     });
   });
@@ -239,5 +240,6 @@ function extractApiKey(req: Request): string | null {
 
   return null;
 }
+
 
 

@@ -10,11 +10,21 @@
 
 大多数 OpenAI 兼容客户端（Cherry Studio、Open WebUI、Cursor 等）无法发送这些额外参数。
 
-本代理将这三个开关的 **2³ = 8 种排列组合**映射为 8 个“虚拟模型 ID”。客户端只需在 `model` 字段中选择对应的虚拟模型名，代理自动注入所需参数并透传其余所有参数（`stream`、`temperature`、`tools` 函数调用等）。
+本代理将这三个开关的 **2³ = 8 种排列组合**映射为“虚拟模型 ID”。
+针对每个启用的真实模型都会生成 8 个虚拟模型，因此在默认配置下（`flash + pro + omni` 全开）一共会暴露 **24 个虚拟模型**。
+客户端只需在 `model` 字段中选择对应的虚拟模型名，代理自动注入所需参数并透传其余所有参数（`stream`、`temperature`、`tools` 函数调用等）。
 
 ## 支持的虚拟模型
 
-> 这些模型 ID 是在本代理中暴露给客户端的“虚拟模型名”，最终都会路由到你配置的真实小米模型（默认是 `mimo-v2-flash`），只是自动打开不同能力。
+代理支持以下真实模型（接口格式一致）：
+
+- `mimo-v2-flash`
+- `mimo-v2-pro`
+- `mimo-v2-omni`
+
+默认会对以上三个模型全部开启虚拟映射；你也可以通过 `.env` 的 `MIMO_ENABLED_MODELS` 控制启用哪些真实模型。
+
+每个真实模型都会生成以下 8 种能力组合的虚拟模型（以 `mimo-v2-flash` 为例）：
 
 | 模型 ID                              | 思考  | 搜索  | JSON  |
 | ------------------------------------ | :---: | :---: | :---: |
@@ -26,6 +36,8 @@
 | `mimo-v2-flash-thinking-json`        |   ✅   |   ❌   |   ✅   |
 | `mimo-v2-flash-search-json`          |   ❌   |   ✅   |   ✅   |
 | `mimo-v2-flash-thinking-search-json` |   ✅   |   ✅   |   ✅   |
+
+对应地，`mimo-v2-pro` / `mimo-v2-omni` 也会生成同样后缀规则的 8 个虚拟模型。
 
 ## 快速开始
 
@@ -133,8 +145,8 @@ docker compose down
    - 如果你设置了 `PROXY_API_KEY`，这里填写同样的值
    - 如果未设置 `PROXY_API_KEY`，可随便填一个字符串（不会校验）
 4. 模型列表：
-   - 优先通过 `/v1/models` 自动获取
-   - 或手动填入上面列出的 8 个虚拟模型 ID
+   - 优先通过 `/v1/models` 自动获取（会返回当前启用模型生成的全部虚拟模型）
+   - 或手动填入符合规则的模型名（如 `mimo-v2-pro-thinking-search`）
 
 ### Python 示例（openai 官方 SDK）
 
@@ -231,7 +243,7 @@ MONITOR_STORAGE=memory
 | `PORT`                    |   ❌   | `3000`                       | 服务监听端口                                  |
 | `HOST`                    |   ❌   | `0.0.0.0`                    | 服务监听地址                                  |
 | `MIMO_BASE_URL`           |   ❌   | `https://api.xiaomimimo.com` | 上游 API 地址                                 |
-| `MIMO_MODEL`              |   ❌   | `mimo-v2-flash`              | 实际调用的小米模型 ID                         |
+| `MIMO_ENABLED_MODELS`     |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni` | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni`） |
 | `UPSTREAM_TIMEOUT_MS`     |   ❌   | `120000`                     | 上游请求超时（毫秒）                          |
 | `WEB_SEARCH_MAX_KEYWORD`  |   ❌   | `3`                          | 联网搜索最大关键词数量                        |
 | `WEB_SEARCH_FORCE_SEARCH` |   ❌   | `true`                       | 是否强制开启搜索能力                          |

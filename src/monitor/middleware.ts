@@ -144,7 +144,8 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       method,
       status_code: res.statusCode,
       model_requested: modelRequested,
-      model_upstream: config.upstream.model,
+      model_upstream:
+        (res.locals.upstreamModel as string | undefined) || config.upstream.defaultModel,
       stream,
       chunks,
       bytes_out: bytesOut,

@@ -1,5 +1,8 @@
 import "dotenv/config";
 
+const SUPPORTED_UPSTREAM_MODELS = ["mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni"] as const;
+type SupportedUpstreamModel = (typeof SUPPORTED_UPSTREAM_MODELS)[number];
+
 function warnConfig(message: string): void {
   console.warn(`[config] ${message}`);
 }
@@ -56,6 +59,49 @@ function warnInvalidIntEnv(name: string, defaultValue: number): void {
   }
 }
 
+function optionalModelListEnv(
+  name: string,
+  defaultValue: readonly SupportedUpstreamModel[]
+): SupportedUpstreamModel[] {
+  const raw = process.env[name];
+  if (!raw || raw.trim() === "") {
+    return [...defaultValue];
+  }
+
+  const requested = raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+  const enabled: SupportedUpstreamModel[] = [];
+
+  for (const model of requested) {
+    if (!SUPPORTED_UPSTREAM_MODELS.includes(model as SupportedUpstreamModel)) {
+      warnConfig(
+        `Invalid ${name} item: '${model}'. Supported values: ${SUPPORTED_UPSTREAM_MODELS.join(", ")}`
+      );
+      continue;
+    }
+
+    const typedModel = model as SupportedUpstreamModel;
+    if (!enabled.includes(typedModel)) {
+      enabled.push(typedModel);
+    }
+  }
+
+  if (enabled.length === 0) {
+    warnConfig(
+      `${name} has no valid model values, falling back to defaults: ${defaultValue.join(", ")}`
+    );
+    return [...defaultValue];
+  }
+
+  return enabled;
+}
+
+const defaultEnabledModels: readonly SupportedUpstreamModel[] = SUPPORTED_UPSTREAM_MODELS;
+const configuredEnabledModels = optionalModelListEnv("MIMO_ENABLED_MODELS", defaultEnabledModels);
+
 export const config = {
   /** 小米 MiMo API Key */
   mimoApiKey: requireEnv("MIMO_API_KEY"),
@@ -70,8 +116,10 @@ export const config = {
 
   upstream: {
     baseUrl: optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com"),
-    /** 所有虚拟模型映射到的真实模型 ID */
-    model: optionalEnv("MIMO_MODEL", "mimo-v2-flash"),
+    /** 启用的真实 MiMo 模型 */
+    enabledModels: configuredEnabledModels,
+    /** 默认模型（用于健康检查与监控回退值） */
+    defaultModel: configuredEnabledModels[0],
     timeout: optionalIntEnv("UPSTREAM_TIMEOUT_MS", 120_000),
   },
 
@@ -129,5 +177,6 @@ function validateMonitorConfig(): void {
 }
 
 validateMonitorConfig();
+
 
 

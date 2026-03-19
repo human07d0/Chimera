@@ -55,6 +55,7 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response, next: N
     logger.info("Incoming request", {
       requestId,
       model: clientBody.model,
+      upstreamModel: virtualModel.upstreamModel,
       features: virtualModel.features,
       stream: isStreaming,
       messageCount: clientBody.messages.length,
@@ -63,7 +64,12 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response, next: N
     // ------------------------------------------------------------------
     // 3. 构造上游请求体
     // ------------------------------------------------------------------
-    const upstreamBody = transformRequest(clientBody, virtualModel.features);
+    const upstreamBody = transformRequest(
+      clientBody,
+      virtualModel.features,
+      virtualModel.upstreamModel
+    );
+    res.locals.upstreamModel = virtualModel.upstreamModel;
 
     // ------------------------------------------------------------------
     // 4. 调用上游 API
@@ -134,6 +140,7 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response, next: N
       logger.info("Streaming request completed", {
         requestId,
         durationMs: Date.now() - startTime,
+        upstreamModel: virtualModel.upstreamModel,
         inputTokens,
         outputTokens,
         cacheHit,
@@ -157,6 +164,7 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response, next: N
       logger.info("Non-streaming request completed", {
         requestId,
         durationMs: Date.now() - startTime,
+        upstreamModel: virtualModel.upstreamModel,
         usage: responseBody["usage"] ?? null,
       });
     }
@@ -220,3 +228,4 @@ function sanitizeForLog(body: unknown): unknown {
     type: obj["type"],
   };
 }
+

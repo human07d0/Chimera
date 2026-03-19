@@ -21,7 +21,8 @@ function printStartupInfo(): void {
   logger.info("  MiMo Proxy starting up");
   logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   logger.info(`  Upstream : ${config.upstream.baseUrl}`);
-  logger.info(`  Model    : ${config.upstream.model}`);
+  logger.info(`  Enabled upstream models: ${config.upstream.enabledModels.join(", ")}`);
+  logger.info(`  Default upstream model: ${config.upstream.defaultModel}`);
   logger.info(`  Auth     : ${config.proxyApiKey ? "enabled" : "DISABLED (no PROXY_API_KEY)"}`);
   logger.info(`  Log level: ${config.logLevel}`);
   logger.info(
@@ -37,7 +38,7 @@ function printStartupInfo(): void {
     ]
       .filter(Boolean)
       .join(", ");
-    logger.info(`    ${m.id.padEnd(42)} [${flags || "base"}]`);
+    logger.info(`    ${m.id.padEnd(42)} -> ${m.upstreamModel.padEnd(12)} [${flags || "base"}]`);
   }
   logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
@@ -112,5 +113,6 @@ main().catch((err) => {
   console.error("Fatal startup error:", err);
   process.exit(1);
 });
+
 
 

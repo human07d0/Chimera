@@ -1,4 +1,3 @@
-import { config } from "../config";
 import { ModelFeatures, buildWebSearchTool } from "../models/presets";
 import { logger } from "../utils/logger";
 
@@ -34,13 +33,14 @@ interface ToolDefinition {
 // --------------------------------------------------------------------------
 export function transformRequest(
   clientBody: ChatCompletionRequest,
-  features: ModelFeatures
+  features: ModelFeatures,
+  upstreamModel: string
 ): Record<string, unknown> {
   // 1. 复制所有字段（透传），然后有针对性地覆盖
   const upstream: Record<string, unknown> = { ...clientBody };
 
   // 2. 替换为真实模型 ID
-  upstream["model"] = config.upstream.model;
+  upstream["model"] = upstreamModel;
 
   // 3. max_tokens 兼容：旧客户端用 max_tokens，小米用 max_completion_tokens
   if (!clientBody.max_completion_tokens && clientBody.max_tokens) {
@@ -103,3 +103,4 @@ export function transformResponse(
 ): Record<string, unknown> {
   return { ...responseBody, model: virtualModelId };
 }
+

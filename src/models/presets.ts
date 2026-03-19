@@ -20,66 +20,93 @@ export interface VirtualModel {
   id: string;
   /** 可读的描述 */
   description: string;
+  /** 实际映射的小米模型 ID */
+  upstreamModel: string;
   features: ModelFeatures;
   /** OpenAI /v1/models 接口中的 created 时间戳 */
   created: number;
 }
 
-// --------------------------------------------------------------------------
-// 8 种组合：thinking × search × json 的所有排列
-// --------------------------------------------------------------------------
-const BASE_TS = 1_700_000_000; // 固定时间戳，让模型列表看起来正常
+interface FeaturePreset {
+  suffix: string;
+  descriptionSuffix: string;
+  features: ModelFeatures;
+}
 
-export const VIRTUAL_MODELS: VirtualModel[] = [
+const FEATURE_PRESETS: FeaturePreset[] = [
   {
-    id: "mimo-v2-flash",
-    description: "MiMo v2 Flash — 基础对话",
+    suffix: "",
+    descriptionSuffix: "基础对话",
     features: { thinking: false, search: false, json: false },
-    created: BASE_TS,
   },
   {
-    id: "mimo-v2-flash-thinking",
-    description: "MiMo v2 Flash — 深度思考",
+    suffix: "-thinking",
+    descriptionSuffix: "深度思考",
     features: { thinking: true, search: false, json: false },
-    created: BASE_TS,
   },
   {
-    id: "mimo-v2-flash-search",
-    description: "MiMo v2 Flash — 联网搜索",
+    suffix: "-search",
+    descriptionSuffix: "联网搜索",
     features: { thinking: false, search: true, json: false },
-    created: BASE_TS,
   },
   {
-    id: "mimo-v2-flash-json",
-    description: "MiMo v2 Flash — 结构化输出（JSON）",
+    suffix: "-json",
+    descriptionSuffix: "结构化输出（JSON）",
     features: { thinking: false, search: false, json: true },
-    created: BASE_TS,
   },
   {
-    id: "mimo-v2-flash-thinking-search",
-    description: "MiMo v2 Flash — 深度思考 + 联网搜索",
+    suffix: "-thinking-search",
+    descriptionSuffix: "深度思考 + 联网搜索",
     features: { thinking: true, search: true, json: false },
-    created: BASE_TS,
   },
   {
-    id: "mimo-v2-flash-thinking-json",
-    description: "MiMo v2 Flash — 深度思考 + 结构化输出（JSON）",
+    suffix: "-thinking-json",
+    descriptionSuffix: "深度思考 + 结构化输出（JSON）",
     features: { thinking: true, search: false, json: true },
-    created: BASE_TS,
   },
   {
-    id: "mimo-v2-flash-search-json",
-    description: "MiMo v2 Flash — 联网搜索 + 结构化输出（JSON）",
+    suffix: "-search-json",
+    descriptionSuffix: "联网搜索 + 结构化输出（JSON）",
     features: { thinking: false, search: true, json: true },
-    created: BASE_TS,
   },
   {
-    id: "mimo-v2-flash-thinking-search-json",
-    description: "MiMo v2 Flash — 深度思考 + 联网搜索 + 结构化输出（JSON）",
+    suffix: "-thinking-search-json",
+    descriptionSuffix: "深度思考 + 联网搜索 + 结构化输出（JSON）",
     features: { thinking: true, search: true, json: true },
-    created: BASE_TS,
   },
 ];
+
+// 固定时间戳，让模型列表看起来正常
+const BASE_TS = 1_700_000_000;
+
+function displayNameForUpstreamModel(modelId: string): string {
+  if (modelId === "mimo-v2-flash") return "MiMo v2 Flash";
+  if (modelId === "mimo-v2-pro") return "MiMo v2 Pro";
+  if (modelId === "mimo-v2-omni") return "MiMo v2 Omni";
+  return modelId;
+}
+
+function buildVirtualModels(): VirtualModel[] {
+  const models: VirtualModel[] = [];
+
+  for (const upstreamModel of config.upstream.enabledModels) {
+    const modelDisplayName = displayNameForUpstreamModel(upstreamModel);
+
+    for (const preset of FEATURE_PRESETS) {
+      models.push({
+        id: `${upstreamModel}${preset.suffix}`,
+        description: `${modelDisplayName} — ${preset.descriptionSuffix}`,
+        upstreamModel,
+        features: preset.features,
+        created: BASE_TS,
+      });
+    }
+  }
+
+  return models;
+}
+
+export const VIRTUAL_MODELS: VirtualModel[] = buildVirtualModels();
 
 // 快速查找 Map
 export const VIRTUAL_MODEL_MAP = new Map<string, VirtualModel>(
@@ -106,3 +133,4 @@ export function buildWebSearchTool(): object {
     user_location: config.webSearch.userLocation,
   };
 }
+
