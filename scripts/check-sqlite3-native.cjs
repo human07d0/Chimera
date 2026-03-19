@@ -33,6 +33,6 @@ try {
   console.error("  2) Rebuild native module:");
   console.error("     pnpm rebuild sqlite3");
   console.error("  3) If still failing, reinstall dependencies:");
-  console.error("     rmdir /s /q node_modules && pnpm install");
+  console.error("     rm -rf node_modules && pnpm install");
   process.exit(1);
 }

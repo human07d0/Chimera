@@ -31,16 +31,14 @@
 
 ### 前置要求
 
-- Node.js >= 18（推荐 22）
-- npm / pnpm / yarn 任一包管理器
+- Node.js >= 24 LTS
+- pnpm 10.x（推荐）
 
 ### 安装
 
 ```bash
 cd mimo-proxy
-npm install
-# 或
-# pnpm install
+pnpm install
 ```
 
 > 使用 pnpm 时，本项目已在 `pnpm-workspace.yaml` 显式允许 `sqlite3` 原生构建（`allowBuilds.sqlite3=true`）。
@@ -52,11 +50,11 @@ npm install
 
 ```bash
 pkg update && pkg upgrade
-pkg install nodejs-lts python make clang sqlite
+pkg install nodejs-lts python python-setuptools make clang pkg-config sqlite
 
 cd mimo-proxy
-npm install
-npm run build
+pnpm install
+pnpm run build
 ```
 
 如需使用 sqlite 持久化，建议显式设置：
@@ -67,10 +65,10 @@ MONITOR_SQLITE_PATH=./data/monitor.db
 ```
 
 常见问题：
-- `sqlite3` 编译失败：先确认已安装 `python make clang`，再删除 `node_modules` 后重装。
+- `sqlite3` 编译失败：先确认已安装 `python python-setuptools make clang pkg-config`，再删除 `node_modules` 后重装。
 - 数据目录权限问题：确保当前目录可写，必要时手动创建 `./data`。
 - 若需快速恢复服务：临时切换 `MONITOR_STORAGE=memory`。
-- 可手动执行 `npm run check:native:sqlite3`（或 `pnpm run check:native:sqlite3`）检查 sqlite3 原生绑定是否就绪。
+- 可手动执行 `pnpm run check:native:sqlite3` 检查 sqlite3 原生绑定是否就绪。
 
 
 ### 配置
@@ -96,13 +94,13 @@ PROXY_API_KEY=your_optional_proxy_key
 ### 启动
 
 ```bash
-npm run build
-npm start
+pnpm run build
+pnpm start
 # 或开发环境：
-# npm run dev
+# pnpm run dev
 ```
 
-当 `MONITOR_STORAGE=sqlite` 时，`npm start` 会先执行 `check:native:sqlite3` 自检，若缺少 sqlite3 原生绑定会直接报错并给出修复指引。
+当 `MONITOR_STORAGE=sqlite` 时，`pnpm start` 会先执行 `check:native:sqlite3` 自检，若缺少 sqlite3 原生绑定会直接报错并给出修复指引。
 
 服务默认监听：`http://0.0.0.0:3000`。
 
@@ -206,6 +204,23 @@ MONITOR_STORAGE=memory
 - 当前监控持久化实现为 `sqlite3 + sqlite`（异步驱动）。
 - 使用 sqlite 模式时建议挂载数据目录（例如 `./data:/app/data`），避免容器重建导致监控数据丢失。
 - 若容器内原生模块安装失败，可优先检查镜像架构与 Node 版本一致性。
+
+## 已验证环境
+
+以下组合已通过实际测试：
+
+| 项目 | 版本 |
+| ---- | ---- |
+| Node.js | 24 LTS |
+| pnpm | 10.32.x |
+| Express | 5.2.x |
+| sqlite3 | 6.0.x |
+| dotenv | 17.x |
+| 平台 | Windows / Termux Android arm64 |
+| Python | 3.13 + setuptools |
+| 构建工具 | clang / make / pkg-config |
+
+> **注意**：首次安装时 `sqlite3` 原生模块需要本地编译，耗时较长属于正常现象。
 
 ## 配置参考
 
