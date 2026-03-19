@@ -41,7 +41,7 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response, next: N
     if (!virtualModel) {
       sendError(
         res,
-        400,
+        404,
         "invalid_request_error",
         `The model '${clientBody.model}' does not exist. ` +
           `Available models can be retrieved via GET /v1/models.`,
