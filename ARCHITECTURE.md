@@ -2,6 +2,15 @@
 
 OpenAI-compatible facade for Xiaomi MiMo：协议转换、SSE 透传、虚拟模型预设、内置监控（支持内存态/SQLite 持久化）。
 
+## 技术栈
+
+- **Runtime**: Node.js 24 LTS
+- **Language**: TypeScript 5
+- **HTTP**: Express 5 + CORS
+- **Config**: dotenv
+- **Storage**: memory / SQLite（`sqlite3 + sqlite`）
+- **Dev/Build**: ts-node、nodemon、tsc、pnpm 10
+
 ## 架构图
 
 ```mermaid
@@ -62,7 +71,7 @@ src/
 - `input_tokens` / `output_tokens` / `cached_prompt_tokens` / `cost`
 - `error_type`
 
-## Monitor 数据流（改造后）
+## Monitor 数据流
 
 1. `monitorMiddleware` 仅采集元信息并调用 `storageWorker.append(event)`。
 2. `storageWorker` 维护异步队列：
