@@ -109,10 +109,12 @@ export const config = {
   /** 代理服务自身鉴权 Key，为空则不启用 */
   proxyApiKey: process.env["PROXY_API_KEY"] || "",
 
-  /** Ops 运维界面密码，为空则不启用运维界面 */
+      /** Ops 运维界面密码，为空则不启用运维界面 */
   opsPassword: process.env["OPS_PASSWORD"] || "",
 
   server: {
+
+
     port: optionalIntEnv("PORT", 3000),
     host: optionalEnv("HOST", "0.0.0.0"),
   },
@@ -151,12 +153,14 @@ export const config = {
 };
 
 function validateMonitorConfig(): void {
-  warnInvalidIntEnv("MONITOR_RETENTION_DAYS", 30);
+      warnInvalidIntEnv("MONITOR_RETENTION_DAYS", 30);
   warnInvalidIntEnv("MONITOR_FLUSH_INTERVAL_MS", 200);
   warnInvalidIntEnv("MONITOR_FLUSH_BATCH_SIZE", 100);
   warnInvalidIntEnv("MONITOR_QUEUE_MAX_SIZE", 10_000);
 
   const { retentionDays, flushIntervalMs, flushBatchSize, queueMaxSize } = config.monitor;
+
+
 
   if (retentionDays < 1) {
     warnConfig(`Invalid MONITOR_RETENTION_DAYS: ${retentionDays}, falling back to 30`);
@@ -173,11 +177,13 @@ function validateMonitorConfig(): void {
     config.monitor.flushBatchSize = 100;
   }
 
-  if (queueMaxSize < 1) {
+      if (queueMaxSize < 1) {
     warnConfig(`Invalid MONITOR_QUEUE_MAX_SIZE: ${queueMaxSize}, falling back to 10000`);
     config.monitor.queueMaxSize = 10_000;
   }
 }
+
+
 
 validateMonitorConfig();
 

@@ -1,8 +1,9 @@
 import express, { NextFunction, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
+
 import { monitorRouter, monitorMiddleware } from "./monitor";
-import { opsRouter } from "./ops";
+import { opsRouter } from "./ops/index";
 import { getStorage } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { modelsRouter } from "./routes/models";
@@ -75,10 +76,31 @@ export function createApp(): express.Application {
   // --------------------------------------------------------------------------
   app.use("/monitor", monitorRouter);
 
+            // --------------------------------------------------------------------------
+  // Ops 运维界面（同进程托管）
+  // 说明：本项目默认前后端不分离，统一由当前服务进程在 PORT 上提供
+  // 顺序：静态资源 -> Ops API -> SPA fallback
   // --------------------------------------------------------------------------
-  // Ops 运维路由（opsAuthMiddleware 内部鉴权）
-  // --------------------------------------------------------------------------
-  app.use("/ops", opsRouter);
+  const opsPublicDir = resolveStaticDir("ops");
+
+  if (opsPublicDir) {
+    // 先挂静态资源，让 /ops/*.js /ops/*.css 等文件直接命中
+    app.use("/ops", express.static(opsPublicDir));
+
+    // 再挂 Ops API 路由，确保 /ops/info 等接口可访问
+    app.use("/ops", opsRouter);
+
+    // 最后做 SPA fallback：仅当前面都未匹配时返回 index.html
+    app.use("/ops", (_req: Request, res: Response) => {
+      res.sendFile(path.join(opsPublicDir, "index.html"));
+    });
+  }
+
+
+
+
+
+
 
   // --------------------------------------------------------------------------
   // 鉴权中间件（作用于 /v1/* 路由）
@@ -178,12 +200,19 @@ export function stopCleanupTask(): void {
 
 function resolveStaticDir(dirName: string): string | null {
   const candidates = [
+    // Production: dist/ops (for Vite build output)
     path.join(__dirname, dirName),
+    // Development: src/ops/frontend (Vite root for dev server)
+    path.join(__dirname, dirName, "frontend"),
+    path.join(process.cwd(), "src", dirName, "frontend"),
+    // Fallback: process.cwd()
     path.join(process.cwd(), dirName),
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    // Check for index.html existence (not just directory)
+    const indexPath = path.join(candidate, "index.html");
+    if (fs.existsSync(indexPath)) {
       return candidate;
     }
   }

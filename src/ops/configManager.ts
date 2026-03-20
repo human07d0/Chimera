@@ -15,6 +15,7 @@ export class OpsConfigManager {
    */
   static readonly WRITABLE_KEYS: ReadonlySet<string> = new Set([
     "LOG_LEVEL",
+    "WEB_SEARCH_MAX_KEYWORD",
     "WEB_SEARCH_FORCE_SEARCH",
     "WEB_SEARCH_LIMIT",
     "WEB_SEARCH_COUNTRY",
@@ -23,6 +24,18 @@ export class OpsConfigManager {
     "MONITOR_FLUSH_INTERVAL_MS",
     "MONITOR_RETENTION_DAYS",
   ]);
+
+  private static readonly KEY_ALIASES: Readonly<Record<string, string>> = {
+    logLevel: "LOG_LEVEL",
+    webSearchMaxKeyword: "WEB_SEARCH_MAX_KEYWORD",
+    webSearchForceSearch: "WEB_SEARCH_FORCE_SEARCH",
+    webSearchLimit: "WEB_SEARCH_LIMIT",
+    webSearchCountry: "WEB_SEARCH_COUNTRY",
+    webSearchRegion: "WEB_SEARCH_REGION",
+    webSearchCity: "WEB_SEARCH_CITY",
+    monitorFlushIntervalMs: "MONITOR_FLUSH_INTERVAL_MS",
+    monitorRetentionDays: "MONITOR_RETENTION_DAYS",
+  };
 
   /**
    * 敏感配置项（只读，不写入 .env）
@@ -42,17 +55,16 @@ export class OpsConfigManager {
       logLevel: config.logLevel,
 
       // Web Search
-      webSearch: {
-        forceSearch: config.webSearch.forceSearch,
-        limit: config.webSearch.limit,
-        userLocation: { ...config.webSearch.userLocation },
-      },
+      webSearchMaxKeyword: config.webSearch.maxKeyword,
+      webSearchForceSearch: config.webSearch.forceSearch,
+      webSearchLimit: config.webSearch.limit,
+      webSearchCountry: config.webSearch.userLocation.country,
+      webSearchRegion: config.webSearch.userLocation.region,
+      webSearchCity: config.webSearch.userLocation.city,
 
       // Monitor
-      monitor: {
-        retentionDays: config.monitor.retentionDays,
-        flushIntervalMs: config.monitor.flushIntervalMs,
-      },
+      monitorRetentionDays: config.monitor.retentionDays,
+      monitorFlushIntervalMs: config.monitor.flushIntervalMs,
 
       // 敏感字段（仅显示是否已配置，不暴露实际值）
       sensitive: {
@@ -72,10 +84,10 @@ export class OpsConfigManager {
     const validatedUpdates: Record<string, string> = {};
 
     for (const [key, value] of Object.entries(updates)) {
-      const upperKey = key.toUpperCase();
+      const normalizedKey = this.normalizeUpdateKey(key);
 
       // 检查是否在白名单中
-      if (!this.WRITABLE_KEYS.has(upperKey)) {
+      if (!normalizedKey || !this.WRITABLE_KEYS.has(normalizedKey)) {
         return {
           success: false,
           error: `Configuration key '${key}' is not allowed to be modified at runtime`,
@@ -83,11 +95,11 @@ export class OpsConfigManager {
       }
 
       // 验证并转换值
-      const validated = this.validateAndConvert(upperKey, value);
+      const validated = this.validateAndConvert(normalizedKey, value);
       if (validated.error) {
         return { success: false, error: validated.error };
       }
-      validatedUpdates[upperKey] = validated.value!;
+      validatedUpdates[normalizedKey] = validated.value!;
     }
 
     // 应用到运行时配置
@@ -117,6 +129,12 @@ export class OpsConfigManager {
           return { error: "LOG_LEVEL must be one of: error, warn, info, debug" };
         }
         return { value };
+
+      case "WEB_SEARCH_MAX_KEYWORD":
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
+          return { error: "WEB_SEARCH_MAX_KEYWORD must be a positive number" };
+        }
+        return { value: String(Math.trunc(value)) };
 
       case "WEB_SEARCH_FORCE_SEARCH":
         if (typeof value !== "boolean") {
@@ -155,6 +173,14 @@ export class OpsConfigManager {
     }
   }
 
+  private static normalizeUpdateKey(key: string): string | null {
+    if (this.WRITABLE_KEYS.has(key)) {
+      return key;
+    }
+
+    return this.KEY_ALIASES[key] || null;
+  }
+
   /**
    * 应用运行时配置更新
    */
@@ -163,6 +189,10 @@ export class OpsConfigManager {
       switch (key) {
         case "LOG_LEVEL":
           (config as Record<string, unknown>).logLevel = value as typeof config.logLevel;
+          break;
+
+        case "WEB_SEARCH_MAX_KEYWORD":
+          config.webSearch.maxKeyword = parseInt(value, 10);
           break;
 
         case "WEB_SEARCH_FORCE_SEARCH":

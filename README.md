@@ -54,6 +54,23 @@ cd mimo-proxy
 pnpm install
 ```
 
+### 构建 Ops 运维界面前端（可选）
+
+运维界面前端使用 Vite 构建，构建产物由 Express 在同一进程托管（单体部署），无需独立前端服务器。
+
+```bash
+# 完整构建（含前端）
+pnpm run build
+```
+
+如仅需修改前端源码后重新构建：
+
+```bash
+pnpm run build:ops
+```
+
+前端源码位于 `src/ops/frontend/`，构建产物输出到 `dist/ops/`。
+
 > 使用 pnpm 时，本项目已在 `pnpm-workspace.yaml` 显式允许 `sqlite3` 原生构建（`allowBuilds.sqlite3=true`）。
 
 
@@ -220,7 +237,7 @@ MONITOR_STORAGE=memory
 
 ## Ops 运维界面
 
-运维界面提供运行时配置管理和服务控制功能。
+运维界面提供运行时配置管理和服务控制功能，与主服务同一进程托管（单体部署），无需独立服务器。
 
 ### 启用运维界面
 
@@ -230,7 +247,7 @@ MONITOR_STORAGE=memory
 OPS_PASSWORD=your_ops_password_here
 ```
 
-重启服务后生效。
+重启服务后生效，访问地址：`http://localhost:3000/ops`。
 
 ### API 示例
 
@@ -263,6 +280,7 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 | 配置项 | 类型 | 说明 |
 |--------|------|------|
 | `logLevel` | string | 日志级别：`error` / `warn` / `info` / `debug` |
+| `webSearchMaxKeyword` | number | 联网搜索最大关键词数量 |
 | `webSearchForceSearch` | boolean | 是否强制开启联网搜索 |
 | `webSearchLimit` | number | 每次搜索返回的网页数量 |
 | `webSearchCountry` | string | 搜索地理位置 - 国家 |
@@ -299,7 +317,7 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 | Python | 3.13 + setuptools |
 | 构建工具 | clang / make / pkg-config |
 
-> **注意**：首次安装时 `sqlite3` 原生模块需要本地编译，耗时较长属于正常现象。
+> **注意**：首次安装时 `sqlite3` 原生模块需要本地编译。
 
 ## 配置参考
 
@@ -325,7 +343,7 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 | `MONITOR_FLUSH_BATCH_SIZE` |  ❌   | `100`                       | 异步写入队列单次批量大小                              |
 | `MONITOR_QUEUE_MAX_SIZE`  |   ❌   | `10000`                     | 异步队列最大长度，超限后丢弃并记录计数               |
 | `LOG_LEVEL`               |   ❌   | `info`                      | 日志级别：`error` / `warn` / `info` / `debug` |
-| `OPS_PASSWORD`            |   ❌   | 空                          | Ops 运维界面密码，留空则不启用运维界面               |
+| `OPS_PASSWORD`            |   ❌   | 空                          | Ops 运维界面密码，留空则不启用（单体部署，无需独立前端服务器） |
 
 ## 接口列表
 

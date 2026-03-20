@@ -8,7 +8,18 @@ import { config } from "../config";
 
 export const opsRouter: Router = Router();
 
-// Ops 路由组统一鉴权
+// 获取服务基本信息（公开，无需鉴权）- 必须在鉴权中间件之前定义
+opsRouter.get("/info", (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    data: {
+      enabled: !!config.opsPassword,
+      version: process.env.npm_package_version || "unknown",
+    },
+  });
+});
+
+// Ops 路由组统一鉴权（此后的路由需要鉴权）
 opsRouter.use(opsAuthMiddleware);
 
 // 获取当前配置（只读）
@@ -59,6 +70,12 @@ opsRouter.get("/config/schema", (_req: Request, res: Response) => {
       type: "string",
       enum: ["error", "warn", "info", "debug"],
       description: "日志级别",
+    },
+    webSearchMaxKeyword: {
+      key: "WEB_SEARCH_MAX_KEYWORD",
+      type: "number",
+      min: 1,
+      description: "联网搜索最大关键词数量",
     },
     webSearchForceSearch: {
       key: "WEB_SEARCH_FORCE_SEARCH",
@@ -158,15 +175,4 @@ opsRouter.post("/restart", (req: Request, res: Response) => {
   setTimeout(() => {
     requestRestart();
   }, 100);
-});
-
-// 获取服务基本信息（公开，无需鉴权）
-opsRouter.get("/info", (_req: Request, res: Response) => {
-  res.json({
-    success: true,
-    data: {
-      enabled: !!config.opsPassword,
-      version: process.env.npm_package_version || "unknown",
-    },
-  });
 });
