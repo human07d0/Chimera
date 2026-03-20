@@ -1,8 +1,9 @@
 import { config } from "./config";
 import { VIRTUAL_MODELS } from "./models/presets";
 import { getStorage } from "./monitor/storage/factory";
-import { storageWorker } from "./monitor/storage/worker";
-import { createApp, stopCleanupTask } from "./server";
+import { createApp } from "./server";
+import { startWatcher } from "./ops";
+import { gracefulShutdown, setServer } from "./shutdownManager";
 import { logger } from "./utils/logger";
 
 // 启动前校验
@@ -49,63 +50,33 @@ async function main(): Promise<void> {
   // 先初始化存储，确保数据库连接准备好
   await getStorage();
 
+  // Ops 运维界面已启用时启动 watcher
+  if (config.opsPassword) {
+    startWatcher();
+  }
+
   const app = createApp();
   const server = app.listen(config.server.port, config.server.host, () => {
     printStartupInfo();
     logger.info(`  Listening on http://${config.server.host}:${config.server.port}`);
+    if (config.opsPassword) {
+      logger.info(`  Ops interface: enabled (auth required)`);
+    } else {
+      logger.info(`  Ops interface: DISABLED (no OPS_PASSWORD)`);
+    }
     logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   });
 
-  let isShuttingDown = false;
+  // 注册服务器实例供 shutdownManager 使用
+  setServer(server);
 
-  // 优雅关闭
-  const shutdown = async (signal: string): Promise<void> => {
-    if (isShuttingDown) {
-      logger.info(`Received ${signal} during shutdown, ignoring duplicate signal`);
-      return;
-    }
-
-    isShuttingDown = true;
-    logger.info(`Received ${signal}, shutting down gracefully...`);
-
-    const forceExitTimer = setTimeout(() => {
-      logger.error("Forced exit after timeout");
-      process.exit(1);
-    }, 10_000);
-
-    try {
-      await new Promise<void>((resolve, reject) => {
-        server.close((err?: Error) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          resolve();
-        });
-      });
-
-      logger.info("Server closed.");
-      stopCleanupTask();
-      await storageWorker.shutdown();
-
-      clearTimeout(forceExitTimer);
-      process.exit(0);
-    } catch (error) {
-      logger.error("Graceful shutdown failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-      stopCleanupTask();
-      clearTimeout(forceExitTimer);
-      process.exit(1);
-    }
-  };
-
+  // 注册信号处理
   process.on("SIGTERM", () => {
-    void shutdown("SIGTERM");
+    void gracefulShutdown("SIGTERM");
   });
 
   process.on("SIGINT", () => {
-    void shutdown("SIGINT");
+    void gracefulShutdown("SIGINT");
   });
 }
 

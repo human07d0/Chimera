@@ -12,7 +12,8 @@
 
 本代理将这三个开关的 **2³ = 8 种排列组合**映射为“虚拟模型 ID”。
 针对每个启用的真实模型都会生成 8 个虚拟模型，因此在默认配置下（`flash + pro + omni` 全开）一共会暴露 **24 个虚拟模型**。
-客户端只需在 `model` 字段中选择对应的虚拟模型名，代理自动注入所需参数并透传其余所有参数（`stream`、`temperature`、`tools` 函数调用等）。
+客户端只需在 `model` 字段中选择对应的虚拟模型名，代理自动注入所需参数并透传其余所有参数（`stream`、`temperature`、`tools` 函数调用等）。  
+软件设计考虑的使用场景为局域网个人使用。
 
 ## 支持的虚拟模型
 
@@ -217,6 +218,72 @@ MONITOR_STORAGE=memory
 - 使用 sqlite 模式时建议挂载数据目录（例如 `./data:/app/data`），避免容器重建导致监控数据丢失。
 - 若容器内原生模块安装失败，可优先检查镜像架构与 Node 版本一致性。
 
+## Ops 运维界面
+
+运维界面提供运行时配置管理和服务控制功能。
+
+### 启用运维界面
+
+在 `.env` 中设置运维密码：
+
+```dotenv
+OPS_PASSWORD=your_ops_password_here
+```
+
+重启服务后生效。
+
+### API 示例
+
+```bash
+# 获取服务状态
+curl -H "Authorization: Bearer your_ops_password" http://localhost:3000/ops/status
+
+# 获取当前配置
+curl -H "Authorization: Bearer your_ops_password" http://localhost:3000/ops/config
+
+# 获取可修改的配置项白名单
+curl -H "Authorization: Bearer your_ops_password" http://localhost:3000/ops/config/schema
+
+# 更新配置（如修改日志级别）
+curl -X POST \
+  -H "Authorization: Bearer your_ops_password" \
+  -H "Content-Type: application/json" \
+  -d '{"logLevel": "debug"}' \
+  http://localhost:3000/ops/config
+
+# 优雅停机
+curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/ops/shutdown
+
+# 重启服务
+curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/ops/restart
+```
+
+### 支持的运行时配置项
+
+| 配置项 | 类型 | 说明 |
+|--------|------|------|
+| `logLevel` | string | 日志级别：`error` / `warn` / `info` / `debug` |
+| `webSearchForceSearch` | boolean | 是否强制开启联网搜索 |
+| `webSearchLimit` | number | 每次搜索返回的网页数量 |
+| `webSearchCountry` | string | 搜索地理位置 - 国家 |
+| `webSearchRegion` | string | 搜索地理位置 - 省份 |
+| `webSearchCity` | string | 搜索地理位置 - 城市 |
+| `monitorFlushIntervalMs` | number | 监控刷新间隔（毫秒） |
+| `monitorRetentionDays` | number | 监控数据保留天数 |
+
+### 重启说明
+
+- 重启时会启动 watcher 进程监控主进程
+- 收到重启请求后，watcher 会启动新的主进程，然后当前进程退出
+- 若 watcher 未正常启动，重启会使用 fork 方式执行 `pnpm start`
+- 运行时配置修改后会同步写入 `.env`，重启后生效
+
+### 安全说明
+
+- Ops 界面使用独立的 `OPS_PASSWORD`，与 `PROXY_API_KEY` 分离
+- 建议使用强密码，避免泄露
+- 未配置 `OPS_PASSWORD` 时，运维界面完全禁用
+
 ## 已验证环境
 
 以下组合已通过实际测试：
@@ -258,6 +325,7 @@ MONITOR_STORAGE=memory
 | `MONITOR_FLUSH_BATCH_SIZE` |  ❌   | `100`                       | 异步写入队列单次批量大小                              |
 | `MONITOR_QUEUE_MAX_SIZE`  |   ❌   | `10000`                     | 异步队列最大长度，超限后丢弃并记录计数               |
 | `LOG_LEVEL`               |   ❌   | `info`                      | 日志级别：`error` / `warn` / `info` / `debug` |
+| `OPS_PASSWORD`            |   ❌   | 空                          | Ops 运维界面密码，留空则不启用运维界面               |
 
 ## 接口列表
 
@@ -271,3 +339,10 @@ MONITOR_STORAGE=memory
 | `GET`  | `/monitor/stats`       | 监控统计数据（JSON）                |
 | `GET`  | `/monitor/calls`       | 监控明细数据（JSON）                |
 | `POST` | `/monitor/prune`       | 手动清理历史数据（默认仅 dev 或鉴权） |
+| `GET`  | `/ops/info`            | Ops 界面基本信息（是否启用）          |
+| `GET`  | `/ops/status`          | 服务运行状态（需 Ops 鉴权）          |
+| `GET`  | `/ops/config`          | 获取当前配置（需 Ops 鉴权）          |
+| `GET`  | `/ops/config/schema`   | 获取可修改配置项白名单（需 Ops 鉴权） |
+| `POST` | `/ops/config`          | 更新运行时配置（需 Ops 鉴权）        |
+| `POST` | `/ops/shutdown`        | 优雅停机（需 Ops 鉴权）              |
+| `POST` | `/ops/restart`         | 重启服务（需 Ops 鉴权）              |

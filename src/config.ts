@@ -109,6 +109,9 @@ export const config = {
   /** 代理服务自身鉴权 Key，为空则不启用 */
   proxyApiKey: process.env["PROXY_API_KEY"] || "",
 
+  /** Ops 运维界面密码，为空则不启用运维界面 */
+  opsPassword: process.env["OPS_PASSWORD"] || "",
+
   server: {
     port: optionalIntEnv("PORT", 3000),
     host: optionalEnv("HOST", "0.0.0.0"),

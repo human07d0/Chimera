@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
 import { monitorRouter, monitorMiddleware } from "./monitor";
+import { opsRouter } from "./ops";
 import { getStorage } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { modelsRouter } from "./routes/models";
@@ -73,6 +74,11 @@ export function createApp(): express.Application {
   // 监控路由（不需要鉴权）
   // --------------------------------------------------------------------------
   app.use("/monitor", monitorRouter);
+
+  // --------------------------------------------------------------------------
+  // Ops 运维路由（opsAuthMiddleware 内部鉴权）
+  // --------------------------------------------------------------------------
+  app.use("/ops", opsRouter);
 
   // --------------------------------------------------------------------------
   // 鉴权中间件（作用于 /v1/* 路由）

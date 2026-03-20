@@ -7,6 +7,10 @@ const tasks = [
     source: path.join(rootDir, "public"),
     target: path.join(rootDir, "dist", "public"),
   },
+  {
+    source: path.join(rootDir, "src", "ops", "watcher-child.js"),
+    target: path.join(rootDir, "dist", "ops", "watcher-child.js"),
+  },
 ];
 
 function removePathSync(targetPath) {
@@ -40,5 +44,3 @@ for (const { source, target } of tasks) {
     `[copy-static] Copied ${path.relative(rootDir, source)} -> ${path.relative(rootDir, target)}`
   );
 }
-
-
