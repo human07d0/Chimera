@@ -6,6 +6,7 @@ import { monitorRouter, monitorMiddleware } from "./monitor";
 import { opsRouter } from "./ops/index";
 import { getStorage } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
+import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
 import { config } from "./config";
 import { logger } from "./utils/logger";
@@ -20,10 +21,13 @@ export function createApp(): express.Application {
   // --------------------------------------------------------------------------
   app.use((_req: Request, res: Response, next: NextFunction) => {
     res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    res.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, OPTIONS, PUT, DELETE",
+    );
     res.header(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, api-key, x-requested-with"
+      "Content-Type, Authorization, api-key, x-api-key, x-requested-with",
     );
 
     // 处理预检请求 (OPTIONS)
@@ -76,7 +80,7 @@ export function createApp(): express.Application {
   // --------------------------------------------------------------------------
   app.use("/monitor", monitorRouter);
 
-            // --------------------------------------------------------------------------
+  // --------------------------------------------------------------------------
   // Ops 运维界面（同进程托管）
   // 说明：本项目默认前后端不分离，统一由当前服务进程在 PORT 上提供
   // 顺序：静态资源 -> Ops API -> SPA fallback
@@ -96,23 +100,20 @@ export function createApp(): express.Application {
     });
   }
 
-
-
-
-
-
-
   // --------------------------------------------------------------------------
-  // 鉴权中间件（作用于 /v1/* 路由）
+  // 鉴权中间件（作用于 /v1/* 与 /anthropic/v1/* 路由）
   // --------------------------------------------------------------------------
   app.use("/v1", authMiddleware);
+  app.use("/anthropic/v1", authMiddleware);
 
   // --------------------------------------------------------------------------
   // API 路由（添加监控中间件）
   // --------------------------------------------------------------------------
   app.use("/v1", monitorMiddleware);
+  app.use("/anthropic/v1", monitorMiddleware);
   app.use("/v1", modelsRouter);
   app.use("/v1", chatRouter);
+  app.use("/anthropic/v1", anthropicRouter);
 
   // --------------------------------------------------------------------------
   // 404 处理
@@ -237,7 +238,7 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
     res.status(401).json({
       error: {
         message:
-          "Missing API key. Provide it via 'Authorization: Bearer <key>' or 'api-key: <key>' header.",
+          "Missing API key. Provide it via 'Authorization: Bearer <key>', 'api-key: <key>' or 'x-api-key: <key>' header.",
         type: "authentication_error",
         code: "missing_api_key",
       },
@@ -259,7 +260,7 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-/** 从请求头中提取 API Key，支持两种方式 */
+/** 从请求头中提取 API Key，支持三种方式 */
 function extractApiKey(req: Request): string | null {
   // 方式一：Authorization: Bearer <key>
   const authHeader = req.headers["authorization"];
@@ -273,8 +274,11 @@ function extractApiKey(req: Request): string | null {
     return apiKeyHeader.trim();
   }
 
+  // 方式三：x-api-key: <key>
+  const xApiKeyHeader = req.headers["x-api-key"];
+  if (typeof xApiKeyHeader === "string" && xApiKeyHeader.trim()) {
+    return xApiKeyHeader.trim();
+  }
+
   return null;
 }
-
-
-

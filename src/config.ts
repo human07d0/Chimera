@@ -121,6 +121,8 @@ export const config = {
 
   upstream: {
     baseUrl: optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com"),
+    /** Anthropic API Base URL */
+    anthropicBaseUrl: optionalEnv("ANTHROPIC_BASE_URL", "https://api.xiaomimimo.com/anthropic/v1"),
     /** 启用的真实 MiMo 模型 */
     enabledModels: configuredEnabledModels,
     /** 默认模型（用于健康检查与监控回退值） */

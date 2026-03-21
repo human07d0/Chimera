@@ -37,7 +37,8 @@ function extractUsage(payload: unknown): {
 }
 
 export function monitorMiddleware(req: Request, res: Response, next: NextFunction): void {
-  if (req.path !== "/chat/completions") {
+  const monitoredPaths = new Set(["/chat/completions", "/messages"]);
+  if (!monitoredPaths.has(req.path)) {
     next();
     return;
   }

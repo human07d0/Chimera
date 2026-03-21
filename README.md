@@ -155,6 +155,84 @@ docker compose down
 
 ## 在客户端中使用
 
+### Anthropic API 客户端（Claude Desktop / Cursor 等）
+
+本代理支持 Anthropic Messages API，可通过 `/anthropic/v1/messages` 接口访问：
+
+| 配置项   | 值                                   |
+| -------- | ------------------------------------ |
+| Base URL | `http://localhost:3000/anthropic/v1` |
+| API Key  | 你的 `PROXY_API_KEY`（或任意值）     |
+
+支持的模型与 OpenAI 接口相同（如 `mimo-v2-flash`、`mimo-v2-flash-thinking` 等）。
+
+#### cURL 示例
+
+```bash
+# 非流式
+curl -X POST http://localhost:3000/anthropic/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your_proxy_key" \
+  -d '{
+    "model": "mimo-v2-flash-thinking",
+    "messages": [{"role": "user", "content": "1+1=?"}],
+    "max_tokens": 100
+  }'
+
+# 流式
+curl -N -X POST http://localhost:3000/anthropic/v1/messages \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: your_proxy_key" \
+  -d '{
+    "model": "mimo-v2-flash-thinking",
+    "messages": [{"role": "user", "content": "讲个笑话"}],
+    "max_tokens": 200,
+    "stream": true
+  }'
+```
+
+#### Python 示例（使用 anthropic SDK）
+
+```python
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="http://localhost:3000/anthropic/v1",
+    api_key="your_proxy_key"  # 若未配置 PROXY_API_KEY，随便填
+)
+
+# 使用：深度思考
+try:
+    message = client.messages.create(
+        model="mimo-v2-flash-thinking",
+        max_tokens=200,
+        messages=[{"role": "user", "content": "解释量子纠缠"}]
+    )
+    print(message.content[0].text)
+except Exception as e:
+    print(f"Error: {e}")
+```
+
+#### Anthropic 模型列表
+
+```bash
+curl http://localhost:3000/anthropic/v1/models \
+  -H "x-api-key: your_proxy_key"
+```
+
+返回示例：
+```json
+{
+  "models": [
+    {
+      "name": "mimo-v2-flash-thinking",
+      "input_token_limit": 200000,
+      "thinking": { "type": "enabled" }
+    }
+  ]
+}
+```
+
 ### OpenAI 兼容客户端（Cherry Studio / Open WebUI / Cursor 等）
 
 1. 新建一个 OpenAI 兼容的 Provider / 连接
@@ -189,7 +267,7 @@ print(response.choices[0].message.content)
 
 ## 监控与费用统计（memory / sqlite）
 
-代理内置监控页面，默认采集 `/v1/chat/completions` 的**请求级元信息**（不落盘 prompt/response 原文）：
+代理内置监控页面，默认采集 `/v1/chat/completions` 与 `/anthropic/v1/messages` 的**请求级元信息**（不落盘 prompt/response 原文）：
 
 - `request_id`
 - `ts_start` / `ts_end` / `latency_ms`
@@ -277,17 +355,17 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 
 ### 支持的运行时配置项
 
-| 配置项 | 类型 | 说明 |
-|--------|------|------|
-| `logLevel` | string | 日志级别：`error` / `warn` / `info` / `debug` |
-| `webSearchMaxKeyword` | number | 联网搜索最大关键词数量 |
-| `webSearchForceSearch` | boolean | 是否强制开启联网搜索 |
-| `webSearchLimit` | number | 每次搜索返回的网页数量 |
-| `webSearchCountry` | string | 搜索地理位置 - 国家 |
-| `webSearchRegion` | string | 搜索地理位置 - 省份 |
-| `webSearchCity` | string | 搜索地理位置 - 城市 |
-| `monitorFlushIntervalMs` | number | 监控刷新间隔（毫秒） |
-| `monitorRetentionDays` | number | 监控数据保留天数 |
+| 配置项                   | 类型    | 说明                                          |
+| ------------------------ | ------- | --------------------------------------------- |
+| `logLevel`               | string  | 日志级别：`error` / `warn` / `info` / `debug` |
+| `webSearchMaxKeyword`    | number  | 联网搜索最大关键词数量                        |
+| `webSearchForceSearch`   | boolean | 是否强制开启联网搜索                          |
+| `webSearchLimit`         | number  | 每次搜索返回的网页数量                        |
+| `webSearchCountry`       | string  | 搜索地理位置 - 国家                           |
+| `webSearchRegion`        | string  | 搜索地理位置 - 省份                           |
+| `webSearchCity`          | string  | 搜索地理位置 - 城市                           |
+| `monitorFlushIntervalMs` | number  | 监控刷新间隔（毫秒）                          |
+| `monitorRetentionDays`   | number  | 监控数据保留天数                              |
 
 ### 重启说明
 
@@ -306,61 +384,63 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 
 以下组合已通过实际测试：
 
-| 项目 | 版本 |
-| ---- | ---- |
-| Node.js | 24 LTS |
-| pnpm | 10.32.x |
-| Express | 5.2.x |
-| sqlite3 | 6.0.x |
-| dotenv | 17.x |
-| 平台 | Windows / Termux Android arm64 |
-| Python | 3.13 + setuptools |
-| 构建工具 | clang / make / pkg-config |
+| 项目     | 版本                           |
+| -------- | ------------------------------ |
+| Node.js  | 24 LTS                         |
+| pnpm     | 10.32.x                        |
+| Express  | 5.2.x                          |
+| sqlite3  | 6.0.x                          |
+| dotenv   | 17.x                           |
+| 平台     | Windows / Termux Android arm64 |
+| Python   | 3.13 + setuptools              |
+| 构建工具 | clang / make / pkg-config      |
 
 > **注意**：首次安装时 `sqlite3` 原生模块需要本地编译。
 
 ## 配置参考
 
-| 环境变量                  | 必填  | 默认值                       | 说明                                          |
-| ------------------------- | :---: | ---------------------------- | --------------------------------------------- |
-| `MIMO_API_KEY`            |   ✅   | —                            | 小米 MiMo API Key                             |
-| `PROXY_API_KEY`           |   ❌   | 空                           | 访问代理时的鉴权 Key，留空则不启用鉴权        |
-| `PORT`                    |   ❌   | `3000`                       | 服务监听端口                                  |
-| `HOST`                    |   ❌   | `0.0.0.0`                    | 服务监听地址                                  |
-| `MIMO_BASE_URL`           |   ❌   | `https://api.xiaomimimo.com` | 上游 API 地址                                 |
-| `MIMO_ENABLED_MODELS`     |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni` | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni`） |
-| `UPSTREAM_TIMEOUT_MS`     |   ❌   | `120000`                     | 上游请求超时（毫秒）                          |
-| `WEB_SEARCH_MAX_KEYWORD`  |   ❌   | `3`                          | 联网搜索最大关键词数量                        |
-| `WEB_SEARCH_FORCE_SEARCH` |   ❌   | `true`                       | 是否强制开启搜索能力                          |
-| `WEB_SEARCH_LIMIT`        |   ❌   | `3`                          | 每次搜索返回网页数量                          |
-| `WEB_SEARCH_COUNTRY`      |   ❌   | `China`                      | 搜索地理位置 - 国家                           |
-| `WEB_SEARCH_REGION`       |   ❌   | `Beijing`                    | 搜索地理位置 - 省份                           |
-| `WEB_SEARCH_CITY`         |   ❌   | `Beijing`                    | 搜索地理位置 - 城市                           |
-| `MONITOR_STORAGE`         |   ❌   | `memory`                    | Monitor 存储后端：`memory` / `sqlite`                 |
-| `MONITOR_SQLITE_PATH`     |   ❌   | `./data/monitor.db`         | SQLite 文件路径（仅 `MONITOR_STORAGE=sqlite` 生效）   |
-| `MONITOR_RETENTION_DAYS`  |   ❌   | `30`                        | 监控数据保留天数（定时清理）                         |
-| `MONITOR_FLUSH_INTERVAL_MS` | ❌   | `200`                       | 异步写入队列定时 flush 间隔（毫秒）                   |
-| `MONITOR_FLUSH_BATCH_SIZE` |  ❌   | `100`                       | 异步写入队列单次批量大小                              |
-| `MONITOR_QUEUE_MAX_SIZE`  |   ❌   | `10000`                     | 异步队列最大长度，超限后丢弃并记录计数               |
-| `LOG_LEVEL`               |   ❌   | `info`                      | 日志级别：`error` / `warn` / `info` / `debug` |
-| `OPS_PASSWORD`            |   ❌   | 空                          | Ops 运维界面密码，留空则不启用（单体部署，无需独立前端服务器） |
+| 环境变量                    | 必填  | 默认值                                    | 说明                                                                                   |
+| --------------------------- | :---: | ----------------------------------------- | -------------------------------------------------------------------------------------- |
+| `MIMO_API_KEY`              |   ✅   | —                                         | 小米 MiMo API Key                                                                      |
+| `PROXY_API_KEY`             |   ❌   | 空                                        | 访问代理时的鉴权 Key，留空则不启用鉴权                                                 |
+| `PORT`                      |   ❌   | `3000`                                    | 服务监听端口                                                                           |
+| `HOST`                      |   ❌   | `0.0.0.0`                                 | 服务监听地址                                                                           |
+| `MIMO_BASE_URL`             |   ❌   | `https://api.xiaomimimo.com`              | 上游 API 地址（OpenAI 格式）                                                           |
+| `ANTHROPIC_BASE_URL`        |   ❌   | `https://api.xiaomimimo.com/anthropic/v1` | Anthropic 上游 API 地址（Messages 格式）                                               |
+| `MIMO_ENABLED_MODELS`       |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni`  | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni`） |
+| `UPSTREAM_TIMEOUT_MS`       |   ❌   | `120000`                                  | 上游请求超时（毫秒）                                                                   |
+| `WEB_SEARCH_MAX_KEYWORD`    |   ❌   | `3`                                       | 联网搜索最大关键词数量                                                                 |
+| `WEB_SEARCH_FORCE_SEARCH`   |   ❌   | `true`                                    | 是否强制开启搜索能力                                                                   |
+| `WEB_SEARCH_LIMIT`          |   ❌   | `3`                                       | 每次搜索返回网页数量                                                                   |
+| `WEB_SEARCH_COUNTRY`        |   ❌   | `China`                                   | 搜索地理位置 - 国家                                                                    |
+| `WEB_SEARCH_REGION`         |   ❌   | `Beijing`                                 | 搜索地理位置 - 省份                                                                    |
+| `WEB_SEARCH_CITY`           |   ❌   | `Beijing`                                 | 搜索地理位置 - 城市                                                                    |
+| `MONITOR_STORAGE`           |   ❌   | `memory`                                  | Monitor 存储后端：`memory` / `sqlite`                                                  |
+| `MONITOR_SQLITE_PATH`       |   ❌   | `./data/monitor.db`                       | SQLite 文件路径（仅 `MONITOR_STORAGE=sqlite` 生效）                                    |
+| `MONITOR_RETENTION_DAYS`    |   ❌   | `30`                                      | 监控数据保留天数（定时清理）                                                           |
+| `MONITOR_FLUSH_INTERVAL_MS` |   ❌   | `200`                                     | 异步写入队列定时 flush 间隔（毫秒）                                                    |
+| `MONITOR_FLUSH_BATCH_SIZE`  |   ❌   | `100`                                     | 异步写入队列单次批量大小                                                               |
+| `MONITOR_QUEUE_MAX_SIZE`    |   ❌   | `10000`                                   | 异步队列最大长度，超限后丢弃并记录计数                                                 |
+| `LOG_LEVEL`                 |   ❌   | `info`                                    | 日志级别：`error` / `warn` / `info` / `debug`                                          |
+| `OPS_PASSWORD`              |   ❌   | 空                                        | Ops 运维界面密码，留空则不启用（单体部署，无需独立前端服务器）                         |
 
 ## 接口列表
 
-| 方法   | 路径                   | 说明                       |
-| ------ | ---------------------- | -------------------------- |
-| `GET`  | `/health`              | 健康检查                   |
-| `GET`  | `/v1/models`           | 获取所有虚拟模型列表       |
-| `GET`  | `/v1/models/:id`       | 获取单个虚拟模型信息       |
-| `POST` | `/v1/chat/completions` | 对话补全（支持流式 SSE）   |
-| `GET`  | `/monitor`             | 监控页面（最近 3 天调用）  |
-| `GET`  | `/monitor/stats`       | 监控统计数据（JSON）                |
-| `GET`  | `/monitor/calls`       | 监控明细数据（JSON）                |
-| `POST` | `/monitor/prune`       | 手动清理历史数据（默认仅 dev 或鉴权） |
-| `GET`  | `/ops/info`            | Ops 界面基本信息（是否启用）          |
-| `GET`  | `/ops/status`          | 服务运行状态（需 Ops 鉴权）          |
-| `GET`  | `/ops/config`          | 获取当前配置（需 Ops 鉴权）          |
-| `GET`  | `/ops/config/schema`   | 获取可修改配置项白名单（需 Ops 鉴权） |
-| `POST` | `/ops/config`          | 更新运行时配置（需 Ops 鉴权）        |
-| `POST` | `/ops/shutdown`        | 优雅停机（需 Ops 鉴权）              |
-| `POST` | `/ops/restart`         | 重启服务（需 Ops 鉴权）              |
+| 方法   | 路径                     | 说明                                   |
+| ------ | ------------------------ | -------------------------------------- |
+| `GET`  | `/health`                | 健康检查                               |
+| `GET`  | `/v1/models`             | 获取所有虚拟模型列表                   |
+| `GET`  | `/v1/models/:id`         | 获取单个虚拟模型信息                   |
+| `POST` | `/v1/chat/completions`   | 对话补全（支持流式 SSE）               |
+| `POST` | `/anthropic/v1/messages` | Anthropic Messages API（支持流式 SSE） |
+| `GET`  | `/monitor`               | 监控页面（最近 3 天调用）              |
+| `GET`  | `/monitor/stats`         | 监控统计数据（JSON）                   |
+| `GET`  | `/monitor/calls`         | 监控明细数据（JSON）                   |
+| `POST` | `/monitor/prune`         | 手动清理历史数据（默认仅 dev 或鉴权）  |
+| `GET`  | `/ops/info`              | Ops 界面基本信息（是否启用）           |
+| `GET`  | `/ops/status`            | 服务运行状态（需 Ops 鉴权）            |
+| `GET`  | `/ops/config`            | 获取当前配置（需 Ops 鉴权）            |
+| `GET`  | `/ops/config/schema`     | 获取可修改配置项白名单（需 Ops 鉴权）  |
+| `POST` | `/ops/config`            | 更新运行时配置（需 Ops 鉴权）          |
+| `POST` | `/ops/shutdown`          | 优雅停机（需 Ops 鉴权）                |
+| `POST` | `/ops/restart`           | 重启服务（需 Ops 鉴权）                |
