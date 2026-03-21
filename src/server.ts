@@ -155,12 +155,12 @@ export function createApp(): express.Application {
 }
 
 function startCleanupTask(): void {
-  const cleanup = async () => {
+  const cleanup = () => {
     try {
-      const storage = await getStorage();
+      const storage = getStorage();
       const retentionDays = config.monitor.retentionDays;
       const startTime = Date.now();
-      const deletedCount = await storage.prune(retentionDays);
+      const deletedCount = storage.prune(retentionDays);
 
       logger.info("Daily cleanup completed", {
         retentionDays,

@@ -97,7 +97,8 @@ class StorageWorker {
 
       for (const item of batch) {
         try {
-          await this.storage.append(item.event);
+          // better-sqlite3 使用同步 API
+          this.storage.append(item.event);
         } catch (error) {
           item.retries += 1;
 
@@ -174,7 +175,8 @@ class StorageWorker {
     }
 
     if (this.storage && !this.storageClosed) {
-      await this.storage.close();
+      // better-sqlite3 使用同步 close()
+      this.storage.close();
       this.storageClosed = true;
     }
 

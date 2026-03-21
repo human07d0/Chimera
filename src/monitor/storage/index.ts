@@ -41,11 +41,13 @@ export interface StatsResult {
 }
 
 export interface MonitorStorage {
-  append(event: MonitorEvent): Promise<void>;
-  query(params: QueryParams): Promise<MonitorEvent[]>;
-  stats(params: StatsParams): Promise<StatsResult>;
-  prune(retentionDays: number): Promise<number>;
-  close(): Promise<void>;
+  // better-sqlite3 使用同步 API
+  init(): void;
+  append(event: MonitorEvent): void;
+  query(params: QueryParams): MonitorEvent[];
+  stats(params: StatsParams): StatsResult;
+  prune(retentionDays: number): number;
+  close(): void;
 }
 
 export { memoryStorage } from "./memory";

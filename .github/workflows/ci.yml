@@ -36,14 +36,4 @@ jobs:
       - name: Build
         run: pnpm run build
 
-      - name: Native sqlite3 check (unix)
-        if: runner.os != 'Windows'
-        run: MONITOR_STORAGE=sqlite pnpm run check:native:sqlite3
-
-      - name: Native sqlite3 check (windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $env:MONITOR_STORAGE='sqlite'
-          pnpm run check:native:sqlite3
 

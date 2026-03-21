@@ -4,12 +4,12 @@ OpenAI-compatible facade for Xiaomi MiMo：协议转换、SSE 透传、虚拟模
 
 ## 技术栈
 
-- **Runtime**: Node.js 24 LTS
+- **Runtime**: Node.js 24 LTS / Bun 1.x
 - **Language**: TypeScript 5
 - **HTTP**: Express 5 + CORS
 - **Config**: dotenv
-- **Storage**: memory / SQLite（`sqlite3 + sqlite`）
-- **Dev/Build**: ts-node、nodemon、tsc、pnpm 10
+- **Storage**: memory / SQLite（`sql.js`）
+- **Dev/Build**: ts-node、nodemon、tsc、pnpm 10、Bun
 
 ## 架构图
 
@@ -80,7 +80,7 @@ src/
    - 写入失败最多重试 3 次，失败项按 FIFO 语义回到队尾（避免顺序反转）
 3. `MonitorStorage` 实现：
    - `memory`：进程内存（重启丢失）
-   - `sqlite`：`sqlite3 + sqlite` 异步持久化（WAL / NORMAL / busy_timeout=5000）
+   - `sqlite`：`sql.js` 纯 JavaScript 实现（WAL / NORMAL / busy_timeout=5000）
 4. `getStorage()` 启动阶段优先初始化 sqlite，失败时自动降级 `memory` 并记录错误日志。
 5. `/monitor/stats`、`/monitor/calls` 统一走 `storage.stats/query`。
 6. 退出时由主进程调用 `stopCleanupTask()` 与 `await storageWorker.shutdown()`，完成队列 flush 后 `close()`。
@@ -94,11 +94,6 @@ src/
   - `requests(ts_start)`
   - `requests(status_code, ts_start)`
   - `requests(model_requested, ts_start)`
-
-## 实现与早期设计差异说明
-
-- 目前将流式统计字段（`chunks/bytes_out/first_token_ms`）先并入 `requests`，未拆分 `stream_stats` 子表。
-- `/monitor/calls` 为前端兼容保留旧字段映射（如 `timestamp/model/inputTokens`），同时附带新字段。
 
 ## 设计约束
 

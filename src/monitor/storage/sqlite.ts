@@ -1,63 +1,84 @@
-import { open, Database } from "sqlite";
-import sqlite3 from "sqlite3";
-import { mkdirSync, existsSync } from "fs";
-import { dirname } from "path";
-import { logger } from "../../utils/logger";
-import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult } from "./index";
+import initSqlJs, { Database, Statement } from 'sql.js';
+import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
+import { dirname } from 'path';
+import { logger } from '../../utils/logger';
+import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult } from './index';
 
-type RequestRow = {
-  request_id: string;
-  ts_start: number;
-  ts_end: number;
-  latency_ms: number;
-  path: string;
-  method: string;
-  status_code: number;
-  model_requested: string;
-  model_upstream: string;
-  stream: number;
-  chunks: number;
-  bytes_out: number;
-  first_token_ms: number | null;
-  input_tokens: number;
-  output_tokens: number;
-  cached_prompt_tokens: number;
-  cost: number;
-  error_type: string | null;
-};
+type RequestRow = [
+  string,  // request_id
+  number,  // ts_start
+  number,  // ts_end
+  number,  // latency_ms
+  string,  // path
+  string,  // method
+  number,  // status_code
+  string,  // model_requested
+  string,  // model_upstream
+  number,  // stream
+  number,  // chunks
+  number,  // bytes_out
+  number | null,  // first_token_ms
+  number,  // input_tokens
+  number,  // output_tokens
+  number,  // cached_prompt_tokens
+  number,  // cost
+  string | null   // error_type
+];
 
 export class SqliteStorage implements MonitorStorage {
-  private db: Database<sqlite3.Database, sqlite3.Statement> | null = null;
+  private db: Database | null = null;
   private readonly dbPath: string;
+  private static sqlModule: import('sql.js').SqlJsStatic | null = null;
 
   constructor(dbPath: string) {
     this.dbPath = dbPath;
   }
 
-  async init(): Promise<void> {
+  static async initSqlModule(): Promise<void> {
+    if (!SqliteStorage.sqlModule) {
+      SqliteStorage.sqlModule = await initSqlJs();
+      logger.info('sql.js module initialized');
+    }
+  }
+
+  init(): void {
+    if (!SqliteStorage.sqlModule) {
+      throw new Error('sql.js module not initialized. Call SqliteStorage.initSqlModule() first.');
+    }
+
     const dir = dirname(this.dbPath);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
       logger.info(`Created monitor database directory: ${dir}`);
     }
 
-    this.db = await open({
-      filename: this.dbPath,
-      driver: sqlite3.Database,
-    });
+    // 尝试从文件加载现有数据库，否则创建新数据库
+    if (existsSync(this.dbPath)) {
+      const buffer = readFileSync(this.dbPath);
+      this.db = new SqliteStorage.sqlModule.Database(buffer);
+      logger.info(`Loaded existing SQLite database: ${this.dbPath}`);
+    } else {
+      this.db = new SqliteStorage.sqlModule.Database();
+      logger.info(`Created new SQLite database: ${this.dbPath}`);
+    }
 
     // 启用 WAL 模式以提高并发性能
-    await this.db.exec("PRAGMA journal_mode = WAL");
-    await this.db.exec("PRAGMA synchronous = NORMAL");
-    await this.db.exec("PRAGMA busy_timeout = 5000");
+    if (this.db) {
+      this.db.run('PRAGMA journal_mode = WAL');
+      this.db.run('PRAGMA synchronous = NORMAL');
+      this.db.run('PRAGMA busy_timeout = 5000');
+    }
 
-    await this.initTables();
+    this.initTables();
+    this.saveToFile();
 
     logger.info(`SQLite monitor storage initialized: ${this.dbPath}`);
   }
 
-  private async initTables(): Promise<void> {
-    await this.db!.exec(`
+  private initTables(): void {
+    if (!this.db) return;
+
+    this.db.run(`
       CREATE TABLE IF NOT EXISTS requests (
         request_id TEXT PRIMARY KEY,
         ts_start INTEGER NOT NULL,
@@ -80,26 +101,33 @@ export class SqliteStorage implements MonitorStorage {
       )
     `);
 
-    await this.db!.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_requests_ts_start ON requests(ts_start)
     `);
     
-    await this.db!.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_requests_status_ts_start ON requests(status_code, ts_start)
     `);
 
-    await this.db!.exec(`
+    this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_requests_model_requested_ts_start ON requests(model_requested, ts_start)
     `);
   }
 
-  async append(event: MonitorEvent): Promise<void> {
+  private saveToFile(): void {
+    if (!this.db) return;
+    const data = this.db.export();
+    const buffer = Buffer.from(data);
+    writeFileSync(this.dbPath, buffer);
+  }
+
+  append(event: MonitorEvent): void {
     if (!this.db) {
-      throw new Error("Storage not initialized. Call init() first.");
+      throw new Error('Storage not initialized. Call init() first.');
     }
 
-    await this.db.run(
-      `INSERT INTO requests (
+    const stmt = this.db.prepare(`
+      INSERT INTO requests (
         request_id, ts_start, ts_end, latency_ms,
         path, method, status_code,
         model_requested, model_upstream,
@@ -107,33 +135,38 @@ export class SqliteStorage implements MonitorStorage {
         input_tokens, output_tokens, cached_prompt_tokens, cost,
         error_type
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(request_id) DO NOTHING`,
-      [
-        event.request_id,
-        event.ts_start,
-        event.ts_end,
-        event.latency_ms,
-        event.path,
-        event.method,
-        event.status_code,
-        event.model_requested,
-        event.model_upstream,
-        event.stream ? 1 : 0,
-        event.chunks,
-        event.bytes_out,
-        event.first_token_ms,
-        event.input_tokens,
-        event.output_tokens,
-        event.cached_prompt_tokens,
-        event.cost,
-        event.error_type,
-      ]
-    );
+    `);
+
+    stmt.bind([
+      event.request_id,
+      event.ts_start,
+      event.ts_end,
+      event.latency_ms,
+      event.path,
+      event.method,
+      event.status_code,
+      event.model_requested,
+      event.model_upstream,
+      event.stream ? 1 : 0,
+      event.chunks,
+      event.bytes_out,
+      event.first_token_ms,
+      event.input_tokens,
+      event.output_tokens,
+      event.cached_prompt_tokens,
+      event.cost,
+      event.error_type
+    ]);
+
+    stmt.step();
+    stmt.free();
+
+    this.saveToFile();
   }
 
-  async query(params: QueryParams): Promise<MonitorEvent[]> {
+  query(params: QueryParams): MonitorEvent[] {
     if (!this.db) {
-      throw new Error("Storage not initialized. Call init() first.");
+      throw new Error('Storage not initialized. Call init() first.');
     }
 
     const { days = 3, limit = 100, offset = 0, model } = params;
@@ -154,13 +187,21 @@ export class SqliteStorage implements MonitorStorage {
     sql += ` ORDER BY ts_start DESC LIMIT ? OFFSET ?`;
     bind.push(limit, offset);
 
-    const rows = await this.db.all<RequestRow[]>(sql, bind);
+    const stmt = this.db.prepare(sql);
+    stmt.bind(bind);
+
+    const rows: RequestRow[] = [];
+    while (stmt.step()) {
+      rows.push(stmt.get() as RequestRow);
+    }
+    stmt.free();
+
     return rows.map((row) => this.rowToEvent(row));
   }
 
-  async stats(params: StatsParams): Promise<StatsResult> {
+  stats(params: StatsParams): StatsResult {
     if (!this.db) {
-      throw new Error("Storage not initialized. Call init() first.");
+      throw new Error('Storage not initialized. Call init() first.');
     }
 
     const { days = 3, model } = params;
@@ -184,32 +225,48 @@ export class SqliteStorage implements MonitorStorage {
       bind.push(model);
     }
 
-    const result = await this.db.get<StatsResult>(sql, bind);
+    const stmt = this.db.prepare(sql);
+    stmt.bind(bind);
 
+    if (stmt.step()) {
+      const row = stmt.get() as [number, number, number, number, number];
+      stmt.free();
+      return {
+        totalCalls: row[0] ?? 0,
+        totalInputTokens: row[1] ?? 0,
+        totalOutputTokens: row[2] ?? 0,
+        totalCachedPromptTokens: row[3] ?? 0,
+        totalCost: row[4] ?? 0,
+      };
+    }
+
+    stmt.free();
     return {
-      totalCalls: result?.totalCalls ?? 0,
-      totalInputTokens: result?.totalInputTokens ?? 0,
-      totalOutputTokens: result?.totalOutputTokens ?? 0,
-      totalCachedPromptTokens: result?.totalCachedPromptTokens ?? 0,
-      totalCost: result?.totalCost ?? 0,
+      totalCalls: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalCachedPromptTokens: 0,
+      totalCost: 0,
     };
   }
 
-  async prune(retentionDays: number): Promise<number> {
+  prune(retentionDays: number): number {
     if (!this.db) {
-      throw new Error("Storage not initialized. Call init() first.");
+      throw new Error('Storage not initialized. Call init() first.');
     }
 
     const cutoffTs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
     const startTime = Date.now();
 
-    const result = await this.db.run(
-      "DELETE FROM requests WHERE ts_start < ?",
-      cutoffTs
-    );
-    const deletedCount = result.changes ?? 0;
-    
-    logger.info("Monitor prune completed (sqlite)", {
+    const stmt = this.db.prepare('DELETE FROM requests WHERE ts_start < ?');
+    stmt.bind([cutoffTs]);
+    stmt.step();
+    const deletedCount = this.db.getRowsModified();
+    stmt.free();
+
+    this.saveToFile();
+
+    logger.info('Monitor prune completed (sql.js)', {
       deletedCount,
       retentionDays,
       durationMs: Date.now() - startTime,
@@ -218,34 +275,35 @@ export class SqliteStorage implements MonitorStorage {
     return deletedCount;
   }
 
-  async close(): Promise<void> {
+  close(): void {
     if (this.db) {
-      await this.db.close();
+      this.saveToFile();
+      this.db.close();
       this.db = null;
-      logger.info("SQLite monitor storage closed", { dbPath: this.dbPath });
+      logger.info('SQLite monitor storage closed', { dbPath: this.dbPath });
     }
   }
 
   private rowToEvent(row: RequestRow): MonitorEvent {
     return {
-      request_id: row.request_id,
-      ts_start: row.ts_start,
-      ts_end: row.ts_end,
-      latency_ms: row.latency_ms,
-      path: row.path,
-      method: row.method,
-      status_code: row.status_code,
-      model_requested: row.model_requested,
-      model_upstream: row.model_upstream,
-      stream: row.stream === 1,
-      chunks: row.chunks,
-      bytes_out: row.bytes_out,
-      first_token_ms: row.first_token_ms,
-      input_tokens: row.input_tokens,
-      output_tokens: row.output_tokens,
-      cached_prompt_tokens: row.cached_prompt_tokens,
-      cost: row.cost,
-      error_type: row.error_type,
+      request_id: row[0],
+      ts_start: row[1],
+      ts_end: row[2],
+      latency_ms: row[3],
+      path: row[4],
+      method: row[5],
+      status_code: row[6],
+      model_requested: row[7],
+      model_upstream: row[8],
+      stream: row[9] === 1,
+      chunks: row[10],
+      bytes_out: row[11],
+      first_token_ms: row[12],
+      input_tokens: row[13],
+      output_tokens: row[14],
+      cached_prompt_tokens: row[15],
+      cost: row[16],
+      error_type: row[17],
     };
   }
 }

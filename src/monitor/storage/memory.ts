@@ -5,7 +5,11 @@ class MemoryStorage implements MonitorStorage {
   private records: MonitorEvent[] = [];
   private readonly maxRecords = 10_000;
 
-  async append(event: MonitorEvent): Promise<void> {
+  init(): void {
+    // 内存存储无需初始化
+  }
+
+  append(event: MonitorEvent): void {
     this.records.push(event);
 
     if (this.records.length > this.maxRecords) {
@@ -19,7 +23,7 @@ class MemoryStorage implements MonitorStorage {
     });
   }
 
-  async query(params: QueryParams): Promise<MonitorEvent[]> {
+  query(params: QueryParams): MonitorEvent[] {
     const { days = 3, limit = 100, offset = 0, model } = params;
     const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
 
@@ -34,7 +38,7 @@ class MemoryStorage implements MonitorStorage {
     return filtered.slice(offset, offset + limit);
   }
 
-  async stats(params: StatsParams): Promise<StatsResult> {
+  stats(params: StatsParams): StatsResult {
     const { days = 3, model } = params;
     const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
 
@@ -53,7 +57,7 @@ class MemoryStorage implements MonitorStorage {
     };
   }
 
-  async prune(retentionDays: number): Promise<number> {
+  prune(retentionDays: number): number {
     const cutoffTs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
     const initialLength = this.records.length;
 
@@ -67,7 +71,7 @@ class MemoryStorage implements MonitorStorage {
     return deletedCount;
   }
 
-  async close(): Promise<void> {
+  close(): void {
     // 内存存储无需关闭资源
   }
 }

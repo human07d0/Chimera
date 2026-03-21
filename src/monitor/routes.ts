@@ -77,13 +77,13 @@ monitorRouter.get("/", (_req: Request, res: Response) => {
 });
 
 // 获取监控统计数据
-monitorRouter.get("/stats", async (req: Request, res: Response) => {
+monitorRouter.get("/stats", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
     const model = parseModelParam(req.query.model);
 
-    const storage = await getStorage();
-    const stats = await storage.stats({ days, model });
+    const storage = getStorage();
+    const stats = storage.stats({ days, model });
 
     res.json({
       success: true,
@@ -98,15 +98,15 @@ monitorRouter.get("/stats", async (req: Request, res: Response) => {
 });
 
 // 获取调用详情
-monitorRouter.get("/calls", async (req: Request, res: Response) => {
+monitorRouter.get("/calls", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
     const limit = parseQueryInt(req.query.limit, 100);
     const offset = parseQueryInt(req.query.offset, 0);
     const model = parseModelParam(req.query.model);
 
-    const storage = await getStorage();
-    const events = await storage.query({ days, limit, offset, model });
+    const storage = getStorage();
+    const events = storage.query({ days, limit, offset, model });
 
     // 前端兼容：保持旧版字段（timestamp/model/inputTokens/...）
     const calls = events.map((event: MonitorEvent) => ({
@@ -151,7 +151,7 @@ monitorRouter.get("/calls", async (req: Request, res: Response) => {
 });
 
 // 手动触发数据清理（用于测试）
-monitorRouter.post("/prune", async (req: Request, res: Response) => {
+monitorRouter.post("/prune", (req: Request, res: Response) => {
   if (!isPruneAuthorized(req)) {
     logger.warn("Blocked unauthorized monitor prune request", {
       ip: req.ip,
@@ -167,8 +167,8 @@ monitorRouter.post("/prune", async (req: Request, res: Response) => {
   try {
     const days = parseBodyInt((req.body as { days?: unknown } | undefined)?.days, 30);
 
-    const storage = await getStorage();
-    const deletedCount = await storage.prune(days);
+    const storage = getStorage();
+    const deletedCount = storage.prune(days);
 
     res.json({
       success: true,
@@ -181,5 +181,3 @@ monitorRouter.post("/prune", async (req: Request, res: Response) => {
     });
   }
 });
-
-

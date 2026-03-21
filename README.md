@@ -71,16 +71,13 @@ pnpm run build:ops
 
 前端源码位于 `src/ops/frontend/`，构建产物输出到 `dist/ops/`。
 
-> 使用 pnpm 时，本项目已在 `pnpm-workspace.yaml` 显式允许 `sqlite3` 原生构建（`allowBuilds.sqlite3=true`）。
 
 
 ### Termux 安装（Android）
 
-> 适用于 `MONITOR_STORAGE=sqlite` 场景；已迁移到 `sqlite3 + sqlite`，不再依赖 `better-sqlite3`。
-
 ```bash
 pkg update && pkg upgrade
-pkg install nodejs-lts python python-setuptools make clang pkg-config sqlite
+pkg install nodejs-lts
 
 cd mimo-proxy
 pnpm install
@@ -94,11 +91,7 @@ MONITOR_STORAGE=sqlite
 MONITOR_SQLITE_PATH=./data/monitor.db
 ```
 
-常见问题：
-- `sqlite3` 编译失败：先确认已安装 `python python-setuptools make clang pkg-config`，再删除 `node_modules` 后重装。
-- 数据目录权限问题：确保当前目录可写，必要时手动创建 `./data`。
-- 若需快速恢复服务：临时切换 `MONITOR_STORAGE=memory`。
-- 可手动执行 `pnpm run check:native:sqlite3` 检查 sqlite3 原生绑定是否就绪。
+若需快速恢复服务：临时切换 `MONITOR_STORAGE=memory`。
 
 
 ### 配置
@@ -130,26 +123,23 @@ pnpm start
 # pnpm run dev
 ```
 
-当 `MONITOR_STORAGE=sqlite` 时，`pnpm start` 会先执行 `check:native:sqlite3` 自检，若缺少 sqlite3 原生绑定会直接报错并给出修复指引。
-
 服务默认监听：`http://0.0.0.0:3000`。
 
+### 跨平台打包与部署
 
-### Docker 运行
+项目提供了安装脚本和手册：
 
+- **Windows**：运行 `scripts/install-windows.bat`
+- **Linux**：运行 `scripts/install-linux.sh`（需要先赋予执行权限）
+- **Android (Termux)**：参考 `ANDROID_INSTALL.md` 手册
+
+Bun 构建命令：
 ```bash
-# 填写 MIMO_API_KEY
-cp .env.example .env     
-
-# 构建并启动
-docker compose up -d
-
-# 查看日志
-docker compose logs -f
-
-# 停止
-docker compose down
+pnpm run bun:build
 ```
+
+构建产物在 `dist-bun/` 目录，为单文件可执行文件。
+
 
 > **注意**：如果使用的是带 search 的模型（内置 `web_search` 工具），你自定义的 function 工具会与 `web_search` 工具合并，两者同时生效。
 
@@ -162,9 +152,9 @@ docker compose down
 | 配置项   | 值                                   |
 | -------- | ------------------------------------ |
 | Base URL | `http://localhost:3000/anthropic/v1` |
-| API Key  | 你的 `PROXY_API_KEY`（或任意值）     |
+| API Key  | 你的 `PROXY_API_KEY`                 |
 
-支持的模型与 OpenAI 接口相同（如 `mimo-v2-flash`、`mimo-v2-flash-thinking` 等）。
+支持的模型与 OpenAI 接口相同。
 
 #### cURL 示例
 
@@ -221,6 +211,7 @@ curl http://localhost:3000/anthropic/v1/models \
 ```
 
 返回示例：
+
 ```json
 {
   "models": [
@@ -307,12 +298,6 @@ MONITOR_STORAGE=memory
 
 重启服务后生效，不影响 `/v1/chat/completions` 主流程。
 
-### Docker 运行注意事项
-
-- 当前监控持久化实现为 `sqlite3 + sqlite`（异步驱动）。
-- 使用 sqlite 模式时建议挂载数据目录（例如 `./data:/app/data`），避免容器重建导致监控数据丢失。
-- 若容器内原生模块安装失败，可优先检查镜像架构与 Node 版本一致性。
-
 ## Ops 运维界面
 
 运维界面提供运行时配置管理和服务控制功能，与主服务同一进程托管（单体部署），无需独立服务器。
@@ -382,20 +367,15 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 
 ## 已验证环境
 
-以下组合已通过实际测试：
-
-| 项目     | 版本                           |
-| -------- | ------------------------------ |
-| Node.js  | 24 LTS                         |
-| pnpm     | 10.32.x                        |
-| Express  | 5.2.x                          |
-| sqlite3  | 6.0.x                          |
-| dotenv   | 17.x                           |
-| 平台     | Windows / Termux Android arm64 |
-| Python   | 3.13 + setuptools              |
-| 构建工具 | clang / make / pkg-config      |
-
-> **注意**：首次安装时 `sqlite3` 原生模块需要本地编译。
+| 项目    | 版本                         |
+| ------- | ---------------------------- |
+| Node.js | 24 LTS                       |
+| pnpm    | 10.32.x                      |
+| Express | 5.2.x                        |
+| sql.js  | 1.10.x                       |
+| dotenv  | 17.x                         |
+| 平台    | Windows /  Android（Termux） |
+| Bun     | 1.x                          |
 
 ## 配置参考
 

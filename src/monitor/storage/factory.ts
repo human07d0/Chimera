@@ -5,60 +5,70 @@ import { SqliteStorage } from "./sqlite";
 import { storageWorker } from "./worker";
 
 let storageInstance: MonitorStorage | null = null;
+let initializationPromise: Promise<MonitorStorage> | null = null;
 
-function isLikelySqliteNativeBindingError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes("Could not locate the bindings file") ||
-    message.includes("node_sqlite3.node") ||
-    message.includes("sqlite3")
-  );
-}
-
-export async function getStorage(): Promise<MonitorStorage> {
+export async function getStorageAsync(): Promise<MonitorStorage> {
   if (storageInstance) {
     return storageInstance;
+  }
+
+  if (initializationPromise) {
+    return initializationPromise;
   }
 
   const { storage, sqlitePath } = config.monitor;
 
   if (storage === "sqlite") {
-    try {
-      logger.info(`Using SQLite storage: ${sqlitePath}`);
-      const sqliteStorage = new SqliteStorage(sqlitePath);
-      await sqliteStorage.init();
-      storageInstance = sqliteStorage;
-      logger.info("SQLite storage ready");
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      logger.error("Failed to initialize SQLite monitor storage, falling back to memory", {
-        sqlitePath,
-        error: errorMessage,
-      });
-
-      if (isLikelySqliteNativeBindingError(error)) {
-        logger.error("SQLite native binding seems missing. Please run `pnpm rebuild sqlite3`.", {
-          hint: "Ensure pnpm-workspace.yaml has allowBuilds.sqlite3=true",
+    initializationPromise = (async () => {
+      try {
+        logger.info(`Using SQLite storage: ${sqlitePath}`);
+        await SqliteStorage.initSqlModule();
+        const sqliteStorage = new SqliteStorage(sqlitePath);
+        sqliteStorage.init();
+        storageInstance = sqliteStorage;
+        logger.info("SQLite storage ready");
+        storageWorker.setStorage(storageInstance);
+        return storageInstance;
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        logger.error("Failed to initialize SQLite monitor storage, falling back to memory", {
+          sqlitePath,
+          error: errorMessage,
         });
-      }
 
-      storageInstance = memoryStorage;
-      logger.warn("Monitor storage fallback activated: memory");
-    }
+        storageInstance = memoryStorage;
+        logger.warn("Monitor storage fallback activated: memory");
+        storageWorker.setStorage(storageInstance);
+        return storageInstance;
+      }
+    })();
+
+    return initializationPromise;
   } else {
     logger.info("Using memory storage");
     storageInstance = memoryStorage;
+    storageWorker.setStorage(storageInstance);
+    return storageInstance;
   }
-
-  storageWorker.setStorage(storageInstance);
-  return storageInstance;
 }
 
-export async function closeStorage(): Promise<void> {
+// 为了保持向后兼容，提供一个同步版本，但会在后台初始化
+export function getStorage(): MonitorStorage {
   if (storageInstance) {
-    await storageInstance.close();
+    return storageInstance;
+  }
+
+  // 启动异步初始化，但不等待
+  void getStorageAsync();
+
+  // 立即返回内存存储作为临时方案
+  return memoryStorage;
+}
+
+export function closeStorage(): void {
+  if (storageInstance) {
+    storageInstance.close();
     storageInstance = null;
   }
+  initializationPromise = null;
 }
-
-

@@ -6,6 +6,17 @@ let watcherProcess: ChildProcess | null = null;
 let mainProcessPid: number = -1;
 
 /**
+ * 获取 watcher-child.js 的路径
+ * 支持 Bun 打包后的动态路径解析
+ */
+function getWatcherChildPath(): string {
+  // 在 Bun 打包后，__dirname 可能指向错误的目录
+  // 使用 process.cwd() 作为基础路径，然后拼接正确的相对路径
+  const basePath = process.cwd();
+  return path.join(basePath, 'src', 'ops', 'watcher-child.js');
+}
+
+/**
  * 启动 watcher 进程
  * watcher 监控主进程 PID，收到重启信号后重新启动主进程
  */
@@ -17,10 +28,13 @@ export function startWatcher(): void {
 
   mainProcessPid = process.pid;
 
+  const watcherChildPath = getWatcherChildPath();
+  logger.info(`Watcher child path: ${watcherChildPath}`);
+
   // 启动 watcher 子进程
   watcherProcess = spawn(
     process.execPath,
-    [path.join(__dirname, "watcher-child.js")],
+    [watcherChildPath],
     {
       stdio: ["pipe", "pipe", "pipe", "ipc"],
       detached: false,

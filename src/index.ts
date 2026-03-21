@@ -47,8 +47,8 @@ function printStartupInfo(): void {
 async function main(): Promise<void> {
   validateConfig();
 
-  // 先初始化存储，确保数据库连接准备好
-  await getStorage();
+  // 初始化存储（better-sqlite3 使用同步 API）
+  getStorage();
 
   // Ops 运维界面已启用时启动 watcher
   if (config.opsPassword) {
@@ -84,6 +84,3 @@ main().catch((err) => {
   console.error("Fatal startup error:", err);
   process.exit(1);
 });
-
-
-
