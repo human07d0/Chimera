@@ -42,7 +42,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: dist-bun/index.js
+          files: |
+            dist-bun/index.js
+            .env.example
           generate_release_notes: true
           draft: false
           prerelease: false
