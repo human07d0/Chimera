@@ -1,4 +1,5 @@
 import { spawn, ChildProcess } from "child_process";
+import fs from "fs";
 import path from "path";
 import { logger } from "../utils/logger";
 
@@ -6,14 +7,23 @@ let watcherProcess: ChildProcess | null = null;
 let mainProcessPid: number = -1;
 
 /**
- * 获取 watcher-child.js 的路径
- * 支持 Bun 打包后的动态路径解析
+ * 获取 watcher-child.js 的路径。
+ * 优先使用当前模块目录，其次回退到 dist / src 目录，以兼容开发、构建产物和 Bun 打包场景。
  */
 function getWatcherChildPath(): string {
-  // 在 Bun 打包后，__dirname 可能指向错误的目录
-  // 使用 process.cwd() 作为基础路径，然后拼接正确的相对路径
-  const basePath = process.cwd();
-  return path.join(basePath, 'src', 'ops', 'watcher-child.js');
+  const candidates = [
+    path.resolve(__dirname, "watcher-child.js"),
+    path.join(process.cwd(), "dist", "ops", "watcher-child.js"),
+    path.join(process.cwd(), "src", "ops", "watcher-child.js"),
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`Unable to locate watcher-child.js. Checked: ${candidates.join(", ")}`);
 }
 
 /**
@@ -28,7 +38,16 @@ export function startWatcher(): void {
 
   mainProcessPid = process.pid;
 
-  const watcherChildPath = getWatcherChildPath();
+  let watcherChildPath: string;
+  try {
+    watcherChildPath = getWatcherChildPath();
+  } catch (error) {
+    logger.error("Failed to locate watcher child script", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return;
+  }
+
   logger.info(`Watcher child path: ${watcherChildPath}`);
 
   // 启动 watcher 子进程
@@ -96,23 +115,34 @@ export function stopWatcher(): void {
  * 检查 watcher 是否运行中
  */
 export function isWatcherActive(): boolean {
-  return watcherProcess !== null && !watcherProcess.killed;
+  return watcherProcess !== null && !watcherProcess.killed && watcherProcess.connected === true;
 }
 
 /**
- * 通知 watcher 重启主进程
+ * 通知 watcher 重启主进程。
+ * @returns 是否成功发送了重启通知
  */
-export function notifyWatcherRestart(): void {
-  if (watcherProcess) {
-    watcherProcess.send?.({
+export function notifyWatcherRestart(): boolean {
+  const currentWatcher = watcherProcess;
+
+  if (!currentWatcher || currentWatcher.killed || currentWatcher.connected !== true) {
+    logger.warn("Watcher not running, will use direct restart");
+    return false;
+  }
+
+  try {
+    currentWatcher.send?.({
       type: "restart",
       pid: process.pid,
       timestamp: Date.now(),
     });
     logger.info("Restart signal sent to watcher");
-  } else {
-    logger.warn("Watcher not running, will use direct restart");
-    performDirectRestart();
+    return true;
+  } catch (error) {
+    logger.error("Failed to send restart signal to watcher", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
   }
 }
 

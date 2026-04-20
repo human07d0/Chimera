@@ -1,7 +1,12 @@
 import http from "http";
 import { stopCleanupTask } from "./server";
 import { storageWorker } from "./monitor/storage/worker";
-import { stopWatcher } from "./ops";
+import {
+  isWatcherActive,
+  notifyWatcherRestart,
+  performDirectRestart,
+  stopWatcher,
+} from "./ops";
 import { logger } from "./utils/logger";
 
 let serverInstance: http.Server | null = null;
@@ -19,7 +24,10 @@ export function setServer(server: http.Server): void {
  * 执行优雅关闭（等待监控队列 flush 完成）
  * @param reason 关闭原因（用于日志）
  */
-export async function gracefulShutdown(reason: string = "SIGTERM"): Promise<void> {
+export async function gracefulShutdown(
+  reason: string = "SIGTERM",
+  options: { preserveWatcher?: boolean } = {}
+): Promise<void> {
   if (isShuttingDown) {
     logger.info(`Shutdown already in progress (reason: ${reason})`);
     if (shutdownResolve) {
@@ -57,9 +65,13 @@ export async function gracefulShutdown(reason: string = "SIGTERM"): Promise<void
     stopCleanupTask();
     logger.info("Cleanup tasks stopped");
 
-    // 3. 停止 watcher
-    stopWatcher();
-    logger.info("Watcher stopped");
+    // 3. 停止 watcher（重启场景需要保留 watcher 接管旧进程）
+    if (options.preserveWatcher) {
+      logger.info("Watcher preserved for restart");
+    } else {
+      stopWatcher();
+      logger.info("Watcher stopped");
+    }
 
     // 4. Flush 监控队列并关闭存储
     await storageWorker.shutdown();
@@ -96,9 +108,28 @@ export function requestRestart(): void {
   }
 
   logger.info("Restart requested via ops");
-  void gracefulShutdown("restart").then(() => {
-    // 关闭完成后通知 watcher 启动新进程，然后退出
-    notifyWatcherShutdown();
+
+  const watcherActive = isWatcherActive();
+
+  if (!watcherActive) {
+    void gracefulShutdown("restart", { preserveWatcher: false }).then(() => {
+      performDirectRestart();
+    });
+    return;
+  }
+
+  // 先通知 watcher 准备接管，再开始关闭流程，避免 watcher 被提前停掉
+  const notified = notifyWatcherRestart();
+
+  if (!notified) {
+    logger.warn("Watcher notification failed, falling back to direct restart");
+    void gracefulShutdown("restart", { preserveWatcher: false }).then(() => {
+      performDirectRestart();
+    });
+    return;
+  }
+
+  void gracefulShutdown("restart", { preserveWatcher: true }).then(() => {
     process.exit(0);
   });
 }
@@ -115,21 +146,6 @@ export function requestShutdown(): void {
   logger.info("Shutdown requested via ops");
   void gracefulShutdown("ops").then(() => {
     process.exit(0);
-  });
-}
-
-/**
- * 通知 watcher 重启并退出
- */
-function notifyWatcherShutdown(): void {
-  // 动态导入避免循环依赖
-  import("./ops").then(({ isWatcherActive, notifyWatcherRestart, performDirectRestart }) => {
-    if (isWatcherActive()) {
-      notifyWatcherRestart();
-    } else {
-      // 无 watcher 时直接重启
-      performDirectRestart();
-    }
   });
 }
 
