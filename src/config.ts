@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-const SUPPORTED_UPSTREAM_MODELS = ["mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni"] as const;
+const SUPPORTED_UPSTREAM_MODELS = ["mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2.5", "mimo-v2.5-pro"] as const;
 type SupportedUpstreamModel = (typeof SUPPORTED_UPSTREAM_MODELS)[number];
 
 function warnConfig(message: string): void {

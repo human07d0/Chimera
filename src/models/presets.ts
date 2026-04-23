@@ -80,9 +80,6 @@ const FEATURE_PRESETS: FeaturePreset[] = [
 const BASE_TS = 1_700_000_000;
 
 function displayNameForUpstreamModel(modelId: string): string {
-  if (modelId === "mimo-v2-flash") return "MiMo v2 Flash";
-  if (modelId === "mimo-v2-pro") return "MiMo v2 Pro";
-  if (modelId === "mimo-v2-omni") return "MiMo v2 Omni";
   return modelId;
 }
 

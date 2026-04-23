@@ -11,7 +11,7 @@
 大多数 OpenAI 兼容客户端（Cherry Studio、Open WebUI、Cursor 等）无法发送这些额外参数。
 
 本代理将这三个开关的 **2³ = 8 种排列组合**映射为“虚拟模型 ID”。
-针对每个启用的真实模型都会生成 8 个虚拟模型，因此在默认配置下（`flash + pro + omni` 全开）一共会暴露 **24 个虚拟模型**。
+针对每个启用的真实模型都会生成 8 个虚拟模型，因此在默认配置下（5 个模型全开）一共会暴露 **40 个虚拟模型**。
 客户端只需在 `model` 字段中选择对应的虚拟模型名，代理自动注入所需参数并透传其余所有参数（`stream`、`temperature`、`tools` 函数调用等）。  
 软件设计考虑的使用场景为局域网个人使用。
 
@@ -22,8 +22,10 @@
 - `mimo-v2-flash`
 - `mimo-v2-pro`
 - `mimo-v2-omni`
+- `mimo-v2.5`
+- `mimo-v2.5-pro`
 
-默认会对以上三个模型全部开启虚拟映射；你也可以通过 `.env` 的 `MIMO_ENABLED_MODELS` 控制启用哪些真实模型。
+默认会对以上模型全部开启虚拟映射；你也可以通过 `.env` 的 `MIMO_ENABLED_MODELS` 控制启用哪些真实模型。
 
 每个真实模型都会生成以下 8 种能力组合的虚拟模型（以 `mimo-v2-flash` 为例）：
 
@@ -387,7 +389,7 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 | `HOST`                      |   ❌   | `0.0.0.0`                                 | 服务监听地址                                                                           |
 | `MIMO_BASE_URL`             |   ❌   | `https://api.xiaomimimo.com`              | 上游 API 地址（OpenAI 格式）                                                           |
 | `ANTHROPIC_BASE_URL`        |   ❌   | `https://api.xiaomimimo.com/anthropic/v1` | Anthropic 上游 API 地址（Messages 格式）                                               |
-| `MIMO_ENABLED_MODELS`       |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni`  | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni`） |
+| `MIMO_ENABLED_MODELS`       |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni,mimo-v2.5,mimo-v2.5-pro` | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni` / `mimo-v2.5` / `mimo-v2.5-pro`） |
 | `UPSTREAM_TIMEOUT_MS`       |   ❌   | `120000`                                  | 上游请求超时（毫秒）                                                                   |
 | `WEB_SEARCH_MAX_KEYWORD`    |   ❌   | `3`                                       | 联网搜索最大关键词数量                                                                 |
 | `WEB_SEARCH_FORCE_SEARCH`   |   ❌   | `true`                                    | 是否强制开启搜索能力                                                                   |
