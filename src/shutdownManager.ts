@@ -2,10 +2,8 @@ import http from "http";
 import { stopCleanupTask } from "./server";
 import { storageWorker } from "./monitor/storage/worker";
 import {
-  isWatcherActive,
-  notifyWatcherRestart,
-  performDirectRestart,
   stopWatcher,
+  performDirectRestart,
 } from "./ops";
 import { logger } from "./utils/logger";
 
@@ -25,8 +23,7 @@ export function setServer(server: http.Server): void {
  * @param reason 关闭原因（用于日志）
  */
 export async function gracefulShutdown(
-  reason: string = "SIGTERM",
-  options: { preserveWatcher?: boolean } = {}
+  reason: string = "SIGTERM"
 ): Promise<void> {
   if (isShuttingDown) {
     logger.info(`Shutdown already in progress (reason: ${reason})`);
@@ -65,13 +62,9 @@ export async function gracefulShutdown(
     stopCleanupTask();
     logger.info("Cleanup tasks stopped");
 
-    // 3. 停止 watcher（重启场景需要保留 watcher 接管旧进程）
-    if (options.preserveWatcher) {
-      logger.info("Watcher preserved for restart");
-    } else {
-      stopWatcher();
-      logger.info("Watcher stopped");
-    }
+    // 3. 停止 watcher
+    stopWatcher();
+    logger.info("Watcher stopped");
 
     // 4. Flush 监控队列并关闭存储
     await storageWorker.shutdown();
@@ -99,7 +92,8 @@ export async function gracefulShutdown(
 }
 
 /**
- * 请求重启（优雅关闭后通知 watcher 启动新进程）
+ * 请求重启（优雅关闭后由主进程自己启动新进程）
+ * 不再依赖 watcher 子进程，避免 Windows 上 detached 子进程被终止的问题。
  */
 export function requestRestart(): void {
   if (isShuttingDown) {
@@ -109,28 +103,8 @@ export function requestRestart(): void {
 
   logger.info("Restart requested via ops");
 
-  const watcherActive = isWatcherActive();
-
-  if (!watcherActive) {
-    void gracefulShutdown("restart", { preserveWatcher: false }).then(() => {
-      performDirectRestart();
-    });
-    return;
-  }
-
-  // 先通知 watcher 准备接管，再开始关闭流程，避免 watcher 被提前停掉
-  const notified = notifyWatcherRestart();
-
-  if (!notified) {
-    logger.warn("Watcher notification failed, falling back to direct restart");
-    void gracefulShutdown("restart", { preserveWatcher: false }).then(() => {
-      performDirectRestart();
-    });
-    return;
-  }
-
-  void gracefulShutdown("restart", { preserveWatcher: true }).then(() => {
-    process.exit(0);
+  void gracefulShutdown("restart").then(() => {
+    performDirectRestart();
   });
 }
 

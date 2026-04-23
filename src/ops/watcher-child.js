@@ -44,6 +44,7 @@ function startNewMainProcess() {
 
   newMainProcess = spawn("pnpm", ["start"], {
     stdio: "inherit",
+    shell: true,
     detached: false,
     env: process.env,
     cwd: process.cwd(),
@@ -94,24 +95,38 @@ process.on("message", (message) => {
       console.log(`[watcher] Received restart signal for PID: ${message.pid}`);
       pendingRestart = true;
 
-      // 如果主进程还活着，通知它退出
-      if (isProcessAlive(MAIN_PID)) {
-        console.log(`[watcher] Sending SIGTERM to main process ${MAIN_PID}`);
-        try {
-          process.kill(MAIN_PID, "SIGTERM");
-        } catch (err) {
-          console.error(`[watcher] Failed to signal main process: ${err.message}`);
-        }
-      }
-
-      // 启动轮询直到主进程退出
+      // 启动轮询直到主进程自行退出
+      // 注意：不再主动发送 SIGTERM，避免与主进程自己的 gracefulShutdown 竞争
+      // 主进程收到重启请求后会自行调用 gracefulShutdown → process.exit(0)
       const pollTimer = setInterval(() => {
         if (!isProcessAlive(MAIN_PID)) {
           clearInterval(pollTimer);
+          clearTimeout(forceKillTimer);
           console.log("[watcher] Main process exited, starting new one");
           startNewMainProcess();
         }
       }, 500);
+
+      // 15 秒超时保护：如果主进程卡住未能自行退出，则强制发送 SIGTERM
+      const forceKillTimer = setTimeout(() => {
+        clearInterval(pollTimer);
+        if (isProcessAlive(MAIN_PID)) {
+          console.log(`[watcher] Main process ${MAIN_PID} did not exit in time, sending SIGTERM`);
+          try {
+            process.kill(MAIN_PID, "SIGTERM");
+          } catch (err) {
+            console.error(`[watcher] Failed to signal main process: ${err.message}`);
+          }
+          // 再轮询等待退出
+          const fallbackPoll = setInterval(() => {
+            if (!isProcessAlive(MAIN_PID)) {
+              clearInterval(fallbackPoll);
+              console.log("[watcher] Main process exited after SIGTERM, starting new one");
+              startNewMainProcess();
+            }
+          }, 500);
+        }
+      }, 15000);
     }
   }
 });

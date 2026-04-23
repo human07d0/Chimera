@@ -51,12 +51,15 @@ export function startWatcher(): void {
   logger.info(`Watcher child path: ${watcherChildPath}`);
 
   // 启动 watcher 子进程
+  // detached: true 确保主进程退出后 watcher 继续存活（负责启动新主进程）
+  // windowsHide: true 避免在 Windows 上弹出额外控制台窗口
   watcherProcess = spawn(
     process.execPath,
     [watcherChildPath],
     {
       stdio: ["pipe", "pipe", "pipe", "ipc"],
-      detached: false,
+      detached: true,
+      windowsHide: true,
       env: {
         ...process.env,
         WATCHER_MAIN_PID: String(mainProcessPid),
@@ -64,6 +67,8 @@ export function startWatcher(): void {
       },
     }
   );
+
+  watcherProcess.unref();
 
   watcherProcess.on("message", (message: unknown) => {
     if (typeof message === "object" && message !== null && "type" in message) {
@@ -147,19 +152,26 @@ export function notifyWatcherRestart(): boolean {
 }
 
 /**
- * 直接重启（无 watcher 时的 fallback）
+ * 直接重启（主进程自己 spawn 新进程后退出）
+ * 不依赖 watcher 子进程，避免 Windows 上 detached 子进程存活问题。
  */
 export function performDirectRestart(): void {
   logger.info("Performing direct restart...");
 
   setTimeout(() => {
-    const child = spawn("pnpm", ["start"], {
+    const entryPath = path.join(process.cwd(), "dist", "index.js");
+    const child = spawn(process.execPath, [entryPath], {
       stdio: "inherit",
       detached: true,
+      windowsHide: true,
       env: process.env,
       cwd: process.cwd(),
     });
+    child.on("error", (err) => {
+      // eslint-disable-next-line no-console
+      console.error(`[restart] Failed to spawn new process: ${err.message}`);
+    });
     child.unref();
     process.exit(0);
-  }, 500);
+  }, 1500);
 }
