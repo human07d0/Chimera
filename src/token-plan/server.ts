@@ -101,6 +101,9 @@ async function proxyPassthrough(
   upstreamPath: string,
   requestId: string
 ): Promise<void> {
+  // 将客户端请求的模型名写入 res.locals，供 debug/monitor 中间件读取
+  res.locals.upstreamModel = req.body?.model || "unknown";
+
   const upstreamUrl = `${upstreamBaseUrl}${upstreamPath}`;
   const apiKey = getUpstreamApiKey();
 
