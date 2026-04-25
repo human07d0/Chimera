@@ -82,6 +82,22 @@
     .btn-danger { border-color: var(--danger); color: var(--danger); }
     .btn-danger:hover { background: rgba(248, 81, 73, 0.1); }
 
+    .nav-link {
+      padding: 6px 14px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+      font-family: var(--font-sans);
+    }
+
+    .nav-link:hover { background: var(--surface-hover); border-color: var(--text-secondary); }
+    .nav-link.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+
     /* Toolbar */
     .toolbar {
       padding: 12px 24px;
@@ -340,6 +356,9 @@
   <div class="header">
     <h1>Debug <span>LLM API Calls</span></h1>
     <div class="header-actions">
+      <a class="nav-link" href="../">Monitor</a>
+      <a class="nav-link active" href="../debug/">Debug</a>
+      <a class="nav-link" href="../ops/">Ops</a>
       <button class="btn" onclick="refresh()" title="Refresh">Refresh</button>
       <button class="btn btn-danger" onclick="prune()" title="Clear all records">Clear</button>
     </div>

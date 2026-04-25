@@ -4,139 +4,251 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mimo Proxy</title>
-    <meta name="theme-color" content="#16213e">
+    <meta name="theme-color" content="#0d1117">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" type="image/x-icon" href="./favicon.ico">
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface-hover: #1c2129;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #333; margin-bottom: 20px; }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        /* Header / Nav */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .header h1 span {
+            color: var(--text-secondary);
+            font-weight: 400;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .nav-link {
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            font-family: var(--font-sans);
+        }
+
+        .nav-link:hover { background: var(--surface-hover); border-color: var(--text-secondary); }
+        .nav-link.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+
+        /* Buttons */
+        .btn {
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: var(--font-sans);
+        }
+
+        .btn:hover { background: var(--surface-hover); border-color: var(--text-secondary); }
+        .btn-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+        .btn-primary:hover { background: #388bfd; }
+        .btn-success { background: #238636; border-color: #238636; color: #fff; }
+        .btn-success:hover { background: #2ea043; }
+
+        .hidden { display: none; }
+
+        /* Container */
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px 24px; }
+
+        h2 {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text);
+            margin-bottom: 16px;
+        }
+
+        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
+            gap: 12px;
+            margin-bottom: 24px;
         }
+
         .stat-card {
-            background: white;
-            padding: 20px;
+            background: var(--surface);
+            padding: 16px 20px;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
         }
+
         .stat-card h3 {
-            margin: 0 0 10px 0;
-            color: #666;
-            font-size: 14px;
+            margin: 0 0 8px 0;
+            color: var(--text-secondary);
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
+
         .stat-card .value {
             font-size: 24px;
-            font-weight: bold;
-            color: #333;
+            font-weight: 600;
+            color: var(--text);
         }
+
         .stat-card .unit {
-            font-size: 14px;
-            color: #999;
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-left: 4px;
         }
+
+        /* Table */
         .table-container {
-            background: white;
+            background: var(--surface);
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
             overflow: hidden;
         }
+
         table {
             width: 100%;
             border-collapse: collapse;
+            font-size: 13px;
         }
+
         th, td {
-            padding: 12px 15px;
+            padding: 10px 14px;
             text-align: left;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid var(--border);
         }
+
         th {
-            background-color: #f8f9fa;
-            font-weight: 600;
-            color: #333;
+            background: var(--surface);
+            font-weight: 500;
+            color: var(--text-secondary);
+            white-space: nowrap;
         }
-        tr:hover { background-color: #f8f9fa; }
-        .refresh-btn, .install-btn {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-bottom: 20px;
-            margin-right: 10px;
+
+        td { white-space: nowrap; }
+
+        tr:hover { background: var(--surface-hover); }
+
+        .loading { text-align: center; padding: 20px; color: var(--text-secondary); }
+        .error { color: var(--danger); padding: 20px; text-align: center; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
+            .container { padding: 12px; }
         }
-        .install-btn {
-            background-color: #28a745;
-        }
-        .refresh-btn:hover { background-color: #0056b3; }
-        .install-btn:hover { background-color: #218838; }
-        .hidden { display: none; }
-        .loading { text-align: center; padding: 20px; color: #666; }
-        .error { color: #dc3545; padding: 20px; text-align: center; }
     </style>
 </head>
 <body>
+    <div class="header">
+        <h1>Mimo Proxy <span>Monitor</span></h1>
+        <div class="header-actions">
+            <a class="nav-link active" href="./">Monitor</a>
+            <a class="nav-link" href="./debug/">Debug</a>
+            <a class="nav-link" href="./ops/">Ops</a>
+            <button class="btn" onclick="loadData()">Refresh</button>
+            <button class="btn btn-success hidden" id="installBtn" onclick="installPWA()">Install</button>
+        </div>
+    </div>
+
     <div class="container">
-        <h1>Mimo Proxy</h1>
-        <button class="refresh-btn" onclick="loadData()">刷新数据</button>
-        <button class="install-btn hidden" id="installBtn" onclick="installPWA()">安装</button>
-        
         <div id="stats" class="stats-grid">
             <div class="stat-card">
-                <h3>总调用次数</h3>
+                <h3>Total Calls</h3>
                 <div class="value" id="totalCalls">-</div>
             </div>
             <div class="stat-card">
-                <h3>总成本</h3>
+                <h3>Total Cost</h3>
                 <div class="value" id="totalCost">-</div>
-                <span class="unit">元</span>
+                <span class="unit">CNY</span>
             </div>
             <div class="stat-card">
-                <h3>总输入 Tokens</h3>
+                <h3>Input Tokens</h3>
                 <div class="value" id="totalInputTokens">-</div>
             </div>
             <div class="stat-card">
-                <h3>总缓存命中 Tokens</h3>
+                <h3>Cached Tokens</h3>
                 <div class="value" id="totalCachedTokens">-</div>
             </div>
             <div class="stat-card">
-                <h3>总输出 Tokens</h3>
+                <h3>Output Tokens</h3>
                 <div class="value" id="totalOutputTokens">-</div>
             </div>
         </div>
 
-        <h2>调用详情</h2>
+        <h2>Call Details</h2>
         <div class="table-container">
             <table>
                 <thead>
                     <tr>
-                        <th>时间</th>
-                        <th>模型</th>
-                        <th>输入 Tokens</th>
-                        <th>缓存命中</th>
-                        <th>输出 Tokens</th>
-                        <th>成本 (元)</th>
-                        <th>耗时 (ms)</th>
+                        <th>Time</th>
+                        <th>Model</th>
+                        <th>Input Tokens</th>
+                        <th>Cached</th>
+                        <th>Output Tokens</th>
+                        <th>Cost (CNY)</th>
+                        <th>Duration (ms)</th>
                     </tr>
                 </thead>
                 <tbody id="callsTable">
-                    <tr><td colspan="7" class="loading">加载中...</td></tr>
+                    <tr><td colspan="7" class="loading">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <script>
-        // PWA 安装
+        // PWA
         let deferredPrompt;
         const installBtn = document.getElementById('installBtn');
         
@@ -157,7 +269,7 @@
             }
         }
         
-        // 加载监控数据
+        // Load data
         async function loadData() {
             try {
                 const statsRes = await fetch('./monitor/stats?days=3');
@@ -185,18 +297,18 @@
                         '<td>' + c.cost.toFixed(4) + '</td><td>' + c.duration + '</td></tr>'
                     ).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="7" class="loading">暂无数据</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" class="loading">No data</td></tr>';
                 }
             } catch (error) {
                 document.getElementById('callsTable').innerHTML = 
-                    '<tr><td colspan="7" class="error">加载失败，请稍后重试</td></tr>';
+                    '<tr><td colspan="7" class="error">Failed to load, please retry later</td></tr>';
             }
         }
 
         loadData();
         setInterval(loadData, 30000);
         
-        // 注册 Service Worker
+        // Service Worker
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(console.error);
         }

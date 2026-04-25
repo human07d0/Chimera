@@ -28,39 +28,48 @@ async function init(): Promise<void> {
     </div>
   `;
 
-  // 检查 Ops 是否启用
-  const infoRes = await opsApi.getInfo();
+  try {
+    // 检查 Ops 是否启用
+    const infoRes = await opsApi.getInfo();
 
-  if (!infoRes.success || !infoRes.data?.enabled) {
-    renderDisabledView();
-    return;
-  }
-
-  store.setState({ opsEnabled: true, initialized: true });
-
-  // 尝试恢复登录状态
-  const savedToken = store.loadToken();
-  if (savedToken) {
-    opsApi.setToken(savedToken);
-    const statusRes = await opsApi.getStatus();
-    if (!statusRes.success) {
-      store.clearToken();
+    if (!infoRes.success || !infoRes.data?.enabled) {
+      renderDisabledView();
+      return;
     }
-  }
 
-  // 设置路由
-  setupRoutes();
+    store.setState({ opsEnabled: true, initialized: true });
 
-  // 启动路由
-  router.start();
-
-  // 初始导航
-  if (window.location.hash === "" || window.location.hash === "#/") {
-    if (store.getState().loggedIn) {
-      router.navigate("/dashboard");
-    } else {
-      router.navigate("/login");
+    // 尝试恢复登录状态
+    const savedToken = store.loadToken();
+    if (savedToken) {
+      opsApi.setToken(savedToken);
+      const statusRes = await opsApi.getStatus();
+      if (!statusRes.success) {
+        store.clearToken();
+      }
     }
+
+    // 设置路由
+    setupRoutes();
+
+    // 启动路由
+    router.start();
+
+    // 初始导航
+    if (window.location.hash === "" || window.location.hash === "#/") {
+      if (store.getState().loggedIn) {
+        router.navigate("/dashboard");
+      } else {
+        router.navigate("/login");
+      }
+    }
+  } catch (error) {
+    app.innerHTML = `
+      <div class="loading-screen">
+        <p style="color: var(--danger); margin-bottom: 16px;">初始化失败: ${error instanceof Error ? error.message : "未知错误"}</p>
+        <button class="btn btn-primary" onclick="location.reload()">重试</button>
+      </div>
+    `;
   }
 }
 
@@ -99,14 +108,13 @@ async function renderDashboard(): Promise<void> {
 
   app.innerHTML = `
     <header class="header">
-      <h1>🔧 Mimo Proxy 运维中心</h1>
+      <h1>Mimo Proxy <span style="color: var(--text-secondary); font-weight: 400; font-size: 14px; margin-left: 8px;">Ops</span></h1>
       <div class="header-actions">
-        <button class="btn btn-secondary btn-sm" id="btn-refresh">
-          🔄 刷新数据
-        </button>
-        <button class="btn btn-secondary btn-sm" id="btn-logout">
-          🚪 退出登录
-        </button>
+        <a class="nav-link" href="../">Monitor</a>
+        <a class="nav-link" href="../debug/">Debug</a>
+        <a class="nav-link active" href="#/dashboard">Ops</a>
+        <button class="btn btn-secondary btn-sm" id="btn-refresh">Refresh</button>
+        <button class="btn btn-secondary btn-sm" id="btn-logout">Logout</button>
       </div>
     </header>
     <div class="container">
@@ -144,6 +152,7 @@ async function renderDashboard(): Promise<void> {
   });
 
   document.getElementById("btn-logout")?.addEventListener("click", () => {
+    stopAutoRefresh();
     store.clearToken();
     opsApi.clearToken();
     router.navigate("/login");

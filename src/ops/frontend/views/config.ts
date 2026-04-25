@@ -16,7 +16,7 @@ let hasChanges = false;
 export function renderConfigView(container: HTMLElement): void {
   container.innerHTML = `
     <div class="card">
-      <h3 class="card-title">⚙️ 配置管理</h3>
+      <h3 class="card-title">Configuration</h3>
       <div id="config-loading" class="loading-screen" style="min-height: 100px;">
         <div class="spinner"></div>
       </div>
@@ -24,10 +24,10 @@ export function renderConfigView(container: HTMLElement): void {
         <div id="config-form" class="config-grid"></div>
         <div id="config-actions" class="mt-4">
           <button class="btn btn-primary" id="btn-save-config" disabled>
-            💾 保存配置
+            Save Config
           </button>
           <span id="unsaved-indicator" class="hidden" style="margin-left: 12px; color: var(--warning);">
-            ⚠️ 有未保存的更改
+            Unsaved changes
           </span>
         </div>
       </div>
@@ -151,7 +151,7 @@ export async function saveConfig(): Promise<void> {
 
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.textContent = "保存中...";
+    saveBtn.textContent = "Saving...";
   }
 
   // 收集变更
@@ -182,7 +182,7 @@ export async function saveConfig(): Promise<void> {
   }
 
   if (Object.keys(updates).length === 0) {
-    toast.info("没有需要保存的更改");
+    toast.info("No changes to save");
     resetSaveButton();
     return;
   }
@@ -190,15 +190,15 @@ export async function saveConfig(): Promise<void> {
   const response = await opsApi.updateConfig(updates);
 
   if (response.success) {
-    toast.success("配置已保存，重启后生效");
+    toast.success("Config saved, restart to apply");
     currentConfig = response.data!;
     hasChanges = false;
     resetSaveButton();
   } else {
-    toast.error(response.error || "保存失败");
+    toast.error(response.error || "Save failed");
     if (saveBtn) {
       saveBtn.disabled = false;
-      saveBtn.textContent = "💾 保存配置";
+      saveBtn.textContent = "Save Config";
     }
   }
 }
@@ -209,7 +209,7 @@ function resetSaveButton(): void {
 
   if (saveBtn) {
     saveBtn.disabled = true;
-    saveBtn.textContent = "💾 保存配置";
+    saveBtn.textContent = "Save Config";
   }
   if (indicator) indicator.classList.add("hidden");
 }

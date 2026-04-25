@@ -31,7 +31,7 @@ function formatUptime(seconds: number): string {
 export function renderStatusView(container: HTMLElement): void {
   container.innerHTML = `
     <div class="card">
-      <h3 class="card-title">📊 服务状态</h3>
+      <h3 class="card-title">Service Status</h3>
       <div id="status-loading" class="loading-screen" style="min-height: 100px;">
         <div class="spinner"></div>
       </div>
@@ -62,7 +62,7 @@ export function renderStatusView(container: HTMLElement): void {
             <span class="stat-value" id="stat-arch">-</span>
           </div>
         </div>
-        <h4 class="mt-4 mb-4">💾 内存使用</h4>
+        <h4 class="mt-4 mb-4">Memory Usage</h4>
         <div class="grid grid-2">
           <div class="stat-item">
             <span class="stat-label">堆内存已用</span>
@@ -111,7 +111,7 @@ export async function loadStatusData(): Promise<void> {
     (document.getElementById("stat-pid") as HTMLElement).textContent =
       String(status.pid);
     (document.getElementById("stat-watcher") as HTMLElement).textContent =
-      status.watcherActive ? "✅ 运行中" : "❌ 未运行";
+      status.watcherActive ? "Running" : "Stopped";
     (document.getElementById("stat-node") as HTMLElement).textContent =
       status.nodeVersion;
     (document.getElementById("stat-platform") as HTMLElement).textContent =
