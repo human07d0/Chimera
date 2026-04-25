@@ -11,6 +11,7 @@ import {
 } from "./shutdownManager";
 import { logger } from "./utils/logger";
 import { startWatcher } from "./ops";
+import { startTokenPlanServer } from "./token-plan/server";
 
 export {
   config,
@@ -49,6 +50,9 @@ export function startServer(): http.Server {
     if (config.opsPassword) {
       startWatcher();
     }
+
+    // 启动 token-plan 透传代理服务器
+    startTokenPlanServer();
   });
 
   return server;

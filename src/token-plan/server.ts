@@ -1,0 +1,372 @@
+import express, { NextFunction, Request, Response } from "express";
+import http from "http";
+
+import { config } from "../config";
+import { logger } from "../utils/logger";
+
+// --------------------------------------------------------------------------
+// 鉴权逻辑（复用主应用的 extractApiKey 模式）
+// --------------------------------------------------------------------------
+
+function extractApiKey(req: Request): string | null {
+  const authHeader = req.headers["authorization"];
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice("Bearer ".length).trim();
+  }
+
+  const apiKeyHeader = req.headers["api-key"];
+  if (typeof apiKeyHeader === "string" && apiKeyHeader.trim()) {
+    return apiKeyHeader.trim();
+  }
+
+  const xApiKeyHeader = req.headers["x-api-key"];
+  if (typeof xApiKeyHeader === "string" && xApiKeyHeader.trim()) {
+    return xApiKeyHeader.trim();
+  }
+
+  return null;
+}
+
+function authMiddleware(req: Request, res: Response, next: NextFunction): void {
+  if (!config.tokenPlan.proxyApiKey) {
+    next();
+    return;
+  }
+
+  const providedKey = extractApiKey(req);
+
+  if (!providedKey) {
+    res.status(401).json({
+      error: {
+        message:
+          "Missing API key. Provide it via 'Authorization: Bearer <key>', 'api-key: <key>' or 'x-api-key: <key>' header.",
+        type: "authentication_error",
+        code: "missing_api_key",
+      },
+    });
+    return;
+  }
+
+  if (providedKey !== config.tokenPlan.proxyApiKey) {
+    res.status(401).json({
+      error: {
+        message: "Invalid API key.",
+        type: "authentication_error",
+        code: "invalid_api_key",
+      },
+    });
+    return;
+  }
+
+  next();
+}
+
+// --------------------------------------------------------------------------
+// 通用透传函数
+// --------------------------------------------------------------------------
+
+function getUpstreamApiKey(): string {
+  return config.tokenPlan.mimoApiKey || config.mimoApiKey;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number
+): Promise<globalThis.Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (err) {
+    if (controller.signal.aborted) {
+      throw new Error(`Request timed out after ${timeoutMs}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function generateRequestId(): string {
+  return `tp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * 将客户端请求原样透传到上游，支持流式和非流式响应
+ */
+async function proxyPassthrough(
+  req: Request,
+  res: Response,
+  upstreamBaseUrl: string,
+  upstreamPath: string,
+  requestId: string
+): Promise<void> {
+  const upstreamUrl = `${upstreamBaseUrl}${upstreamPath}`;
+  const apiKey = getUpstreamApiKey();
+
+  // 构造上游请求头：转发客户端原始 headers，替换鉴权
+  const upstreamHeaders: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Request-Id": requestId,
+  };
+
+  // 转发客户端的 Authorization 头（使用上游 API Key）
+  if (apiKey) {
+    upstreamHeaders["api-key"] = apiKey;
+  }
+
+  // 转发其他有用的请求头
+  const forwardHeaders = ["accept", "accept-encoding", "anthropic-version", "anthropic-beta"];
+  for (const h of forwardHeaders) {
+    const val = req.headers[h];
+    if (val) {
+      upstreamHeaders[h] = Array.isArray(val) ? val.join(", ") : val;
+    }
+  }
+
+  let upstreamResponse: globalThis.Response;
+  try {
+    upstreamResponse = await fetchWithTimeout(
+      upstreamUrl,
+      {
+        method: "POST",
+        headers: upstreamHeaders,
+        body: JSON.stringify(req.body),
+      },
+      config.tokenPlan.timeout
+    );
+  } catch (fetchErr) {
+    const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    const isTimeout = message.includes("timed out") || message.includes("timeout");
+    logger.error("Token-plan upstream fetch failed", { requestId, error: message });
+    res.status(502).json({
+      error: {
+        message: isTimeout
+          ? "Request to upstream API timed out"
+          : `Failed to reach upstream API: ${message}`,
+        type: "upstream_error",
+        code: isTimeout ? "timeout" : "connection_error",
+      },
+    });
+    return;
+  }
+
+  // 处理上游错误响应
+  if (!upstreamResponse.ok) {
+    const errorStatus = upstreamResponse.status;
+    let errorBody: unknown;
+    try {
+      errorBody = await upstreamResponse.json();
+    } catch {
+      errorBody = { message: await upstreamResponse.text().catch(() => "Unknown error") };
+    }
+
+    logger.warn("Token-plan upstream returned error", {
+      requestId,
+      status: errorStatus,
+    });
+
+    res.status(errorStatus).json(errorBody);
+    return;
+  }
+
+  // 流式响应：直接 pipe
+  const contentType = upstreamResponse.headers.get("content-type") || "";
+  if (contentType.includes("text/event-stream") || contentType.includes("text/plain")) {
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Request-Id", requestId);
+
+    const reader = upstreamResponse.body?.getReader();
+    if (!reader) {
+      res.status(502).json({
+        error: { message: "Upstream returned no body", type: "upstream_error" },
+      });
+      return;
+    }
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!res.writableEnded) {
+        logger.error("Token-plan stream pipe error", { requestId, error: msg });
+      }
+    } finally {
+      if (!res.writableEnded) {
+        res.end();
+      }
+    }
+
+    logger.info("Token-plan streaming request completed", { requestId });
+    return;
+  }
+
+  // 非流式响应
+  const responseBody = await upstreamResponse.json();
+  res.setHeader("X-Request-Id", requestId);
+  res.json(responseBody);
+
+  logger.info("Token-plan non-streaming request completed", { requestId });
+}
+
+// --------------------------------------------------------------------------
+// Express 应用
+// --------------------------------------------------------------------------
+
+function createTokenPlanApp(): express.Application {
+  const app = express();
+
+  // CORS
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
+    res.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, api-key, x-api-key, x-requested-with, anthropic-version, anthropic-beta"
+    );
+
+    if (_req.method === "OPTIONS") {
+      res.sendStatus(204);
+      return;
+    }
+
+    next();
+  });
+
+  app.use(express.json({ limit: "10mb" }));
+
+  // 请求日志
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    logger.debug("Token-plan incoming request", {
+      method: req.method,
+      path: req.path,
+    });
+    next();
+  });
+
+  // 健康检查
+  app.get("/health", (_req: Request, res: Response) => {
+    res.json({
+      status: "ok",
+      service: "token-plan-proxy",
+      timestamp: new Date().toISOString(),
+      auth: config.tokenPlan.proxyApiKey ? "enabled" : "disabled",
+    });
+  });
+
+  // 鉴权中间件（作用于 API 路由）
+  app.use("/v1", authMiddleware);
+  app.use("/anthropic", authMiddleware);
+
+  // OpenAI 兼容格式: POST /v1/chat/completions
+  app.post("/v1/chat/completions", async (req: Request, res: Response) => {
+    const requestId = generateRequestId();
+    try {
+      await proxyPassthrough(req, res, config.tokenPlan.baseUrl, "/chat/completions", requestId);
+    } catch (err) {
+      logger.error("Token-plan /v1/chat/completions error", {
+        requestId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: { message: "Internal proxy error", type: "internal_error" },
+        });
+      }
+    }
+  });
+
+  // Anthropic Messages API: POST /anthropic/v1/messages
+  app.post("/anthropic/v1/messages", async (req: Request, res: Response) => {
+    const requestId = generateRequestId();
+    try {
+      await proxyPassthrough(req, res, config.tokenPlan.anthropicBaseUrl, "/v1/messages", requestId);
+    } catch (err) {
+      logger.error("Token-plan /anthropic/v1/messages error", {
+        requestId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: { message: "Internal proxy error", type: "internal_error" },
+        });
+      }
+    }
+  });
+
+  // 404
+  app.use((_req: Request, res: Response) => {
+    res.status(404).json({
+      error: {
+        message: "The requested endpoint does not exist on token-plan proxy",
+        type: "invalid_request_error",
+        code: "endpoint_not_found",
+      },
+    });
+  });
+
+  // 全局错误处理
+  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+    logger.error("Token-plan unhandled error", {
+      name: err.name,
+      message: err.message,
+    });
+    if (!res.headersSent) {
+      res.status(500).json({
+        error: { message: "Internal proxy error", type: "internal_error" },
+      });
+    }
+  });
+
+  return app;
+}
+
+// --------------------------------------------------------------------------
+// 启动入口
+// --------------------------------------------------------------------------
+
+let tokenPlanServer: http.Server | null = null;
+
+/**
+ * 启动 token-plan 透传代理服务器
+ * @returns http.Server 实例，未启用时返回 null
+ */
+export function startTokenPlanServer(): http.Server | null {
+  if (!config.tokenPlan.enabled) {
+    logger.info("Token-plan proxy is disabled (TOKEN_PLAN_ENABLED=false)");
+    return null;
+  }
+
+  const app = createTokenPlanApp();
+  const server = http.createServer(app);
+
+  server.on("error", (error: unknown) => {
+    logger.error("Token-plan server failed to start", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+
+  server.listen(config.tokenPlan.port, config.tokenPlan.host, () => {
+    logger.info("Token-plan proxy server started", {
+      host: config.tokenPlan.host,
+      port: config.tokenPlan.port,
+    });
+  });
+
+  tokenPlanServer = server;
+  return server;
+}
+
+/**
+ * 获取 token-plan server 实例（供 shutdownManager 使用）
+ */
+export function getTokenPlanServer(): http.Server | null {
+  return tokenPlanServer;
+}

@@ -103,8 +103,8 @@ const defaultEnabledModels: readonly SupportedUpstreamModel[] = SUPPORTED_UPSTRE
 const configuredEnabledModels = optionalModelListEnv("MIMO_ENABLED_MODELS", defaultEnabledModels);
 
 export const config = {
-  /** 小米 MiMo API Key */
-  mimoApiKey: requireEnv("MIMO_API_KEY"),
+  /** 小米 MiMo API Key（主代理必填，仅使用 token-plan 时可留空） */
+  mimoApiKey: process.env["MIMO_API_KEY"] || "",
 
   /** 代理服务自身鉴权 Key，为空则不启用 */
   proxyApiKey: process.env["PROXY_API_KEY"] || "",
@@ -149,6 +149,18 @@ export const config = {
     flushIntervalMs: optionalIntEnv("MONITOR_FLUSH_INTERVAL_MS", 200),
     flushBatchSize: optionalIntEnv("MONITOR_FLUSH_BATCH_SIZE", 100),
     queueMaxSize: optionalIntEnv("MONITOR_QUEUE_MAX_SIZE", 10_000),
+  },
+
+  /** token-plan 透传代理配置 */
+  tokenPlan: {
+    enabled: optionalBoolEnv("TOKEN_PLAN_ENABLED", false),
+    port: optionalIntEnv("TOKEN_PLAN_PORT", 3001),
+    host: optionalEnv("HOST", "0.0.0.0"),
+    proxyApiKey: process.env["TOKEN_PLAN_PROXY_API_KEY"] || "",
+    mimoApiKey: process.env["TOKEN_PLAN_MIMO_API_KEY"] || "",
+    baseUrl: optionalEnv("TOKEN_PLAN_BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1"),
+    anthropicBaseUrl: optionalEnv("TOKEN_PLAN_ANTHROPIC_BASE_URL", "https://token-plan-cn.xiaomimimo.com/anthropic"),
+    timeout: optionalIntEnv("UPSTREAM_TIMEOUT_MS", 120_000),
   },
 
   logLevel: optionalEnv("LOG_LEVEL", "info") as "error" | "warn" | "info" | "debug",
