@@ -72,20 +72,27 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
     stream = true;
     chunks += 1;
 
-    const size =
-      typeof chunk === "string"
-        ? Buffer.byteLength(chunk)
-        : Buffer.isBuffer(chunk)
-          ? chunk.length
-          : 0;
-    bytesOut += size;
+    // 统一转换为 Buffer 以计算大小和解析 SSE
+    let buf: Buffer;
+    if (typeof chunk === "string") {
+      buf = Buffer.from(chunk);
+    } else if (Buffer.isBuffer(chunk)) {
+      buf = chunk;
+    } else if (chunk instanceof Uint8Array) {
+      buf = Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+    } else {
+      buf = Buffer.alloc(0);
+    }
+    bytesOut += buf.length;
 
-    if (firstTokenMs === null && size > 0) {
+    if (firstTokenMs === null && buf.length > 0) {
       firstTokenMs = Date.now() - tsStart;
     }
 
-    if (typeof chunk === "string") {
-      const lines = chunk.split("\n");
+    // 解析 SSE data 行提取 token 用量
+    const str = buf.toString("utf-8");
+    if (str) {
+      const lines = str.split("\n");
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         const dataContent = line.slice("data: ".length);
