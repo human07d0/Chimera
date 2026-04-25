@@ -18,6 +18,7 @@ export interface MonitorEvent {
   cached_prompt_tokens: number;
   cost: number;
   error_type: string | null;
+  source: "main" | "token-plan";
 }
 
 export interface QueryParams {
@@ -30,6 +31,7 @@ export interface QueryParams {
 export interface StatsParams {
   days?: number;
   model?: string;
+  source?: "main" | "token-plan";
 }
 
 export interface StatsResult {
@@ -37,6 +39,7 @@ export interface StatsResult {
   totalInputTokens: number;
   totalOutputTokens: number;
   totalCachedPromptTokens: number;
+  totalTokens: number;
   totalCost: number;
 }
 

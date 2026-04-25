@@ -158,6 +158,18 @@ export function createApp(): express.Application {
       app.use("/token-plan/anthropic/v1", debugMiddleware);
     }
 
+    // 标记 token-plan 来源并挂载监控中间件
+    app.use("/token-plan/v1", (_req: Request, res: Response, next: NextFunction) => {
+      res.locals.source = "token-plan";
+      next();
+    });
+    app.use("/token-plan/v1", monitorMiddleware);
+    app.use("/token-plan/anthropic/v1", (_req: Request, res: Response, next: NextFunction) => {
+      res.locals.source = "token-plan";
+      next();
+    });
+    app.use("/token-plan/anthropic/v1", monitorMiddleware);
+
     app.use("/token-plan", tokenPlanRouter);
     logger.info("Token-plan router mounted at /token-plan");
   }

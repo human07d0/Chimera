@@ -39,7 +39,7 @@ class MemoryStorage implements MonitorStorage {
   }
 
   stats(params: StatsParams): StatsResult {
-    const { days = 3, model } = params;
+    const { days = 3, model, source } = params;
     const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
 
     let filtered = this.records.filter((record) => record.ts_start >= cutoffTs);
@@ -48,11 +48,19 @@ class MemoryStorage implements MonitorStorage {
       filtered = filtered.filter((record) => record.model_requested === model);
     }
 
+    if (source) {
+      filtered = filtered.filter((record) => record.source === source);
+    }
+
+    const totalInputTokens = filtered.reduce((sum, item) => sum + item.input_tokens, 0);
+    const totalOutputTokens = filtered.reduce((sum, item) => sum + item.output_tokens, 0);
+
     return {
       totalCalls: filtered.length,
-      totalInputTokens: filtered.reduce((sum, item) => sum + item.input_tokens, 0),
-      totalOutputTokens: filtered.reduce((sum, item) => sum + item.output_tokens, 0),
+      totalInputTokens,
+      totalOutputTokens,
       totalCachedPromptTokens: filtered.reduce((sum, item) => sum + item.cached_prompt_tokens, 0),
+      totalTokens: totalInputTokens + totalOutputTokens,
       totalCost: filtered.reduce((sum, item) => sum + item.cost, 0),
     };
   }

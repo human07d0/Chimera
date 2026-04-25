@@ -65,9 +65,33 @@ body {
 
 /* Container */
 .container {
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 20px 16px;
+}
+
+/* Ops Layout - two column */
+.ops-layout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.ops-right {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ops-right .card {
+  margin-bottom: 0;
+}
+
+@media (max-width: 960px) {
+  .ops-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Header */

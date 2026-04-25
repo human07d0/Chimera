@@ -22,7 +22,8 @@ type RequestRow = [
   number,  // output_tokens
   number,  // cached_prompt_tokens
   number,  // cost
-  string | null   // error_type
+  string | null,  // error_type
+  string   // source ("main" | "token-plan")
 ];
 
 export class SqliteStorage implements MonitorStorage {
@@ -97,9 +98,17 @@ export class SqliteStorage implements MonitorStorage {
         output_tokens INTEGER NOT NULL,
         cached_prompt_tokens INTEGER NOT NULL,
         cost REAL NOT NULL,
-        error_type TEXT
+        error_type TEXT,
+        source TEXT NOT NULL DEFAULT 'main'
       )
     `);
+
+    // 向后兼容：为已有数据库添加 source 列
+    try {
+      this.db.run(`ALTER TABLE requests ADD COLUMN source TEXT NOT NULL DEFAULT 'main'`);
+    } catch {
+      // 列已存在，忽略
+    }
 
     this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_requests_ts_start ON requests(ts_start)
@@ -111,6 +120,10 @@ export class SqliteStorage implements MonitorStorage {
 
     this.db.run(`
       CREATE INDEX IF NOT EXISTS idx_requests_model_requested_ts_start ON requests(model_requested, ts_start)
+    `);
+
+    this.db.run(`
+      CREATE INDEX IF NOT EXISTS idx_requests_source_ts_start ON requests(source, ts_start)
     `);
   }
 
@@ -133,8 +146,8 @@ export class SqliteStorage implements MonitorStorage {
         model_requested, model_upstream,
         stream, chunks, bytes_out, first_token_ms,
         input_tokens, output_tokens, cached_prompt_tokens, cost,
-        error_type
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        error_type, source
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.bind([
@@ -155,7 +168,8 @@ export class SqliteStorage implements MonitorStorage {
       event.output_tokens,
       event.cached_prompt_tokens,
       event.cost,
-      event.error_type
+      event.error_type,
+      event.source,
     ]);
 
     stmt.step();
@@ -204,7 +218,7 @@ export class SqliteStorage implements MonitorStorage {
       throw new Error('Storage not initialized. Call init() first.');
     }
 
-    const { days = 3, model } = params;
+    const { days = 3, model, source } = params;
     const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
 
     let sql = `
@@ -213,6 +227,7 @@ export class SqliteStorage implements MonitorStorage {
         COALESCE(SUM(input_tokens), 0) as totalInputTokens,
         COALESCE(SUM(output_tokens), 0) as totalOutputTokens,
         COALESCE(SUM(cached_prompt_tokens), 0) as totalCachedPromptTokens,
+        COALESCE(SUM(input_tokens + output_tokens), 0) as totalTokens,
         COALESCE(SUM(cost), 0) as totalCost
       FROM requests
       WHERE ts_start >= ?
@@ -225,18 +240,24 @@ export class SqliteStorage implements MonitorStorage {
       bind.push(model);
     }
 
+    if (source) {
+      sql += ` AND source = ?`;
+      bind.push(source);
+    }
+
     const stmt = this.db.prepare(sql);
     stmt.bind(bind);
 
     if (stmt.step()) {
-      const row = stmt.get() as [number, number, number, number, number];
+      const row = stmt.get() as [number, number, number, number, number, number];
       stmt.free();
       return {
         totalCalls: row[0] ?? 0,
         totalInputTokens: row[1] ?? 0,
         totalOutputTokens: row[2] ?? 0,
         totalCachedPromptTokens: row[3] ?? 0,
-        totalCost: row[4] ?? 0,
+        totalTokens: row[4] ?? 0,
+        totalCost: row[5] ?? 0,
       };
     }
 
@@ -246,6 +267,7 @@ export class SqliteStorage implements MonitorStorage {
       totalInputTokens: 0,
       totalOutputTokens: 0,
       totalCachedPromptTokens: 0,
+      totalTokens: 0,
       totalCost: 0,
     };
   }
@@ -304,6 +326,7 @@ export class SqliteStorage implements MonitorStorage {
       cached_prompt_tokens: row[15],
       cost: row[16],
       error_type: row[17],
+      source: (row[18] as "main" | "token-plan") || "main",
     };
   }
 }

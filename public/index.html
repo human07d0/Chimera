@@ -103,7 +103,7 @@
         .hidden { display: none; }
 
         /* Container */
-        .container { max-width: 1200px; margin: 0 auto; padding: 20px 24px; }
+        .container { max-width: 1600px; margin: 0 auto; padding: 20px 16px; }
 
         h2 {
             font-size: 16px;
@@ -201,27 +201,63 @@
     </div>
 
     <div class="container">
-        <div id="stats" class="stats-grid">
+        <!-- 按量计费 (Main) -->
+        <h2>Pay-as-you-go (Main)</h2>
+        <div id="stats-main" class="stats-grid">
             <div class="stat-card">
                 <h3>Total Calls</h3>
-                <div class="value" id="totalCalls">-</div>
+                <div class="value" id="main-totalCalls">-</div>
             </div>
             <div class="stat-card">
                 <h3>Total Cost</h3>
-                <div class="value" id="totalCost">-</div>
+                <div class="value" id="main-totalCost">-</div>
                 <span class="unit">CNY</span>
             </div>
             <div class="stat-card">
+                <h3>Total Tokens</h3>
+                <div class="value" id="main-totalTokens">-</div>
+            </div>
+            <div class="stat-card">
                 <h3>Input Tokens</h3>
-                <div class="value" id="totalInputTokens">-</div>
+                <div class="value" id="main-totalInputTokens">-</div>
             </div>
             <div class="stat-card">
                 <h3>Cached Tokens</h3>
-                <div class="value" id="totalCachedTokens">-</div>
+                <div class="value" id="main-totalCachedTokens">-</div>
             </div>
             <div class="stat-card">
                 <h3>Output Tokens</h3>
-                <div class="value" id="totalOutputTokens">-</div>
+                <div class="value" id="main-totalOutputTokens">-</div>
+            </div>
+        </div>
+
+        <!-- Token-Plan -->
+        <h2>Token-Plan</h2>
+        <div id="stats-token-plan" class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Calls</h3>
+                <div class="value" id="tp-totalCalls">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Cost</h3>
+                <div class="value" id="tp-totalCost">-</div>
+                <span class="unit">CNY</span>
+            </div>
+            <div class="stat-card">
+                <h3>Total Tokens</h3>
+                <div class="value" id="tp-totalTokens">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Input Tokens</h3>
+                <div class="value" id="tp-totalInputTokens">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Cached Tokens</h3>
+                <div class="value" id="tp-totalCachedTokens">-</div>
+            </div>
+            <div class="stat-card">
+                <h3>Output Tokens</h3>
+                <div class="value" id="tp-totalOutputTokens">-</div>
             </div>
         </div>
 
@@ -231,6 +267,7 @@
                 <thead>
                     <tr>
                         <th>Time</th>
+                        <th>Source</th>
                         <th>Model</th>
                         <th>Input Tokens</th>
                         <th>Cached</th>
@@ -240,26 +277,33 @@
                     </tr>
                 </thead>
                 <tbody id="callsTable">
-                    <tr><td colspan="7" class="loading">Loading...</td></tr>
+                    <tr><td colspan="8" class="loading">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 
     <script>
-        // Load data
+        function renderStats(prefix, s) {
+            document.getElementById(prefix + '-totalCalls').textContent = s.totalCalls;
+            document.getElementById(prefix + '-totalCost').textContent = s.totalCost.toFixed(4);
+            document.getElementById(prefix + '-totalTokens').textContent = s.totalTokens.toLocaleString();
+            document.getElementById(prefix + '-totalInputTokens').textContent = s.totalInputTokens.toLocaleString();
+            document.getElementById(prefix + '-totalCachedTokens').textContent = s.totalCachedPromptTokens.toLocaleString();
+            document.getElementById(prefix + '-totalOutputTokens').textContent = s.totalOutputTokens.toLocaleString();
+        }
+
         async function loadData() {
             try {
-                const statsRes = await fetch('./monitor/stats?days=3');
-                const statsData = await statsRes.json();
-                if (statsData.success) {
-                    const s = statsData.data;
-                    document.getElementById('totalCalls').textContent = s.totalCalls;
-                    document.getElementById('totalCost').textContent = s.totalCost.toFixed(4);
-                    document.getElementById('totalInputTokens').textContent = s.totalInputTokens.toLocaleString();
-                    document.getElementById('totalCachedTokens').textContent = s.totalCachedPromptTokens.toLocaleString();
-                    document.getElementById('totalOutputTokens').textContent = s.totalOutputTokens.toLocaleString();
-                }
+                const [mainRes, tpRes] = await Promise.all([
+                    fetch('./monitor/stats?days=3&source=main'),
+                    fetch('./monitor/stats?days=3&source=token-plan'),
+                ]);
+                const mainData = await mainRes.json();
+                const tpData = await tpRes.json();
+
+                if (mainData.success) renderStats('main', mainData.data);
+                if (tpData.success) renderStats('tp', tpData.data);
 
                 const callsRes = await fetch('./monitor/calls?days=3');
                 const callsData = await callsRes.json();
@@ -269,17 +313,18 @@
                     const calls = callsData.data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
                     tbody.innerHTML = calls.map(c => 
                         '<tr><td>' + new Date(c.timestamp).toLocaleString('zh-CN') + '</td>' +
+                        '<td>' + (c.source || 'main') + '</td>' +
                         '<td>' + c.model + '</td><td>' + c.inputTokens.toLocaleString() + '</td>' +
                         '<td>' + c.cachedPromptTokens.toLocaleString() + '</td>' +
                         '<td>' + c.outputTokens.toLocaleString() + '</td>' +
                         '<td>' + c.cost.toFixed(4) + '</td><td>' + c.duration + '</td></tr>'
                     ).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="7" class="loading">No data</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="loading">No data</td></tr>';
                 }
             } catch (error) {
                 document.getElementById('callsTable').innerHTML = 
-                    '<tr><td colspan="7" class="error">Failed to load, please retry later</td></tr>';
+                    '<tr><td colspan="8" class="error">Failed to load, please retry later</td></tr>';
             }
         }
 

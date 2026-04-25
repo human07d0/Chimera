@@ -118,11 +118,13 @@ async function renderDashboard(): Promise<void> {
       </div>
     </header>
     <div class="container">
-      <div class="grid grid-2">
+      <div class="ops-layout">
         <div id="status-panel"></div>
-        <div id="control-panel"></div>
+        <div class="ops-right">
+          <div id="control-panel"></div>
+          <div id="config-panel"></div>
+        </div>
       </div>
-      <div id="config-panel"></div>
     </div>
   `;
 

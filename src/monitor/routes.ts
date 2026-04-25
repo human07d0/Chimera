@@ -42,6 +42,12 @@ function parseModelParam(value: unknown): string | undefined {
   return model;
 }
 
+function parseSourceParam(value: unknown): "main" | "token-plan" | undefined {
+  if (typeof value !== "string") return undefined;
+  if (value === "main" || value === "token-plan") return value;
+  return undefined;
+}
+
 function extractApiKey(req: Request): string | null {
   const authHeader = req.headers["authorization"];
   if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
@@ -81,9 +87,10 @@ monitorRouter.get("/stats", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
     const model = parseModelParam(req.query.model);
+    const source = parseSourceParam(req.query.source);
 
     const storage = getStorage();
-    const stats = storage.stats({ days, model });
+    const stats = storage.stats({ days, model, source });
 
     res.json({
       success: true,
@@ -136,6 +143,7 @@ monitorRouter.get("/calls", (req: Request, res: Response) => {
       output_tokens: event.output_tokens,
       cached_prompt_tokens: event.cached_prompt_tokens,
       error_type: event.error_type,
+      source: event.source,
     }));
 
     res.json({
