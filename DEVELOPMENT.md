@@ -84,6 +84,18 @@ mimo-proxy/
 │   │       ├── sqlite.ts        # SQLite 存储
 │   │       ├── factory.ts       # 存储工厂
 │   │       └── worker.ts        # 异步写入器
+│   ├── debug/                    # 调试模块（可选）
+│   │   ├── index.ts             # 模块入口
+│   │   ├── types.ts             # 类型定义
+│   │   ├── store.ts             # 内存环形缓冲区
+│   │   ├── middleware.ts        # 调试中间件
+│   │   ├── routes.ts            # 调试 API
+│   │   ├── frontend/            # 调试前端
+│   │   │   └── index.html
+│   │   └── __tests__/           # 测试
+│   │       ├── store.test.ts
+│   │       ├── middleware.test.ts
+│   │       └── routes.test.ts
 │   ├── ops/                      # 运维界面
 │   │   ├── index.ts             # Ops 路由
 │   │   ├── middleware.ts        # Ops 中间件

@@ -263,6 +263,44 @@ print(response.choices[0].message.content)
 # response.choices[0].message.reasoning_content
 ```
 
+## 调试模式（Debug）
+
+调试模式记录完整的请求/响应体（包括 prompt 和 completion 原文），仅存内存，进程重启即清空。与 monitor 模块互补：monitor 记录元数据并可落盘，debug 记录完整 payload 仅存内存。
+
+### 启用调试模式
+
+```dotenv
+DEBUG_ENABLED=true
+# 内存环形缓冲区最大记录数（默认 500）
+DEBUG_MAX_RECORDS=500
+# 单条记录最大 body 大小，超过截断（默认 1MB）
+DEBUG_MAX_BODY_SIZE=1048576
+```
+
+重启服务后生效。
+
+### 打开调试页面
+
+```text
+http://localhost:3000/debug
+```
+
+页面提供调用列表、模型过滤、关键词搜索、详情查看（含 JSON 语法高亮），每 5 秒自动刷新。
+
+### 调试 API
+
+| 方法   | 路径                  | 说明                                       |
+| ------ | --------------------- | ------------------------------------------ |
+| `GET`  | `/debug/calls`        | 查询调试记录列表（支持 `search`/`model`/`limit`/`offset` 参数） |
+| `GET`  | `/debug/calls/:id`    | 获取单条记录详情（含完整 request/response body） |
+| `POST` | `/debug/prune`        | 清空内存缓冲区                             |
+
+### 注意事项
+
+- 完整请求/响应体仅存内存，不写入数据库，进程重启即清空
+- 默认关闭（`DEBUG_ENABLED=false`），不影响性能
+- 单条 body 超过 `DEBUG_MAX_BODY_SIZE` 时自动截断
+
 ## 监控与费用统计（memory / sqlite）
 
 代理内置监控页面，默认采集 `/v1/chat/completions` 与 `/anthropic/v1/messages` 的**请求级元信息**（不落盘 prompt/response 原文）：
@@ -465,6 +503,9 @@ curl -X POST http://localhost:3001/anthropic/v1/messages \
 | `MONITOR_FLUSH_INTERVAL_MS`      |   ❌   | `200`                                     | 异步写入队列定时 flush 间隔（毫秒）                                                    |
 | `MONITOR_FLUSH_BATCH_SIZE`       |   ❌   | `100`                                     | 异步写入队列单次批量大小                                                               |
 | `MONITOR_QUEUE_MAX_SIZE`         |   ❌   | `10000`                                   | 异步队列最大长度，超限后丢弃并记录计数                                                 |
+| `DEBUG_ENABLED`                  |   ❌   | `false`                                   | 是否启用调试模式（记录完整请求/响应体到内存）                                          |
+| `DEBUG_MAX_RECORDS`              |   ❌   | `500`                                     | 调试内存环形缓冲区最大记录数                                                           |
+| `DEBUG_MAX_BODY_SIZE`            |   ❌   | `1048576`                                 | 单条调试记录最大 body 大小（字节），超过截断                                            |
 | `LOG_LEVEL`                      |   ❌   | `info`                                    | 日志级别：`error` / `warn` / `info` / `debug`                                          |
 | `OPS_PASSWORD`                   |   ❌   | 空                                        | Ops 运维界面密码，留空则不启用（单体部署，无需独立前端服务器）                         |
 
@@ -483,6 +524,10 @@ curl -X POST http://localhost:3001/anthropic/v1/messages \
 | `GET`  | `/monitor/stats`         | 监控统计数据（JSON）                   |
 | `GET`  | `/monitor/calls`         | 监控明细数据（JSON）                   |
 | `POST` | `/monitor/prune`         | 手动清理历史数据（默认仅 dev 或鉴权）  |
+| `GET`  | `/debug`                 | 调试页面（需 `DEBUG_ENABLED=true`）    |
+| `GET`  | `/debug/calls`           | 调试记录列表（需 `DEBUG_ENABLED=true`）|
+| `GET`  | `/debug/calls/:id`       | 调试记录详情（需 `DEBUG_ENABLED=true`）|
+| `POST` | `/debug/prune`           | 清空调试缓冲区（需 `DEBUG_ENABLED=true`）|
 | `GET`  | `/ops/info`              | Ops 界面基本信息（是否启用）           |
 | `GET`  | `/ops/status`            | 服务运行状态（需 Ops 鉴权）            |
 | `GET`  | `/ops/config`            | 获取当前配置（需 Ops 鉴权）            |

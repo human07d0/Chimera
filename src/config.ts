@@ -164,6 +164,12 @@ export const config = {
   },
 
   logLevel: optionalEnv("LOG_LEVEL", "info") as "error" | "warn" | "info" | "debug",
+
+  debug: {
+    enabled: optionalBoolEnv("DEBUG_ENABLED", false),
+    maxRecords: optionalIntEnv("DEBUG_MAX_RECORDS", 500),
+    maxBodySize: optionalIntEnv("DEBUG_MAX_BODY_SIZE", 1_048_576),
+  },
 };
 
 function validateMonitorConfig(): void {

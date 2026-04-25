@@ -10,6 +10,7 @@ import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
 import { config } from "./config";
 import { logger } from "./utils/logger";
+import { debugMiddleware, debugRouter } from "./debug";
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 
@@ -81,6 +82,22 @@ export function createApp(): express.Application {
   app.use("/monitor", monitorRouter);
 
   // --------------------------------------------------------------------------
+  // 调试路由（不需要鉴权，仅 DEBUG_ENABLED=true 时挂载）
+  // --------------------------------------------------------------------------
+  if (config.debug.enabled) {
+    app.use("/debug", debugRouter);
+
+    // 调试前端 SPA
+    const debugPublicDir = resolveStaticDir("debug");
+    if (debugPublicDir) {
+      app.use("/debug", express.static(debugPublicDir));
+      app.use("/debug", (_req: Request, res: Response) => {
+        res.sendFile(path.join(debugPublicDir, "index.html"));
+      });
+    }
+  }
+
+  // --------------------------------------------------------------------------
   // Ops 运维界面（同进程托管）
   // 说明：本项目默认前后端不分离，统一由当前服务进程在 PORT 上提供
   // 顺序：静态资源 -> Ops API -> SPA fallback
@@ -107,8 +124,12 @@ export function createApp(): express.Application {
   app.use("/anthropic/v1", authMiddleware);
 
   // --------------------------------------------------------------------------
-  // API 路由（添加监控中间件）
+  // API 路由（添加监控中间件，可选调试中间件）
   // --------------------------------------------------------------------------
+  if (config.debug.enabled) {
+    app.use("/v1", debugMiddleware);
+    app.use("/anthropic/v1", debugMiddleware);
+  }
   app.use("/v1", monitorMiddleware);
   app.use("/anthropic/v1", monitorMiddleware);
   app.use("/v1", modelsRouter);
