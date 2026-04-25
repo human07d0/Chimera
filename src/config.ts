@@ -154,8 +154,6 @@ export const config = {
   /** token-plan 透传代理配置 */
   tokenPlan: {
     enabled: optionalBoolEnv("TOKEN_PLAN_ENABLED", false),
-    port: optionalIntEnv("TOKEN_PLAN_PORT", 3001),
-    host: optionalEnv("HOST", "0.0.0.0"),
     proxyApiKey: process.env["TOKEN_PLAN_PROXY_API_KEY"] || "",
     mimoApiKey: process.env["TOKEN_PLAN_MIMO_API_KEY"] || "",
     baseUrl: optionalEnv("TOKEN_PLAN_BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1"),

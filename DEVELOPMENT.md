@@ -112,6 +112,8 @@ mimo-proxy/
 │   │       ├── styles.css
 │   │       ├── components/      # UI 组件
 │   │       └── views/           # 页面视图
+│   ├── token-plan/               # Token-Plan 透传代理
+│   │   └── server.ts            # createTokenPlanRouter() — 挂载于主应用 /token-plan
 │   ├── models/                   # 模型预设
 │   │   └── presets.ts
 │   └── utils/                    # 工具函数

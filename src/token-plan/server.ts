@@ -1,11 +1,10 @@
-import express, { NextFunction, Request, Response } from "express";
-import http from "http";
+import express, { NextFunction, Request, Response, Router } from "express";
 
 import { config } from "../config";
 import { logger } from "../utils/logger";
 
 // --------------------------------------------------------------------------
-// 鉴权逻辑（复用主应用的 extractApiKey 模式）
+// 鉴权逻辑
 // --------------------------------------------------------------------------
 
 function extractApiKey(req: Request): string | null {
@@ -217,56 +216,25 @@ async function proxyPassthrough(
 }
 
 // --------------------------------------------------------------------------
-// Express 应用
+// Express Router（挂载于主应用 /token-plan 路径下）
 // --------------------------------------------------------------------------
 
-function createTokenPlanApp(): express.Application {
-  const app = express();
+/**
+ * 创建 token-plan 透传路由器
+ *
+ * 返回 express.Router，在主应用中以 /token-plan 前缀挂载。
+ * 复用主应用的 CORS、JSON 解析、请求日志等基础中间件。
+ * 鉴权中间件由本 Router 自行管理（使用 TOKEN_PLAN_PROXY_API_KEY）。
+ */
+export function createTokenPlanRouter(): Router {
+  const router = Router();
 
-  // CORS
-  app.use((_req: Request, res: Response, next: NextFunction) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE");
-    res.header(
-      "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, api-key, x-api-key, x-requested-with, anthropic-version, anthropic-beta"
-    );
-
-    if (_req.method === "OPTIONS") {
-      res.sendStatus(204);
-      return;
-    }
-
-    next();
-  });
-
-  app.use(express.json({ limit: "10mb" }));
-
-  // 请求日志
-  app.use((req: Request, _res: Response, next: NextFunction) => {
-    logger.debug("Token-plan incoming request", {
-      method: req.method,
-      path: req.path,
-    });
-    next();
-  });
-
-  // 健康检查
-  app.get("/health", (_req: Request, res: Response) => {
-    res.json({
-      status: "ok",
-      service: "token-plan-proxy",
-      timestamp: new Date().toISOString(),
-      auth: config.tokenPlan.proxyApiKey ? "enabled" : "disabled",
-    });
-  });
-
-  // 鉴权中间件（作用于 API 路由）
-  app.use("/v1", authMiddleware);
-  app.use("/anthropic", authMiddleware);
+  // 鉴权中间件（作用于所有 token-plan 路由）
+  router.use("/v1", authMiddleware);
+  router.use("/anthropic", authMiddleware);
 
   // OpenAI 兼容格式: POST /v1/chat/completions
-  app.post("/v1/chat/completions", async (req: Request, res: Response) => {
+  router.post("/v1/chat/completions", async (req: Request, res: Response) => {
     const requestId = generateRequestId();
     try {
       await proxyPassthrough(req, res, config.tokenPlan.baseUrl, "/chat/completions", requestId);
@@ -284,7 +252,7 @@ function createTokenPlanApp(): express.Application {
   });
 
   // Anthropic Messages API: POST /anthropic/v1/messages
-  app.post("/anthropic/v1/messages", async (req: Request, res: Response) => {
+  router.post("/anthropic/v1/messages", async (req: Request, res: Response) => {
     const requestId = generateRequestId();
     try {
       await proxyPassthrough(req, res, config.tokenPlan.anthropicBaseUrl, "/v1/messages", requestId);
@@ -302,7 +270,7 @@ function createTokenPlanApp(): express.Application {
   });
 
   // 404
-  app.use((_req: Request, res: Response) => {
+  router.use((_req: Request, res: Response) => {
     res.status(404).json({
       error: {
         message: "The requested endpoint does not exist on token-plan proxy",
@@ -313,7 +281,7 @@ function createTokenPlanApp(): express.Application {
   });
 
   // 全局错误处理
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     logger.error("Token-plan unhandled error", {
       name: err.name,
       message: err.message,
@@ -325,48 +293,5 @@ function createTokenPlanApp(): express.Application {
     }
   });
 
-  return app;
-}
-
-// --------------------------------------------------------------------------
-// 启动入口
-// --------------------------------------------------------------------------
-
-let tokenPlanServer: http.Server | null = null;
-
-/**
- * 启动 token-plan 透传代理服务器
- * @returns http.Server 实例，未启用时返回 null
- */
-export function startTokenPlanServer(): http.Server | null {
-  if (!config.tokenPlan.enabled) {
-    logger.info("Token-plan proxy is disabled (TOKEN_PLAN_ENABLED=false)");
-    return null;
-  }
-
-  const app = createTokenPlanApp();
-  const server = http.createServer(app);
-
-  server.on("error", (error: unknown) => {
-    logger.error("Token-plan server failed to start", {
-      error: error instanceof Error ? error.message : String(error),
-    });
-  });
-
-  server.listen(config.tokenPlan.port, config.tokenPlan.host, () => {
-    logger.info("Token-plan proxy server started", {
-      host: config.tokenPlan.host,
-      port: config.tokenPlan.port,
-    });
-  });
-
-  tokenPlanServer = server;
-  return server;
-}
-
-/**
- * 获取 token-plan server 实例（供 shutdownManager 使用）
- */
-export function getTokenPlanServer(): http.Server | null {
-  return tokenPlanServer;
+  return router;
 }

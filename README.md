@@ -424,13 +424,12 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 
 ## Token-Plan 透传代理
 
-token-plan 是小米推出的计费方案，使用不同的上游地址。本代理支持在同一进程中启动第二个 HTTP 服务器（默认端口 3001），将请求原样透传到 token-plan 上游，不做虚拟模型映射。
+token-plan 是小米推出的计费方案，使用不同的上游地址。本代理将 token-plan 作为 Router 挂载于主应用的 `/token-plan` 路径下，复用同一端口（默认 3000），无需管理独立 HTTP 服务器。请求原样透传到 token-plan 上游，不做虚拟模型映射。
 
 ### 启用 token-plan
 
 ```dotenv
 TOKEN_PLAN_ENABLED=true
-TOKEN_PLAN_PORT=3001
 TOKEN_PLAN_MIMO_API_KEY=your_token_plan_api_key_here
 TOKEN_PLAN_PROXY_API_KEY=your_token_plan_proxy_key
 ```
@@ -439,16 +438,16 @@ TOKEN_PLAN_PROXY_API_KEY=your_token_plan_proxy_key
 
 客户端直接使用真实模型名（如 `mimo-v2-flash`、`mimo-v2.5-pro`），无需虚拟模型映射。
 
-| 配置项   | 值                                   |
-| -------- | ------------------------------------ |
-| Base URL | `http://localhost:3001/v1`           |
-| API Key  | 你的 `TOKEN_PLAN_PROXY_API_KEY`      |
+| 配置项   | 值                                           |
+| -------- | -------------------------------------------- |
+| Base URL | `http://localhost:3000/token-plan/v1`        |
+| API Key  | 你的 `TOKEN_PLAN_PROXY_API_KEY`              |
 
 #### cURL 示例
 
 ```bash
 # OpenAI 格式
-curl -X POST http://localhost:3001/v1/chat/completions \
+curl -X POST http://localhost:3000/token-plan/v1/chat/completions \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer your_token_plan_proxy_key" \
   -d '{
@@ -458,7 +457,7 @@ curl -X POST http://localhost:3001/v1/chat/completions \
   }'
 
 # Anthropic 格式
-curl -X POST http://localhost:3001/anthropic/v1/messages \
+curl -X POST http://localhost:3000/token-plan/anthropic/v1/messages \
   -H "Content-Type: application/json" \
   -H "x-api-key: your_token_plan_proxy_key" \
   -d '{
@@ -485,8 +484,7 @@ curl -X POST http://localhost:3001/anthropic/v1/messages \
 | `ANTHROPIC_BASE_URL`             |   ❌   | `https://api.xiaomimimo.com/anthropic/v1` | Anthropic 上游 API 地址（Messages 格式）                                               |
 | `MIMO_ENABLED_MODELS`            |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni,mimo-v2.5,mimo-v2.5-pro` | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni` / `mimo-v2.5` / `mimo-v2.5-pro`） |
 | `UPSTREAM_TIMEOUT_MS`            |   ❌   | `120000`                                  | 上游请求超时（毫秒）                                                                   |
-| `TOKEN_PLAN_ENABLED`             |   ❌   | `false`                                   | 是否启用 token-plan 透传代理                                                           |
-| `TOKEN_PLAN_PORT`                |   ❌   | `3001`                                    | token-plan 代理监听端口                                                                |
+| `TOKEN_PLAN_ENABLED`             |   ❌   | `false`                                   | 是否启用 token-plan 透传代理（挂载于主应用 /token-plan 路径下）                        |
 | `TOKEN_PLAN_PROXY_API_KEY`       |   ❌   | 空                                        | 客户端访问 token-plan 代理时的鉴权 Key，留空则不启用鉴权                               |
 | `TOKEN_PLAN_MIMO_API_KEY`        |   ❌   | 空                                        | token-plan 上游 API Key，留空时回退到 `MIMO_API_KEY`                                   |
 | `TOKEN_PLAN_BASE_URL`            |   ❌   | `https://token-plan-cn.xiaomimimo.com/v1` | token-plan 上游 OpenAI 格式 Base URL                                                   |
@@ -536,10 +534,9 @@ curl -X POST http://localhost:3001/anthropic/v1/messages \
 | `POST` | `/ops/shutdown`          | 优雅停机（需 Ops 鉴权）                |
 | `POST` | `/ops/restart`           | 重启服务（需 Ops 鉴权）                |
 
-### Token-Plan 代理（端口 3001，需启用）
+### Token-Plan 代理（需 `TOKEN_PLAN_ENABLED=true`，挂载于主应用）
 
-| 方法   | 路径                     | 说明                                   |
-| ------ | ------------------------ | -------------------------------------- |
-| `GET`  | `/health`                | 健康检查                               |
-| `POST` | `/v1/chat/completions`   | 对话补全（透传，支持流式 SSE）         |
-| `POST` | `/anthropic/v1/messages` | Anthropic Messages API（透传，支持流式 SSE） |
+| 方法   | 路径                                          | 说明                                   |
+| ------ | --------------------------------------------- | -------------------------------------- |
+| `POST` | `/token-plan/v1/chat/completions`             | 对话补全（透传，支持流式 SSE）         |
+| `POST` | `/token-plan/anthropic/v1/messages`           | Anthropic Messages API（透传，支持流式 SSE） |

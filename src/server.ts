@@ -11,6 +11,7 @@ import { modelsRouter } from "./routes/models";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 import { debugMiddleware, debugRouter } from "./debug";
+import { createTokenPlanRouter } from "./token-plan/server";
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 
@@ -135,6 +136,31 @@ export function createApp(): express.Application {
   app.use("/v1", modelsRouter);
   app.use("/v1", chatRouter);
   app.use("/anthropic/v1", anthropicRouter);
+
+  // --------------------------------------------------------------------------
+  // Token-Plan 透传代理（条件挂载）
+  // --------------------------------------------------------------------------
+  if (config.tokenPlan.enabled) {
+    const tokenPlanRouter = createTokenPlanRouter();
+
+    // token-plan 需要额外的 CORS 头（anthropic-version、anthropic-beta）
+    app.use("/token-plan", (_req: Request, res: Response, next: NextFunction) => {
+      res.header(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization, api-key, x-api-key, x-requested-with, anthropic-version, anthropic-beta"
+      );
+      next();
+    });
+
+    // debug 中间件覆盖 token-plan 路由
+    if (config.debug.enabled) {
+      app.use("/token-plan/v1", debugMiddleware);
+      app.use("/token-plan/anthropic/v1", debugMiddleware);
+    }
+
+    app.use("/token-plan", tokenPlanRouter);
+    logger.info("Token-plan router mounted at /token-plan");
+  }
 
   // --------------------------------------------------------------------------
   // 404 处理

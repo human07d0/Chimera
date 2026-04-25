@@ -1,6 +1,6 @@
 # Mimo Proxy 架构
 
-OpenAI-compatible facade for Xiaomi MiMo：协议转换、SSE 透传、虚拟模型预设、内置监控（支持内存态/SQLite 持久化）、可选调试模式（完整 payload 内存记录）。
+OpenAI-compatible facade for Xiaomi MiMo：协议转换、SSE 透传、虚拟模型预设、内置监控（支持内存态/SQLite 持久化）、可选调试模式（完整 payload 内存记录）、token-plan 透传代理（挂载于主应用 `/token-plan` 路径下）。
 
 ## 技术栈
 
@@ -20,7 +20,9 @@ flowchart TD
     SRV --> HEALTH["/health"]
     SRV --> MON["/monitor (PWA)"]
     SRV --> DBG["/debug (PWA)"]
+    SRV --> OPS["/ops (PWA)"]
     SRV --> API["/v1 (auth)"]
+    SRV --> TP["/token-plan (auth)"]
 
     API --> MODELS["/v1/models<br/>virtual models"]
     API --> CHAT["/v1/chat/completions<br/>streaming proxy"]
@@ -29,12 +31,17 @@ flowchart TD
     CHAT --> STRM["SSE passthrough"]
     CHAT --> RESP["MiMo -> OpenAI transform"]
 
+    TP --> TP_CHAT["/token-plan/v1/chat/completions<br/>passthrough"]
+    TP --> TP_MSG["/token-plan/anthropic/v1/messages<br/>passthrough"]
+
     API -. telemetry .-> MM["monitor middleware"]
+    TP -. telemetry .-> MM
     MM --> STORE["monitor storage adapter"]
     STORE --> MEM[("memory")]
     STORE --> SQL[("sqlite")]
 
     API -. debug .-> DM["debug middleware"]
+    TP -. debug .-> DM
     DM --> DSTORE["DebugStore (ring buffer)"]
     DSTORE --> DMEM[("memory only")]
 ```
@@ -46,8 +53,11 @@ src/
 ├── index.ts
 ├── server.ts
 ├── config.ts
+├── shutdownManager.ts
 ├── routes/                # /v1
 ├── proxy/                 # transform + streaming
+├── token-plan/
+│   └── server.ts          # createTokenPlanRouter() — 透传路由器
 ├── monitor/
 │   ├── middleware.ts
 │   ├── routes.ts
@@ -60,8 +70,35 @@ src/
 │   ├── routes.ts
 │   └── frontend/index.html
 ├── models/                # presets
+├── ops/                   # 运维界面
 └── utils/logger.ts
 ```
+
+## Token-Plan 透传代理
+
+Token-plan 是小米的计费方案，使用不同的上游地址。通过 `createTokenPlanRouter()` 返回 `express.Router`，在主应用中以 `/token-plan` 前缀挂载，复用主应用的 CORS、JSON 解析、请求日志等基础中间件。
+
+### 路由
+
+| 路径 | 方法 | 说明 |
+|------|------|------|
+| `/token-plan/v1/chat/completions` | POST | OpenAI 格式透传 |
+| `/token-plan/anthropic/v1/messages` | POST | Anthropic 格式透传 |
+
+### 中间件链
+
+1. 主应用 CORS（含 `anthropic-version`、`anthropic-beta` 头）
+2. 主应用 `express.json()`
+3. 主应用请求日志
+4. Token-plan 鉴权中间件（`TOKEN_PLAN_PROXY_API_KEY`）
+5. Debug 中间件（`DEBUG_ENABLED=true` 时）
+6. 路由处理 -> 上游透传
+
+### 设计优势
+
+- 单端口、单进程，无需管理独立 HTTP server
+- Debug 中间件自动覆盖 token-plan 请求，无需重复配置
+- 优雅关闭只需关闭主 HTTP server
 
 ## 存储抽象与字段模型
 
@@ -109,7 +146,7 @@ src/
 
 ## Debug 模块
 
-可选的调试模块（`DEBUG_ENABLED=true`），记录完整的请求/响应体到内存环形缓冲区。
+可选的调试模块（`DEBUG_ENABLED=true`），记录完整的请求/响应体到内存环形缓冲区。同时覆盖主应用 API 路由和 token-plan 透传路由。
 
 ### DebugStore
 
@@ -125,6 +162,7 @@ src/
 - monkey-patch `res.write` 收集流式 SSE chunks
 - monkey-patch `res.end` 组装并存储调试事件
 - 在 monitor middleware 之前挂载，确保捕获原始响应
+- 在主应用 `/v1`、`/anthropic/v1` 和 token-plan `/v1`、`/anthropic/v1` 上均挂载
 
 ### 数据流
 
@@ -143,3 +181,4 @@ src/
 - **Privacy-by-default**: no prompt/response raw payload persistence (monitor).
 - **Debug opt-in**: full payload recording only when `DEBUG_ENABLED=true`, memory-only.
 - **Path safety**: frontend/redirect all relative paths (`./...`).
+- **Single-port architecture**: token-plan 作为 router 挂载于主应用，消除独立端口。

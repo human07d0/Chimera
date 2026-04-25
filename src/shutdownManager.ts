@@ -6,7 +6,6 @@ import {
   performDirectRestart,
 } from "./ops";
 import { logger } from "./utils/logger";
-import { getTokenPlanServer } from "./token-plan/server";
 
 let serverInstance: http.Server | null = null;
 let isShuttingDown = false;
@@ -57,21 +56,6 @@ export async function gracefulShutdown(
         });
       });
       logger.info("HTTP server closed");
-    }
-
-    // 1.1 关闭 token-plan 服务器
-    const tpServer = getTokenPlanServer();
-    if (tpServer) {
-      await new Promise<void>((resolve, reject) => {
-        tpServer.close((err?: Error) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-          resolve();
-        });
-      });
-      logger.info("Token-plan server closed");
     }
 
     // 2. 停止定时任务
