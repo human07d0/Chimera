@@ -182,6 +182,39 @@
         .loading { text-align: center; padding: 20px; color: var(--text-secondary); }
         .error { color: var(--danger); padding: 20px; text-align: center; }
 
+        /* Tooltip */
+        .tooltip-trigger {
+            position: relative;
+            cursor: help;
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        .tooltip-trigger::after {
+            content: attr(data-tip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface-hover);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.15s;
+            z-index: 10;
+        }
+
+        .tooltip-trigger:hover::after {
+            opacity: 1;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header { padding: 8px 12px; flex-wrap: wrap; gap: 8px; }
@@ -232,14 +265,14 @@
         </div>
 
         <!-- Token-Plan -->
-        <h2>Token-Plan</h2>
+        <h2>Token-Plan </h2>
         <div id="stats-token-plan" class="stats-grid">
             <div class="stat-card">
                 <h3>Total Calls</h3>
                 <div class="value" id="tp-totalCalls">-</div>
             </div>
             <div class="stat-card">
-                <h3>Total Cost</h3>
+                <h3>Total Cost <span class="tooltip-trigger" data-tip="虚拟估算值，实际计费以小米官方账单为准">[?]</span></h3>
                 <div class="value" id="tp-totalCost">-</div>
                 <span class="unit">CNY</span>
             </div>
