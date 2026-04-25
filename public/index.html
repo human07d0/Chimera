@@ -197,7 +197,6 @@
             <a class="nav-link" href="./debug/">Debug</a>
             <a class="nav-link" href="./ops/">Ops</a>
             <button class="btn" onclick="loadData()">Refresh</button>
-            <button class="btn btn-success hidden" id="installBtn" onclick="installPWA()">Install</button>
         </div>
     </div>
 
@@ -248,27 +247,6 @@
     </div>
 
     <script>
-        // PWA
-        let deferredPrompt;
-        const installBtn = document.getElementById('installBtn');
-        
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            installBtn.classList.remove('hidden');
-        });
-        
-        async function installPWA() {
-            if (deferredPrompt) {
-                deferredPrompt.prompt();
-                const { outcome } = await deferredPrompt.userChoice;
-                if (outcome === 'accepted') {
-                    installBtn.classList.add('hidden');
-                }
-                deferredPrompt = null;
-            }
-        }
-        
         // Load data
         async function loadData() {
             try {
