@@ -10,7 +10,7 @@ export interface DebugEvent {
   stream: boolean;
   /** 完整请求体（JSON 序列化后的字符串） */
   request_body: string;
-  /** 完整响应体（非流式为 JSON 字符串，流式为所有 SSE chunk 拼接后的 JSON） */
+  /** 完整响应体（非流式为 JSON 字符串，流式为拼接后的完整响应对象 JSON） */
   response_body: string;
   /** 错误信息（如有） */
   error_type: string | null;

@@ -106,8 +106,8 @@ describe("debugMiddleware", () => {
     expect(debugStore.size).toBe(1);
     const event = debugStore.query().items[0];
     expect(event.stream).toBe(true);
-    expect(event.response_body).toContain("Hi");
-    expect(event.response_body).toContain("there");
+    const body = JSON.parse(event.response_body);
+    expect(body.choices[0].message.content).toBe("Hi there");
   });
 
   it("should capture error responses", () => {
@@ -145,8 +145,8 @@ describe("debugMiddleware", () => {
     expect(debugStore.size).toBe(1);
     const event = debugStore.query().items[0];
     expect(event.stream).toBe(true);
-    expect(event.response_body).toContain("Hello");
-    expect(event.response_body).toContain("world");
+    const body = JSON.parse(event.response_body);
+    expect(body.choices[0].message.content).toBe("Hello world");
   });
 
   it("should capture streaming response via res.write with Uint8Array chunks", () => {
@@ -166,8 +166,72 @@ describe("debugMiddleware", () => {
     expect(debugStore.size).toBe(1);
     const event = debugStore.query().items[0];
     expect(event.stream).toBe(true);
-    expect(event.response_body).toContain("Foo");
-    expect(event.response_body).toContain("bar");
+    const body = JSON.parse(event.response_body);
+    expect(body.choices[0].message.content).toBe("Foo bar");
+  });
+
+  it("should assemble OpenAI streaming response with reasoning_content", () => {
+    const req = createMockReq();
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    (res.write as any)("data: {\"id\":\"chatcmpl-123\",\"model\":\"mimo-v2-flash\",\"choices\":[{\"delta\":{\"reasoning_content\":\"Let me think\"}}]}\n\n");
+    (res.write as any)("data: {\"id\":\"chatcmpl-123\",\"model\":\"mimo-v2-flash\",\"choices\":[{\"delta\":{\"reasoning_content\":\" about it\"}}]}\n\n");
+    (res.write as any)("data: {\"id\":\"chatcmpl-123\",\"model\":\"mimo-v2-flash\",\"choices\":[{\"delta\":{\"content\":\"The answer is 42\"}}]}\n\n");
+    (res.write as any)("data: [DONE]\n\n");
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.stream).toBe(true);
+    const body = JSON.parse(event.response_body);
+    expect(body.choices[0].message.content).toBe("The answer is 42");
+    expect(body.choices[0].message.reasoning_content).toBe("Let me think about it");
+    expect(body.model).toBe("mimo-v2-flash");
+    expect(body.id).toBe("chatcmpl-123");
+  });
+
+  it("should assemble Anthropic streaming response", () => {
+    const req = createMockReq({ path: "/messages", originalUrl: "/v1/messages" });
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    (res.write as any)("data: {\"type\":\"message_start\",\"message\":{\"id\":\"msg-abc\",\"model\":\"claude-3\"}}\n\n");
+    (res.write as any)("data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Hello\"}}\n\n");
+    (res.write as any)("data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\" world\"}}\n\n");
+    (res.write as any)("data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"},\"usage\":{\"output_tokens\":10}}\n\n");
+    (res.write as any)("data: [DONE]\n\n");
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.stream).toBe(true);
+    const body = JSON.parse(event.response_body);
+    expect(body.content[0].text).toBe("Hello world");
+    expect(body.role).toBe("assistant");
+    expect(body.model).toBe("claude-3");
+    expect(body.stop_reason).toBe("end_turn");
+  });
+
+  it("should extract error_type from streaming error chunk", () => {
+    const req = createMockReq();
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    (res.write as any)("data: {\"error\":{\"type\":\"rate_limit_error\",\"message\":\"Too many requests\"}}\n\n");
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.stream).toBe(true);
+    expect(event.error_type).toBe("rate_limit_error");
+    expect(event.error_body).toContain("Too many requests");
   });
 
   it("should truncate oversized request bodies", () => {
