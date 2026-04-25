@@ -526,9 +526,6 @@
       if (typeof value === 'number') return `<span class="json-number">${value}</span>`;
       if (typeof value === 'string') {
         const escaped = escapeHtml(value);
-        if (value.length > 500) {
-          return `<span class="json-string">"${escaped.slice(0, 500)}..."</span>`;
-        }
         return `<span class="json-string">"${escaped}"</span>`;
       }
 
