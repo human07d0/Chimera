@@ -68,8 +68,18 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   res.write = function (chunk: any, encoding?: any, callback?: any): boolean {
     stream = true;
 
+    // 将 Buffer/Uint8Array 转为 string 后再解析 SSE data 行
+    let str: string | null = null;
     if (typeof chunk === "string") {
-      const lines = chunk.split("\n");
+      str = chunk;
+    } else if (Buffer.isBuffer(chunk)) {
+      str = chunk.toString("utf-8");
+    } else if (chunk instanceof Uint8Array) {
+      str = new TextDecoder("utf-8").decode(chunk);
+    }
+
+    if (str) {
+      const lines = str.split("\n");
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         const dataContent = line.slice("data: ".length);

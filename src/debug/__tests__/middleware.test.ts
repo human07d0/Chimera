@@ -129,6 +129,47 @@ describe("debugMiddleware", () => {
     expect(event.error_body).toContain("Bad request");
   });
 
+  it("should capture streaming response via res.write with Buffer chunks", () => {
+    const req = createMockReq();
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    // Simulate SSE chunks as Buffer (token-plan scenario)
+    (res.write as any)(Buffer.from("data: {\"choices\":[{\"delta\":{\"content\":\"Hello\"}}]}\n\n"));
+    (res.write as any)(Buffer.from("data: {\"choices\":[{\"delta\":{\"content\":\" world\"}}]}\n\n"));
+    (res.write as any)(Buffer.from("data: [DONE]\n\n"));
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.stream).toBe(true);
+    expect(event.response_body).toContain("Hello");
+    expect(event.response_body).toContain("world");
+  });
+
+  it("should capture streaming response via res.write with Uint8Array chunks", () => {
+    const req = createMockReq();
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    // Simulate SSE chunks as Uint8Array (token-plan scenario with raw reader output)
+    const encoder = new TextEncoder();
+    (res.write as any)(encoder.encode("data: {\"choices\":[{\"delta\":{\"content\":\"Foo\"}}]}\n\n"));
+    (res.write as any)(encoder.encode("data: {\"choices\":[{\"delta\":{\"content\":\" bar\"}}]}\n\n"));
+    (res.write as any)(encoder.encode("data: [DONE]\n\n"));
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.stream).toBe(true);
+    expect(event.response_body).toContain("Foo");
+    expect(event.response_body).toContain("bar");
+  });
+
   it("should truncate oversized request bodies", () => {
     const req = createMockReq();
     const res = createMockRes();
