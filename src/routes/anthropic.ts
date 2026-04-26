@@ -283,9 +283,6 @@ function getErrorTypeFromStatus(status: number): string {
   return "invalid_request";
 }
 
-// Using shared utilities: fetchWithTimeout and sanitizeForLog
-
-
 /**
  * GET /anthropic/v1/models
  * 返回 Anthropic 格式的虚拟模型列表

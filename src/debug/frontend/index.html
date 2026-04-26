@@ -484,7 +484,7 @@
           <td>${escapeHtml(item.path)}</td>
           <td>${formatLatency(latency)}</td>
           <td>${item.error_type ? `<span class="error-badge">${escapeHtml(item.error_type)}</span>` : '-'}</td>
-          <td title="${escapeHtml(item.request_body_preview)}">${escapeHtml(item.request_body_preview.slice(0, 80))}</td>
+          <td title="${escapeAttr(item.request_body_preview)}">${escapeHtml(item.request_body_preview.slice(0, 80))}</td>
         </tr>`;
       }).join('');
     }
@@ -609,15 +609,37 @@
       select.value = current;
     }
 
+    let _detailFocusHandler = null;
+    let _previousFocus = null;
+
     async function selectCall(id) {
       selectedId = id;
+      _previousFocus = document.activeElement;
       try {
         const detail = await fetchDetail(id);
         renderDetail(detail);
         document.getElementById('detailOverlay').classList.add('active');
-        document.getElementById('detailPanel').classList.add('active');
+        const panel = document.getElementById('detailPanel');
+        panel.classList.add('active');
+        panel.focus();
         // Re-render table to show selection
         renderCalls({ data: { items: currentData } });
+        // Focus trap
+        const focusableSelectors = 'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, object, embed, [tabindex]:not([tabindex="-1"])';
+        _detailFocusHandler = (e) => {
+          if (e.key === 'Escape') { closeDetail(); return; }
+          if (e.key !== 'Tab') return;
+          const focusable = Array.from(panel.querySelectorAll(focusableSelectors));
+          if (focusable.length === 0) { e.preventDefault(); return; }
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+          if (e.shiftKey) {
+            if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+          } else {
+            if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+          }
+        };
+        document.addEventListener('keydown', _detailFocusHandler);
       } catch (err) {
         console.error('Failed to load detail:', err);
       }
@@ -628,6 +650,14 @@
       currentDetail = null;
       document.getElementById('detailOverlay').classList.remove('active');
       document.getElementById('detailPanel').classList.remove('active');
+      if (_detailFocusHandler) {
+        document.removeEventListener('keydown', _detailFocusHandler);
+        _detailFocusHandler = null;
+      }
+      if (_previousFocus && _previousFocus.focus) {
+        _previousFocus.focus();
+        _previousFocus = null;
+      }
       renderCalls({ data: { items: currentData } });
     }
 

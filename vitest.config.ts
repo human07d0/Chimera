@@ -8,6 +8,7 @@ export default defineConfig({
       "src/token-plan/**/*.test.ts",
       "src/monitor/**/*.test.ts",
       "src/utils/**/*.test.ts",
+      "src/__tests__/**/*.test.ts",
     ],
     exclude: ["src/ops/**"],
   },

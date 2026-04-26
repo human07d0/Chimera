@@ -320,5 +320,3 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   next();
 }
 
-/** 从请求头中提取 API Key，支持三种方式 */
-// extractApiKey moved to ./utils/auth.ts

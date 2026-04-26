@@ -49,8 +49,6 @@ function parseSourceParam(value: unknown): "main" | "token-plan" | undefined {
   return undefined;
 }
 
-// `extractApiKey` implementation moved to `src/utils/auth.ts`
-
 function isPruneAuthorized(req: Request): boolean {
   // 默认仅开发环境开放，避免匿名误删
   if (process.env.NODE_ENV === "development") {

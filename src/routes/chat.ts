@@ -200,6 +200,4 @@ function generateRequestId(): string {
   return `proxy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-/** 日志脱敏：不打印可能含有用户数据的字段 */
-// Using shared sanitizeForLog from utils
 

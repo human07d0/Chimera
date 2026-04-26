@@ -1,16 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const DEFAULT_MODELS = [
-  "mimo-v2-flash",
-  "mimo-v2-pro",
-  "mimo-v2-omni",
-  "mimo-v2.5",
-  "mimo-v2.5-pro",
-] as const;
+import { SUPPORTED_UPSTREAM_MODELS, requireEnv } from "../config";
 
 describe("config module", () => {
   beforeEach(() => {
     vi.resetModules();
+    // Set to empty string instead of deleting, so dotenv/config won't re-populate from .env
     [
       "PORT",
       "HOST",
@@ -22,7 +16,8 @@ describe("config module", () => {
       "MONITOR_QUEUE_MAX_SIZE",
       "MONITOR_STORAGE",
       "DEBUG_ENABLED",
-    ].forEach((k) => delete process.env[k]);
+      "TOKEN_PLAN_ENABLED",
+    ].forEach((k) => { process.env[k] = ""; });
   });
 
   it("loads sensible defaults", async () => {
@@ -30,7 +25,7 @@ describe("config module", () => {
     expect(config.server.port).toBe(3000);
     expect(config.server.host).toBe("0.0.0.0");
     expect(config.upstream.baseUrl).toBe("https://api.xiaomimimo.com");
-    expect(config.upstream.enabledModels).toEqual(DEFAULT_MODELS);
+    expect(config.upstream.enabledModels).toEqual([...SUPPORTED_UPSTREAM_MODELS]);
     expect(config.tokenPlan.enabled).toBe(false);
     expect(config.debug.enabled).toBe(false);
   });
@@ -73,8 +68,31 @@ describe("config module", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     vi.resetModules();
     const { config } = await import("../config");
-    expect(config.upstream.enabledModels).toEqual(DEFAULT_MODELS);
+    expect(config.upstream.enabledModels).toEqual([...SUPPORTED_UPSTREAM_MODELS]);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+});
+
+describe("requireEnv", () => {
+  it("returns value when environment variable exists", () => {
+    process.env["TEST_REQUIRE_VAR"] = "hello";
+    expect(requireEnv("TEST_REQUIRE_VAR")).toBe("hello");
+    delete process.env["TEST_REQUIRE_VAR"];
+  });
+
+  it("throws Error when environment variable is missing", () => {
+    delete process.env["MISSING_VAR"];
+    expect(() => requireEnv("MISSING_VAR")).toThrowError(
+      "Missing required environment variable: MISSING_VAR"
+    );
+  });
+
+  it("throws Error when environment variable is empty string", () => {
+    process.env["EMPTY_VAR"] = "";
+    expect(() => requireEnv("EMPTY_VAR")).toThrowError(
+      "Missing required environment variable: EMPTY_VAR"
+    );
+    delete process.env["EMPTY_VAR"];
   });
 });

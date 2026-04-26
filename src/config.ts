@@ -1,13 +1,13 @@
 import "dotenv/config";
 
-const SUPPORTED_UPSTREAM_MODELS = ["mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2.5", "mimo-v2.5-pro"] as const;
+export const SUPPORTED_UPSTREAM_MODELS = ["mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2.5", "mimo-v2.5-pro"] as const;
 type SupportedUpstreamModel = (typeof SUPPORTED_UPSTREAM_MODELS)[number];
 
 function warnConfig(message: string): void {
   console.warn(`[config] ${message}`);
 }
 
-function requireEnv(name: string): string {
+export function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);

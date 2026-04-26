@@ -9,8 +9,6 @@ import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 // 鉴权逻辑
 // --------------------------------------------------------------------------
 
-// Using shared extractApiKey from utils
-
 function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (!config.tokenPlan.proxyApiKey) {
     next();
@@ -52,8 +50,6 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
 function getUpstreamApiKey(): string {
   return config.tokenPlan.mimoApiKey || config.mimoApiKey;
 }
-
-// Using shared fetchWithTimeout from utils
 
 function generateRequestId(): string {
   return `tp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
