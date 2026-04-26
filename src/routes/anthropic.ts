@@ -2,6 +2,8 @@ import { Router, Request, Response, NextFunction } from "express";
 import { config } from "../config";
 import { findVirtualModel, VIRTUAL_MODELS } from "../models/presets";
 import { logger } from "../utils/logger";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { sanitizeForLog } from "../utils/sanitizeForLog";
 
 // Anthropic 请求体类型
 interface AnthropicMessagesRequest {
@@ -281,35 +283,8 @@ function getErrorTypeFromStatus(status: number): string {
   return "invalid_request";
 }
 
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number
-): Promise<globalThis.Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (err) {
-    if (controller.signal.aborted) {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// Using shared utilities: fetchWithTimeout and sanitizeForLog
 
-function sanitizeForLog(body: unknown): unknown {
-  if (typeof body !== "object" || body === null) return body;
-  const obj = body as Record<string, unknown>;
-  return {
-    error: obj["error"],
-    message: obj["message"],
-    code: obj["code"],
-    type: obj["type"],
-  };
-}
 
 /**
  * GET /anthropic/v1/models

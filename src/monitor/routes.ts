@@ -1,6 +1,7 @@
 import { Request, Response, Router } from "express";
 import { config } from "../config";
 import { logger } from "../utils/logger";
+import { extractApiKey } from "../utils/auth";
 import { MonitorEvent } from "./storage";
 import { getStorage } from "./storage/factory";
 
@@ -48,19 +49,7 @@ function parseSourceParam(value: unknown): "main" | "token-plan" | undefined {
   return undefined;
 }
 
-function extractApiKey(req: Request): string | null {
-  const authHeader = req.headers["authorization"];
-  if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
-    return authHeader.slice("Bearer ".length).trim();
-  }
-
-  const apiKeyHeader = req.headers["api-key"];
-  if (typeof apiKeyHeader === "string" && apiKeyHeader.trim()) {
-    return apiKeyHeader.trim();
-  }
-
-  return null;
-}
+// `extractApiKey` implementation moved to `src/utils/auth.ts`
 
 function isPruneAuthorized(req: Request): boolean {
   // 默认仅开发环境开放，避免匿名误删

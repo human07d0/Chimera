@@ -10,6 +10,7 @@ import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
 import { config } from "./config";
 import { logger } from "./utils/logger";
+import { extractApiKey } from "./utils/auth";
 import { debugMiddleware, debugRouter } from "./debug";
 import { createTokenPlanRouter } from "./token-plan/server";
 
@@ -320,24 +321,4 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
 }
 
 /** 从请求头中提取 API Key，支持三种方式 */
-function extractApiKey(req: Request): string | null {
-  // 方式一：Authorization: Bearer <key>
-  const authHeader = req.headers["authorization"];
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice("Bearer ".length).trim();
-  }
-
-  // 方式二：api-key: <key>
-  const apiKeyHeader = req.headers["api-key"];
-  if (typeof apiKeyHeader === "string" && apiKeyHeader.trim()) {
-    return apiKeyHeader.trim();
-  }
-
-  // 方式三：x-api-key: <key>
-  const xApiKeyHeader = req.headers["x-api-key"];
-  if (typeof xApiKeyHeader === "string" && xApiKeyHeader.trim()) {
-    return xApiKeyHeader.trim();
-  }
-
-  return null;
-}
+// extractApiKey moved to ./utils/auth.ts

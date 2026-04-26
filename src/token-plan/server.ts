@@ -2,29 +2,14 @@ import express, { NextFunction, Request, Response, Router } from "express";
 
 import { config } from "../config";
 import { logger } from "../utils/logger";
+import { extractApiKey } from "../utils/auth";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
 // --------------------------------------------------------------------------
 // 鉴权逻辑
 // --------------------------------------------------------------------------
 
-function extractApiKey(req: Request): string | null {
-  const authHeader = req.headers["authorization"];
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.slice("Bearer ".length).trim();
-  }
-
-  const apiKeyHeader = req.headers["api-key"];
-  if (typeof apiKeyHeader === "string" && apiKeyHeader.trim()) {
-    return apiKeyHeader.trim();
-  }
-
-  const xApiKeyHeader = req.headers["x-api-key"];
-  if (typeof xApiKeyHeader === "string" && xApiKeyHeader.trim()) {
-    return xApiKeyHeader.trim();
-  }
-
-  return null;
-}
+// Using shared extractApiKey from utils
 
 function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   if (!config.tokenPlan.proxyApiKey) {
@@ -68,24 +53,7 @@ function getUpstreamApiKey(): string {
   return config.tokenPlan.mimoApiKey || config.mimoApiKey;
 }
 
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number
-): Promise<globalThis.Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (err) {
-    if (controller.signal.aborted) {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-}
+// Using shared fetchWithTimeout from utils
 
 function generateRequestId(): string {
   return `tp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;

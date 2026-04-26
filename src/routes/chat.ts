@@ -4,6 +4,8 @@ import { findVirtualModel } from "../models/presets";
 import { transformRequest, transformResponse, ChatCompletionRequest } from "../proxy/transformer";
 import { pipeSSEStream } from "../proxy/streaming";
 import { logger } from "../utils/logger";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { sanitizeForLog } from "../utils/sanitizeForLog";
 
 export const chatRouter: import("express").Router = Router();
 
@@ -193,39 +195,11 @@ function sendError(
   });
 }
 
-async function fetchWithTimeout(
-  url: string,
-  options: RequestInit,
-  timeoutMs: number
-): Promise<globalThis.Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...options, signal: controller.signal });
-  } catch (err) {
-    if (controller.signal.aborted) {
-      throw new Error(`Request timed out after ${timeoutMs}ms`);
-    }
-    throw err;
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 function generateRequestId(): string {
   return `proxy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 /** 日志脱敏：不打印可能含有用户数据的字段 */
-function sanitizeForLog(body: unknown): unknown {
-  if (typeof body !== "object" || body === null) return body;
-  const obj = body as Record<string, unknown>;
-  // 只保留错误相关字段
-  return {
-    error: obj["error"],
-    message: obj["message"],
-    code: obj["code"],
-    type: obj["type"],
-  };
-}
+// Using shared sanitizeForLog from utils
 
