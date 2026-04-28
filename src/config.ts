@@ -1,6 +1,12 @@
 import "dotenv/config";
 
-export const SUPPORTED_UPSTREAM_MODELS = ["mimo-v2-flash", "mimo-v2-pro", "mimo-v2-omni", "mimo-v2.5", "mimo-v2.5-pro"] as const;
+export const SUPPORTED_UPSTREAM_MODELS = [
+  "mimo-v2-flash",
+  "mimo-v2-pro",
+  "mimo-v2-omni",
+  "mimo-v2.5",
+  "mimo-v2.5-pro",
+] as const;
 type SupportedUpstreamModel = (typeof SUPPORTED_UPSTREAM_MODELS)[number];
 
 function warnConfig(message: string): void {
@@ -34,7 +40,7 @@ function optionalBoolEnv(name: string, defaultValue: boolean): boolean {
 function optionalEnumEnv<T extends string>(
   name: string,
   allowed: readonly T[],
-  defaultValue: T
+  defaultValue: T,
 ): T {
   const value = process.env[name];
   if (!value) return defaultValue;
@@ -67,7 +73,7 @@ function warnInvalidIntEnv(name: string, defaultValue: number): void {
 
 function optionalModelListEnv(
   name: string,
-  defaultValue: readonly SupportedUpstreamModel[]
+  defaultValue: readonly SupportedUpstreamModel[],
 ): SupportedUpstreamModel[] {
   const raw = process.env[name];
   if (!raw || raw.trim() === "") {
@@ -84,7 +90,7 @@ function optionalModelListEnv(
   for (const model of requested) {
     if (!SUPPORTED_UPSTREAM_MODELS.includes(model as SupportedUpstreamModel)) {
       warnConfig(
-        `Invalid ${name} item: '${model}'. Supported values: ${SUPPORTED_UPSTREAM_MODELS.join(", ")}`
+        `Invalid ${name} item: '${model}'. Supported values: ${SUPPORTED_UPSTREAM_MODELS.join(", ")}`,
       );
       continue;
     }
@@ -97,7 +103,7 @@ function optionalModelListEnv(
 
   if (enabled.length === 0) {
     warnConfig(
-      `${name} has no valid model values, falling back to defaults: ${defaultValue.join(", ")}`
+      `${name} has no valid model values, falling back to defaults: ${defaultValue.join(", ")}`,
     );
     return [...defaultValue];
   }
@@ -105,8 +111,12 @@ function optionalModelListEnv(
   return enabled;
 }
 
-const defaultEnabledModels: readonly SupportedUpstreamModel[] = SUPPORTED_UPSTREAM_MODELS;
-const configuredEnabledModels = optionalModelListEnv("MIMO_ENABLED_MODELS", defaultEnabledModels);
+const defaultEnabledModels: readonly SupportedUpstreamModel[] =
+  SUPPORTED_UPSTREAM_MODELS;
+const configuredEnabledModels = optionalModelListEnv(
+  "MIMO_ENABLED_MODELS",
+  defaultEnabledModels,
+);
 
 export const config = {
   /** 小米 MiMo API Key（主代理必填，仅使用 token-plan 时可留空） */
@@ -115,20 +125,22 @@ export const config = {
   /** 代理服务自身鉴权 Key，为空则不启用 */
   proxyApiKey: process.env["PROXY_API_KEY"] || "",
 
-      /** Ops 运维界面密码，为空则不启用运维界面 */
+  /** Ops 运维界面密码，为空则不启用运维界面 */
   opsPassword: process.env["OPS_PASSWORD"] || "",
 
   server: {
-
-
     port: optionalIntEnv("PORT", 3000),
     host: optionalEnv("HOST", "0.0.0.0"),
   },
 
   upstream: {
-    baseUrl: normalizeBaseUrl(optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com")),
+    baseUrl: normalizeBaseUrl(
+      optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com"),
+    ),
     /** Anthropic API Base URL */
-    anthropicBaseUrl: normalizeBaseUrl(optionalEnv("ANTHROPIC_BASE_URL", "https://api.xiaomimimo.com/anthropic")),
+    anthropicBaseUrl: normalizeBaseUrl(
+      optionalEnv("ANTHROPIC_BASE_URL", "https://api.xiaomimimo.com/anthropic"),
+    ),
     /** 启用的真实 MiMo 模型 */
     enabledModels: configuredEnabledModels,
     /** 默认模型（用于健康检查与监控回退值） */
@@ -149,7 +161,11 @@ export const config = {
   },
 
   monitor: {
-    storage: optionalEnumEnv("MONITOR_STORAGE", ["memory", "sqlite"] as const, "memory"),
+    storage: optionalEnumEnv(
+      "MONITOR_STORAGE",
+      ["memory", "sqlite"] as const,
+      "memory",
+    ),
     sqlitePath: optionalEnv("MONITOR_SQLITE_PATH", "./data/monitor.db"),
     retentionDays: optionalIntEnv("MONITOR_RETENTION_DAYS", 30),
     flushIntervalMs: optionalIntEnv("MONITOR_FLUSH_INTERVAL_MS", 200),
@@ -162,12 +178,26 @@ export const config = {
     enabled: optionalBoolEnv("TOKEN_PLAN_ENABLED", false),
     proxyApiKey: process.env["TOKEN_PLAN_PROXY_API_KEY"] || "",
     mimoApiKey: process.env["TOKEN_PLAN_MIMO_API_KEY"] || "",
-    baseUrl: normalizeBaseUrl(optionalEnv("TOKEN_PLAN_BASE_URL", "https://token-plan-cn.xiaomimimo.com")),
-    anthropicBaseUrl: normalizeBaseUrl(optionalEnv("TOKEN_PLAN_ANTHROPIC_BASE_URL", "https://token-plan-cn.xiaomimimo.com/anthropic")),
+    baseUrl: normalizeBaseUrl(
+      optionalEnv(
+        "TOKEN_PLAN_BASE_URL",
+        "https://token-plan-cn.xiaomimimo.com",
+      ),
+    ),
+    anthropicBaseUrl: normalizeBaseUrl(
+      optionalEnv(
+        "TOKEN_PLAN_ANTHROPIC_BASE_URL",
+        "https://token-plan-cn.xiaomimimo.com/anthropic",
+      ),
+    ),
     timeout: optionalIntEnv("UPSTREAM_TIMEOUT_MS", 120_000),
   },
 
-  logLevel: optionalEnv("LOG_LEVEL", "info") as "error" | "warn" | "info" | "debug",
+  logLevel: optionalEnv("LOG_LEVEL", "info") as
+    | "error"
+    | "warn"
+    | "info"
+    | "debug",
 
   debug: {
     enabled: optionalBoolEnv("DEBUG_ENABLED", false),
@@ -177,39 +207,41 @@ export const config = {
 };
 
 function validateMonitorConfig(): void {
-      warnInvalidIntEnv("MONITOR_RETENTION_DAYS", 30);
+  warnInvalidIntEnv("MONITOR_RETENTION_DAYS", 30);
   warnInvalidIntEnv("MONITOR_FLUSH_INTERVAL_MS", 200);
   warnInvalidIntEnv("MONITOR_FLUSH_BATCH_SIZE", 100);
   warnInvalidIntEnv("MONITOR_QUEUE_MAX_SIZE", 10_000);
 
-  const { retentionDays, flushIntervalMs, flushBatchSize, queueMaxSize } = config.monitor;
-
-
+  const { retentionDays, flushIntervalMs, flushBatchSize, queueMaxSize } =
+    config.monitor;
 
   if (retentionDays < 1) {
-    warnConfig(`Invalid MONITOR_RETENTION_DAYS: ${retentionDays}, falling back to 30`);
+    warnConfig(
+      `Invalid MONITOR_RETENTION_DAYS: ${retentionDays}, falling back to 30`,
+    );
     config.monitor.retentionDays = 30;
   }
 
   if (flushIntervalMs < 50) {
-    warnConfig(`Invalid MONITOR_FLUSH_INTERVAL_MS: ${flushIntervalMs}, falling back to 200`);
+    warnConfig(
+      `Invalid MONITOR_FLUSH_INTERVAL_MS: ${flushIntervalMs}, falling back to 200`,
+    );
     config.monitor.flushIntervalMs = 200;
   }
 
   if (flushBatchSize < 1) {
-    warnConfig(`Invalid MONITOR_FLUSH_BATCH_SIZE: ${flushBatchSize}, falling back to 100`);
+    warnConfig(
+      `Invalid MONITOR_FLUSH_BATCH_SIZE: ${flushBatchSize}, falling back to 100`,
+    );
     config.monitor.flushBatchSize = 100;
   }
 
-      if (queueMaxSize < 1) {
-    warnConfig(`Invalid MONITOR_QUEUE_MAX_SIZE: ${queueMaxSize}, falling back to 10000`);
+  if (queueMaxSize < 1) {
+    warnConfig(
+      `Invalid MONITOR_QUEUE_MAX_SIZE: ${queueMaxSize}, falling back to 10000`,
+    );
     config.monitor.queueMaxSize = 10_000;
   }
 }
 
-
-
 validateMonitorConfig();
-
-
-

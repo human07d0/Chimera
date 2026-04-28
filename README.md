@@ -29,16 +29,16 @@
 
 每个真实模型都会生成以下 8 种能力组合的虚拟模型（以 `mimo-v2-flash` 为例）：
 
-| 模型 ID                              | 思考  | 搜索  | JSON  |
-| ------------------------------------ | :---: | :---: | :---: |
-| `mimo-v2-flash`                      |   ❌   |   ❌   |   ❌   |
-| `mimo-v2-flash-thinking`             |   ✅   |   ❌   |   ❌   |
-| `mimo-v2-flash-search`               |   ❌   |   ✅   |   ❌   |
-| `mimo-v2-flash-json`                 |   ❌   |   ❌   |   ✅   |
-| `mimo-v2-flash-thinking-search`      |   ✅   |   ✅   |   ❌   |
-| `mimo-v2-flash-thinking-json`        |   ✅   |   ❌   |   ✅   |
-| `mimo-v2-flash-search-json`          |   ❌   |   ✅   |   ✅   |
-| `mimo-v2-flash-thinking-search-json` |   ✅   |   ✅   |   ✅   |
+| 模型 ID                              | 思考 | 搜索 | JSON |
+| ------------------------------------ | :--: | :--: | :--: |
+| `mimo-v2-flash`                      |  ❌  |  ❌  |  ❌  |
+| `mimo-v2-flash-thinking`             |  ✅  |  ❌  |  ❌  |
+| `mimo-v2-flash-search`               |  ❌  |  ✅  |  ❌  |
+| `mimo-v2-flash-json`                 |  ❌  |  ❌  |  ✅  |
+| `mimo-v2-flash-thinking-search`      |  ✅  |  ✅  |  ❌  |
+| `mimo-v2-flash-thinking-json`        |  ✅  |  ❌  |  ✅  |
+| `mimo-v2-flash-search-json`          |  ❌  |  ✅  |  ✅  |
+| `mimo-v2-flash-thinking-search-json` |  ✅  |  ✅  |  ✅  |
 
 对应地，`mimo-v2-pro` / `mimo-v2-omni` 也会生成同样后缀规则的 8 个虚拟模型。
 
@@ -73,8 +73,6 @@ pnpm run build:ops
 
 前端源码位于 `src/ops/frontend/`，构建产物输出到 `dist/ops/`。
 
-
-
 ### Termux 安装（Android）
 
 ```bash
@@ -94,7 +92,6 @@ MONITOR_SQLITE_PATH=./data/monitor.db
 ```
 
 若需快速恢复服务：临时切换 `MONITOR_STORAGE=memory`。
-
 
 ### 配置
 
@@ -141,12 +138,12 @@ pnpm start
 - **Android (Termux)**：参考 `ANDROID_INSTALL.md` 手册
 
 Bun 构建命令：
+
 ```bash
 pnpm run bun:build
 ```
 
 构建产物在 `dist-bun/` 目录，为单文件可执行文件。
-
 
 > **注意**：如果使用的是带 search 的模型（内置 `web_search` 工具），你自定义的 function 工具会与 `web_search` 工具合并，两者同时生效。
 
@@ -163,7 +160,7 @@ pnpm run bun:build
 
 支持的模型与 OpenAI 接口相同。
 
-#### cURL 示例
+#### cURL 示例（Anthropic）
 
 ```bash
 # 非流式
@@ -289,11 +286,11 @@ http://localhost:3000/debug
 
 ### 调试 API
 
-| 方法   | 路径                  | 说明                                       |
-| ------ | --------------------- | ------------------------------------------ |
-| `GET`  | `/debug/calls`        | 查询调试记录列表（支持 `search`/`model`/`limit`/`offset` 参数） |
-| `GET`  | `/debug/calls/:id`    | 获取单条记录详情（含完整 request/response body） |
-| `POST` | `/debug/prune`        | 清空内存缓冲区                             |
+| 方法   | 路径               | 说明                                                            |
+| ------ | ------------------ | --------------------------------------------------------------- |
+| `GET`  | `/debug/calls`     | 查询调试记录列表（支持 `search`/`model`/`limit`/`offset` 参数） |
+| `GET`  | `/debug/calls/:id` | 获取单条记录详情（含完整 request/response body）                |
+| `POST` | `/debug/prune`     | 清空内存缓冲区                                                  |
 
 ### 注意事项
 
@@ -412,15 +409,15 @@ curl -X POST -H "Authorization: Bearer your_ops_password" http://localhost:3000/
 
 ## 已验证环境
 
-| 项目    | 版本                         |
-| ------- | ---------------------------- |
-| Node.js | 24 LTS                       |
-| pnpm    | 10.32.x                      |
-| Express | 5.2.x                        |
-| sql.js  | 1.10.x                       |
-| dotenv  | 17.x                         |
-| 平台    | Windows /  Android（Termux） |
-| Bun     | 1.x                          |
+| 项目    | 版本                        |
+| ------- | --------------------------- |
+| Node.js | 24 LTS                      |
+| pnpm    | 10.32.x                     |
+| Express | 5.2.x                       |
+| sql.js  | 1.10.x                      |
+| dotenv  | 17.x                        |
+| 平台    | Windows / Android（Termux） |
+| Bun     | 1.x                         |
 
 ## Token-Plan 透传代理
 
@@ -438,12 +435,12 @@ TOKEN_PLAN_PROXY_API_KEY=your_token_plan_proxy_key
 
 客户端直接使用真实模型名（如 `mimo-v2-flash`、`mimo-v2.5-pro`），无需虚拟模型映射。
 
-| 配置项   | 值                                           |
-| -------- | -------------------------------------------- |
-| Base URL | `http://localhost:3000/token-plan/v1`        |
-| API Key  | 你的 `TOKEN_PLAN_PROXY_API_KEY`              |
+| 配置项   | 值                                    |
+| -------- | ------------------------------------- |
+| Base URL | `http://localhost:3000/token-plan/v1` |
+| API Key  | 你的 `TOKEN_PLAN_PROXY_API_KEY`       |
 
-#### cURL 示例
+#### cURL 示例（Token Plan）
 
 ```bash
 # OpenAI 格式
@@ -474,69 +471,69 @@ curl -X POST http://localhost:3000/token-plan/anthropic/v1/messages \
 
 ## 配置参考
 
-| 环境变量                         | 必填  | 默认值                                    | 说明                                                                                   |
-| -------------------------------- | :---: | ----------------------------------------- | -------------------------------------------------------------------------------------- |
-| `MIMO_API_KEY`                   |   ❌   | 空                                        | 小米 MiMo API Key（主代理使用，仅使用 token-plan 时可留空）                            |
-| `PROXY_API_KEY`                  |   ❌   | 空                                        | 访问代理时的鉴权 Key，留空则不启用鉴权                                                 |
-| `PORT`                           |   ❌   | `3000`                                    | 服务监听端口                                                                           |
-| `HOST`                           |   ❌   | `0.0.0.0`                                 | 服务监听地址                                                                           |
-| `MIMO_BASE_URL`                  |   ❌   | `https://api.xiaomimimo.com`              | 上游 API 地址（OpenAI 格式）                                           |
-| `ANTHROPIC_BASE_URL`             |   ❌   | `https://api.xiaomimimo.com/anthropic`    | Anthropic 上游 API 地址（Messages 格式）                                |
-| `MIMO_ENABLED_MODELS`            |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni,mimo-v2.5,mimo-v2.5-pro` | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni` / `mimo-v2.5` / `mimo-v2.5-pro`） |
-| `UPSTREAM_TIMEOUT_MS`            |   ❌   | `120000`                                  | 上游请求超时（毫秒）                                                                   |
-| `TOKEN_PLAN_ENABLED`             |   ❌   | `false`                                   | 是否启用 token-plan 透传代理（挂载于主应用 /token-plan 路径下）                        |
-| `TOKEN_PLAN_PROXY_API_KEY`       |   ❌   | 空                                        | 客户端访问 token-plan 代理时的鉴权 Key，留空则不启用鉴权                               |
-| `TOKEN_PLAN_MIMO_API_KEY`        |   ❌   | 空                                        | token-plan 上游 API Key，留空时回退到 `MIMO_API_KEY`                                   |
-| `TOKEN_PLAN_BASE_URL`            |   ❌   | `https://token-plan-cn.xiaomimimo.com`    | token-plan 上游 OpenAI 格式 Base URL（无需带 `/v1`）                                 |
-| `TOKEN_PLAN_ANTHROPIC_BASE_URL`  |   ❌   | `https://token-plan-cn.xiaomimimo.com/anthropic` | token-plan 上游 Anthropic 格式 Base URL（无需带 `/v1`）                      |
-| `WEB_SEARCH_MAX_KEYWORD`         |   ❌   | `3`                                       | 联网搜索最大关键词数量                                                                 |
-| `WEB_SEARCH_FORCE_SEARCH`        |   ❌   | `true`                                    | 是否强制开启搜索能力                                                                   |
-| `WEB_SEARCH_LIMIT`               |   ❌   | `3`                                       | 每次搜索返回网页数量                                                                   |
-| `WEB_SEARCH_COUNTRY`             |   ❌   | `China`                                   | 搜索地理位置 - 国家                                                                    |
-| `WEB_SEARCH_REGION`              |   ❌   | `Beijing`                                 | 搜索地理位置 - 省份                                                                    |
-| `WEB_SEARCH_CITY`                |   ❌   | `Beijing`                                 | 搜索地理位置 - 城市                                                                    |
-| `MONITOR_STORAGE`                |   ❌   | `memory`                                  | Monitor 存储后端：`memory` / `sqlite`                                                  |
-| `MONITOR_SQLITE_PATH`            |   ❌   | `./data/monitor.db`                       | SQLite 文件路径（仅 `MONITOR_STORAGE=sqlite` 生效）                                    |
-| `MONITOR_RETENTION_DAYS`         |   ❌   | `30`                                      | 监控数据保留天数（定时清理）                                                           |
-| `MONITOR_FLUSH_INTERVAL_MS`      |   ❌   | `200`                                     | 异步写入队列定时 flush 间隔（毫秒）                                                    |
-| `MONITOR_FLUSH_BATCH_SIZE`       |   ❌   | `100`                                     | 异步写入队列单次批量大小                                                               |
-| `MONITOR_QUEUE_MAX_SIZE`         |   ❌   | `10000`                                   | 异步队列最大长度，超限后丢弃并记录计数                                                 |
-| `DEBUG_ENABLED`                  |   ❌   | `false`                                   | 是否启用调试模式（记录完整请求/响应体到内存）                                          |
-| `DEBUG_MAX_RECORDS`              |   ❌   | `500`                                     | 调试内存环形缓冲区最大记录数                                                           |
-| `DEBUG_MAX_BODY_SIZE`            |   ❌   | `1048576`                                 | 单条调试记录最大 body 大小（字节），超过截断                                            |
-| `LOG_LEVEL`                      |   ❌   | `info`                                    | 日志级别：`error` / `warn` / `info` / `debug`                                          |
-| `OPS_PASSWORD`                   |   ❌   | 空                                        | Ops 运维界面密码，留空则不启用（单体部署，无需独立前端服务器）                         |
+| 环境变量                        | 必填 | 默认值                                                           | 说明                                                                                                                   |
+| ------------------------------- | :--: | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `MIMO_API_KEY`                  |  ❌  | 空                                                               | 小米 MiMo API Key（主代理使用，仅使用 token-plan 时可留空）                                                            |
+| `PROXY_API_KEY`                 |  ❌  | 空                                                               | 访问代理时的鉴权 Key，留空则不启用鉴权                                                                                 |
+| `PORT`                          |  ❌  | `3000`                                                           | 服务监听端口                                                                                                           |
+| `HOST`                          |  ❌  | `0.0.0.0`                                                        | 服务监听地址                                                                                                           |
+| `MIMO_BASE_URL`                 |  ❌  | `https://api.xiaomimimo.com`                                     | 上游 API 地址（OpenAI 格式）                                                                                           |
+| `ANTHROPIC_BASE_URL`            |  ❌  | `https://api.xiaomimimo.com/anthropic`                           | Anthropic 上游 API 地址（Messages 格式）                                                                               |
+| `MIMO_ENABLED_MODELS`           |  ❌  | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni,mimo-v2.5,mimo-v2.5-pro` | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni` / `mimo-v2.5` / `mimo-v2.5-pro`） |
+| `UPSTREAM_TIMEOUT_MS`           |  ❌  | `120000`                                                         | 上游请求超时（毫秒）                                                                                                   |
+| `TOKEN_PLAN_ENABLED`            |  ❌  | `false`                                                          | 是否启用 token-plan 透传代理（挂载于主应用 /token-plan 路径下）                                                        |
+| `TOKEN_PLAN_PROXY_API_KEY`      |  ❌  | 空                                                               | 客户端访问 token-plan 代理时的鉴权 Key，留空则不启用鉴权                                                               |
+| `TOKEN_PLAN_MIMO_API_KEY`       |  ❌  | 空                                                               | token-plan 上游 API Key，留空时回退到 `MIMO_API_KEY`                                                                   |
+| `TOKEN_PLAN_BASE_URL`           |  ❌  | `https://token-plan-cn.xiaomimimo.com`                           | token-plan 上游 OpenAI 格式 Base URL（无需带 `/v1`）                                                                   |
+| `TOKEN_PLAN_ANTHROPIC_BASE_URL` |  ❌  | `https://token-plan-cn.xiaomimimo.com/anthropic`                 | token-plan 上游 Anthropic 格式 Base URL（无需带 `/v1`）                                                                |
+| `WEB_SEARCH_MAX_KEYWORD`        |  ❌  | `3`                                                              | 联网搜索最大关键词数量                                                                                                 |
+| `WEB_SEARCH_FORCE_SEARCH`       |  ❌  | `true`                                                           | 是否强制开启搜索能力                                                                                                   |
+| `WEB_SEARCH_LIMIT`              |  ❌  | `3`                                                              | 每次搜索返回网页数量                                                                                                   |
+| `WEB_SEARCH_COUNTRY`            |  ❌  | `China`                                                          | 搜索地理位置 - 国家                                                                                                    |
+| `WEB_SEARCH_REGION`             |  ❌  | `Beijing`                                                        | 搜索地理位置 - 省份                                                                                                    |
+| `WEB_SEARCH_CITY`               |  ❌  | `Beijing`                                                        | 搜索地理位置 - 城市                                                                                                    |
+| `MONITOR_STORAGE`               |  ❌  | `memory`                                                         | Monitor 存储后端：`memory` / `sqlite`                                                                                  |
+| `MONITOR_SQLITE_PATH`           |  ❌  | `./data/monitor.db`                                              | SQLite 文件路径（仅 `MONITOR_STORAGE=sqlite` 生效）                                                                    |
+| `MONITOR_RETENTION_DAYS`        |  ❌  | `30`                                                             | 监控数据保留天数（定时清理）                                                                                           |
+| `MONITOR_FLUSH_INTERVAL_MS`     |  ❌  | `200`                                                            | 异步写入队列定时 flush 间隔（毫秒）                                                                                    |
+| `MONITOR_FLUSH_BATCH_SIZE`      |  ❌  | `100`                                                            | 异步写入队列单次批量大小                                                                                               |
+| `MONITOR_QUEUE_MAX_SIZE`        |  ❌  | `10000`                                                          | 异步队列最大长度，超限后丢弃并记录计数                                                                                 |
+| `DEBUG_ENABLED`                 |  ❌  | `false`                                                          | 是否启用调试模式（记录完整请求/响应体到内存）                                                                          |
+| `DEBUG_MAX_RECORDS`             |  ❌  | `500`                                                            | 调试内存环形缓冲区最大记录数                                                                                           |
+| `DEBUG_MAX_BODY_SIZE`           |  ❌  | `1048576`                                                        | 单条调试记录最大 body 大小（字节），超过截断                                                                           |
+| `LOG_LEVEL`                     |  ❌  | `info`                                                           | 日志级别：`error` / `warn` / `info` / `debug`                                                                          |
+| `OPS_PASSWORD`                  |  ❌  | 空                                                               | Ops 运维界面密码，留空则不启用（单体部署，无需独立前端服务器）                                                         |
 
 ## 接口列表
 
 ### 主代理（端口 3000）
 
-| 方法   | 路径                     | 说明                                   |
-| ------ | ------------------------ | -------------------------------------- |
-| `GET`  | `/health`                | 健康检查                               |
-| `GET`  | `/v1/models`             | 获取所有虚拟模型列表                   |
-| `GET`  | `/v1/models/:id`         | 获取单个虚拟模型信息                   |
-| `POST` | `/v1/chat/completions`   | 对话补全（支持流式 SSE）               |
-| `POST` | `/anthropic/v1/messages` | Anthropic Messages API（支持流式 SSE） |
-| `GET`  | `/monitor`               | 监控页面（最近 3 天调用）              |
-| `GET`  | `/monitor/stats`         | 监控统计数据（JSON）                   |
-| `GET`  | `/monitor/calls`         | 监控明细数据（JSON）                   |
-| `POST` | `/monitor/prune`         | 手动清理历史数据（默认仅 dev 或鉴权）  |
-| `GET`  | `/debug`                 | 调试页面（需 `DEBUG_ENABLED=true`）    |
-| `GET`  | `/debug/calls`           | 调试记录列表（需 `DEBUG_ENABLED=true`）|
-| `GET`  | `/debug/calls/:id`       | 调试记录详情（需 `DEBUG_ENABLED=true`）|
-| `POST` | `/debug/prune`           | 清空调试缓冲区（需 `DEBUG_ENABLED=true`）|
-| `GET`  | `/ops/info`              | Ops 界面基本信息（是否启用）           |
-| `GET`  | `/ops/status`            | 服务运行状态（需 Ops 鉴权）            |
-| `GET`  | `/ops/config`            | 获取当前配置（需 Ops 鉴权）            |
-| `GET`  | `/ops/config/schema`     | 获取可修改配置项白名单（需 Ops 鉴权）  |
-| `POST` | `/ops/config`            | 更新运行时配置（需 Ops 鉴权）          |
-| `POST` | `/ops/shutdown`          | 优雅停机（需 Ops 鉴权）                |
-| `POST` | `/ops/restart`           | 重启服务（需 Ops 鉴权）                |
+| 方法   | 路径                     | 说明                                      |
+| ------ | ------------------------ | ----------------------------------------- |
+| `GET`  | `/health`                | 健康检查                                  |
+| `GET`  | `/v1/models`             | 获取所有虚拟模型列表                      |
+| `GET`  | `/v1/models/:id`         | 获取单个虚拟模型信息                      |
+| `POST` | `/v1/chat/completions`   | 对话补全（支持流式 SSE）                  |
+| `POST` | `/anthropic/v1/messages` | Anthropic Messages API（支持流式 SSE）    |
+| `GET`  | `/monitor`               | 监控页面（最近 3 天调用）                 |
+| `GET`  | `/monitor/stats`         | 监控统计数据（JSON）                      |
+| `GET`  | `/monitor/calls`         | 监控明细数据（JSON）                      |
+| `POST` | `/monitor/prune`         | 手动清理历史数据（默认仅 dev 或鉴权）     |
+| `GET`  | `/debug`                 | 调试页面（需 `DEBUG_ENABLED=true`）       |
+| `GET`  | `/debug/calls`           | 调试记录列表（需 `DEBUG_ENABLED=true`）   |
+| `GET`  | `/debug/calls/:id`       | 调试记录详情（需 `DEBUG_ENABLED=true`）   |
+| `POST` | `/debug/prune`           | 清空调试缓冲区（需 `DEBUG_ENABLED=true`） |
+| `GET`  | `/ops/info`              | Ops 界面基本信息（是否启用）              |
+| `GET`  | `/ops/status`            | 服务运行状态（需 Ops 鉴权）               |
+| `GET`  | `/ops/config`            | 获取当前配置（需 Ops 鉴权）               |
+| `GET`  | `/ops/config/schema`     | 获取可修改配置项白名单（需 Ops 鉴权）     |
+| `POST` | `/ops/config`            | 更新运行时配置（需 Ops 鉴权）             |
+| `POST` | `/ops/shutdown`          | 优雅停机（需 Ops 鉴权）                   |
+| `POST` | `/ops/restart`           | 重启服务（需 Ops 鉴权）                   |
 
 ### Token-Plan 代理（需 `TOKEN_PLAN_ENABLED=true`，挂载于主应用）
 
-| 方法   | 路径                                          | 说明                                   |
-| ------ | --------------------------------------------- | -------------------------------------- |
-| `POST` | `/token-plan/v1/chat/completions`             | 对话补全（透传，支持流式 SSE）         |
-| `POST` | `/token-plan/anthropic/v1/messages`           | Anthropic Messages API（透传，支持流式 SSE） |
+| 方法   | 路径                                | 说明                                         |
+| ------ | ----------------------------------- | -------------------------------------------- |
+| `POST` | `/token-plan/v1/chat/completions`   | 对话补全（透传，支持流式 SSE）               |
+| `POST` | `/token-plan/anthropic/v1/messages` | Anthropic Messages API（透传，支持流式 SSE） |
