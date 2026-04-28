@@ -480,15 +480,15 @@ curl -X POST http://localhost:3000/token-plan/anthropic/v1/messages \
 | `PROXY_API_KEY`                  |   ❌   | 空                                        | 访问代理时的鉴权 Key，留空则不启用鉴权                                                 |
 | `PORT`                           |   ❌   | `3000`                                    | 服务监听端口                                                                           |
 | `HOST`                           |   ❌   | `0.0.0.0`                                 | 服务监听地址                                                                           |
-| `MIMO_BASE_URL`                  |   ❌   | `https://api.xiaomimimo.com`              | 上游 API 地址（OpenAI 格式）                                                           |
-| `ANTHROPIC_BASE_URL`             |   ❌   | `https://api.xiaomimimo.com/anthropic/v1` | Anthropic 上游 API 地址（Messages 格式）                                               |
+| `MIMO_BASE_URL`                  |   ❌   | `https://api.xiaomimimo.com`              | 上游 API 地址（OpenAI 格式）                                           |
+| `ANTHROPIC_BASE_URL`             |   ❌   | `https://api.xiaomimimo.com/anthropic`    | Anthropic 上游 API 地址（Messages 格式）                                |
 | `MIMO_ENABLED_MODELS`            |   ❌   | `mimo-v2-flash,mimo-v2-pro,mimo-v2-omni,mimo-v2.5,mimo-v2.5-pro` | 启用的真实模型列表（逗号分隔，可选：`mimo-v2-flash` / `mimo-v2-pro` / `mimo-v2-omni` / `mimo-v2.5` / `mimo-v2.5-pro`） |
 | `UPSTREAM_TIMEOUT_MS`            |   ❌   | `120000`                                  | 上游请求超时（毫秒）                                                                   |
 | `TOKEN_PLAN_ENABLED`             |   ❌   | `false`                                   | 是否启用 token-plan 透传代理（挂载于主应用 /token-plan 路径下）                        |
 | `TOKEN_PLAN_PROXY_API_KEY`       |   ❌   | 空                                        | 客户端访问 token-plan 代理时的鉴权 Key，留空则不启用鉴权                               |
 | `TOKEN_PLAN_MIMO_API_KEY`        |   ❌   | 空                                        | token-plan 上游 API Key，留空时回退到 `MIMO_API_KEY`                                   |
-| `TOKEN_PLAN_BASE_URL`            |   ❌   | `https://token-plan-cn.xiaomimimo.com/v1` | token-plan 上游 OpenAI 格式 Base URL                                                   |
-| `TOKEN_PLAN_ANTHROPIC_BASE_URL`  |   ❌   | `https://token-plan-cn.xiaomimimo.com/anthropic` | token-plan 上游 Anthropic 格式 Base URL                                          |
+| `TOKEN_PLAN_BASE_URL`            |   ❌   | `https://token-plan-cn.xiaomimimo.com`    | token-plan 上游 OpenAI 格式 Base URL（无需带 `/v1`）                                 |
+| `TOKEN_PLAN_ANTHROPIC_BASE_URL`  |   ❌   | `https://token-plan-cn.xiaomimimo.com/anthropic` | token-plan 上游 Anthropic 格式 Base URL（无需带 `/v1`）                      |
 | `WEB_SEARCH_MAX_KEYWORD`         |   ❌   | `3`                                       | 联网搜索最大关键词数量                                                                 |
 | `WEB_SEARCH_FORCE_SEARCH`        |   ❌   | `true`                                    | 是否强制开启搜索能力                                                                   |
 | `WEB_SEARCH_LIMIT`               |   ❌   | `3`                                       | 每次搜索返回网页数量                                                                   |

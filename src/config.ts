@@ -7,6 +7,12 @@ function warnConfig(message: string): void {
   console.warn(`[config] ${message}`);
 }
 
+function normalizeBaseUrl(url: string): string {
+  let normalized = url.replace(/\/+$/, "");
+  normalized = normalized.replace(/\/v1$/i, "");
+  return normalized;
+}
+
 export function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -120,9 +126,9 @@ export const config = {
   },
 
   upstream: {
-    baseUrl: optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com"),
+    baseUrl: normalizeBaseUrl(optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com")),
     /** Anthropic API Base URL */
-    anthropicBaseUrl: optionalEnv("ANTHROPIC_BASE_URL", "https://api.xiaomimimo.com/anthropic/v1"),
+    anthropicBaseUrl: normalizeBaseUrl(optionalEnv("ANTHROPIC_BASE_URL", "https://api.xiaomimimo.com/anthropic")),
     /** 启用的真实 MiMo 模型 */
     enabledModels: configuredEnabledModels,
     /** 默认模型（用于健康检查与监控回退值） */
@@ -156,8 +162,8 @@ export const config = {
     enabled: optionalBoolEnv("TOKEN_PLAN_ENABLED", false),
     proxyApiKey: process.env["TOKEN_PLAN_PROXY_API_KEY"] || "",
     mimoApiKey: process.env["TOKEN_PLAN_MIMO_API_KEY"] || "",
-    baseUrl: optionalEnv("TOKEN_PLAN_BASE_URL", "https://token-plan-cn.xiaomimimo.com/v1"),
-    anthropicBaseUrl: optionalEnv("TOKEN_PLAN_ANTHROPIC_BASE_URL", "https://token-plan-cn.xiaomimimo.com/anthropic"),
+    baseUrl: normalizeBaseUrl(optionalEnv("TOKEN_PLAN_BASE_URL", "https://token-plan-cn.xiaomimimo.com")),
+    anthropicBaseUrl: normalizeBaseUrl(optionalEnv("TOKEN_PLAN_ANTHROPIC_BASE_URL", "https://token-plan-cn.xiaomimimo.com/anthropic")),
     timeout: optionalIntEnv("UPSTREAM_TIMEOUT_MS", 120_000),
   },
 

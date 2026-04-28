@@ -9,7 +9,7 @@ vi.mock("../../config", () => ({
       enabled: true,
       proxyApiKey: "test-proxy-key",
       mimoApiKey: "test-mimo-key",
-      baseUrl: "https://token-plan-cn.xiaomimimo.com/v1",
+      baseUrl: "https://token-plan-cn.xiaomimimo.com",
       anthropicBaseUrl: "https://token-plan-cn.xiaomimimo.com/anthropic",
       timeout: 30_000,
     },

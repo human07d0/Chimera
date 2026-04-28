@@ -88,7 +88,7 @@ anthropicRouter.post("/messages", async (req: Request, res: Response, next: Next
       model: virtualModel.upstreamModel,
     };
 
-    const upstreamUrl = `${config.upstream.anthropicBaseUrl}/messages`;
+    const upstreamUrl = `${config.upstream.anthropicBaseUrl}/v1/messages`;
 
     let upstreamResponse: globalThis.Response;
     try {

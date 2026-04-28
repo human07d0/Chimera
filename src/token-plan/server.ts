@@ -204,7 +204,7 @@ export function createTokenPlanRouter(): Router {
   router.post("/v1/chat/completions", async (req: Request, res: Response) => {
     const requestId = generateRequestId();
     try {
-      await proxyPassthrough(req, res, config.tokenPlan.baseUrl, "/chat/completions", requestId);
+      await proxyPassthrough(req, res, config.tokenPlan.baseUrl, "/v1/chat/completions", requestId);
     } catch (err) {
       logger.error("Token-plan /v1/chat/completions error", {
         requestId,
