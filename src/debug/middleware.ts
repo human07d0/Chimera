@@ -18,20 +18,24 @@ export function assembleStreamResponse(sseChunks: string[]): string {
   let hasContent = false;
   let hasReasoning = false;
 
-  // Anthropic 累积字段
-  let anthropicText = "";
-  let anthropicThinking = "";
+  // OpenAI tool_calls 累积：按 index 聚合增量 chunk
+  const toolCallsMap = new Map<number, {
+    id: string;
+    type: "function";
+    function: { name: string; arguments: string };
+  }>();
+
+  // Anthropic 累积字段：按 index 存储所有 content block（保持顺序）
+  const anthropicBlocks = new Map<number, Record<string, unknown>>();
   let stopReason: string | undefined;
-  let hasAnthropicText = false;
-  let hasAnthropicThinking = false;
 
   for (const chunk of sseChunks) {
     let parsed: Record<string, unknown>;
     try {
       parsed = JSON.parse(chunk);
     } catch {
-      // 非 JSON chunk，回退为原始拼接
-      return "[" + sseChunks.join(",") + "]";
+      // 非 JSON chunk，跳过继续处理
+      continue;
     }
 
     // 检测格式
@@ -62,6 +66,25 @@ export function assembleStreamResponse(sseChunks: string[]): string {
             reasoningContent += delta.reasoning_content;
             hasReasoning = true;
           }
+          // 提取 tool_calls（增量合并）
+          const deltaToolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
+          if (Array.isArray(deltaToolCalls)) {
+            for (const tc of deltaToolCalls) {
+              const idx = tc.index as number;
+              let acc = toolCallsMap.get(idx);
+              if (!acc) {
+                acc = { id: "", type: "function", function: { name: "", arguments: "" } };
+                toolCallsMap.set(idx, acc);
+              }
+              if (tc.id) acc.id = tc.id as string;
+              if (tc.type) acc.type = tc.type as "function";
+              const fn = tc.function as Record<string, unknown> | undefined;
+              if (fn) {
+                if (fn.name) acc.function.name = fn.name as string;
+                if (typeof fn.arguments === "string") acc.function.arguments += fn.arguments;
+              }
+            }
+          }
         }
       }
     } else if (format === "anthropic") {
@@ -76,17 +99,60 @@ export function assembleStreamResponse(sseChunks: string[]): string {
         }
       }
 
-      // content_block_delta 中提取文本/思考内容
+      // content_block_start：记录 block 类型和初始数据
+      if (type === "content_block_start") {
+        const contentBlock = parsed.content_block as Record<string, unknown> | undefined;
+        const cbIndex = parsed.index as number;
+        if (contentBlock) {
+          if (contentBlock.type === "tool_use") {
+            anthropicBlocks.set(cbIndex, {
+              type: "tool_use",
+              id: contentBlock.id || "",
+              name: contentBlock.name || "",
+              input: "",
+            });
+          } else if (contentBlock.type === "thinking") {
+            anthropicBlocks.set(cbIndex, {
+              type: "thinking",
+              thinking: (contentBlock.thinking as string) || "",
+            });
+          } else if (contentBlock.type === "text") {
+            anthropicBlocks.set(cbIndex, {
+              type: "text",
+              text: (contentBlock.text as string) || "",
+            });
+          }
+        }
+      }
+
+      // content_block_delta：增量追加内容
       if (type === "content_block_delta") {
         const delta = parsed.delta as Record<string, unknown> | undefined;
+        const cbIndex = parsed.index as number;
         if (delta) {
           if (delta.type === "text_delta" && typeof delta.text === "string") {
-            anthropicText += delta.text;
-            hasAnthropicText = true;
+            const block = anthropicBlocks.get(cbIndex);
+            if (block) {
+              block.text = ((block.text as string) || "") + delta.text;
+            } else {
+              anthropicBlocks.set(cbIndex, { type: "text", text: delta.text });
+            }
           }
           if (delta.type === "thinking_delta" && typeof delta.thinking === "string") {
-            anthropicThinking += delta.thinking;
-            hasAnthropicThinking = true;
+            const block = anthropicBlocks.get(cbIndex);
+            if (block) {
+              block.thinking = ((block.thinking as string) || "") + delta.thinking;
+            } else {
+              anthropicBlocks.set(cbIndex, { type: "thinking", thinking: delta.thinking });
+            }
+          }
+          if (delta.type === "input_json_delta" && typeof delta.partial_json === "string") {
+            const block = anthropicBlocks.get(cbIndex);
+            if (block) {
+              block.input = ((block.input as string) || "") + delta.partial_json;
+            } else {
+              anthropicBlocks.set(cbIndex, { type: "tool_use", input: delta.partial_json });
+            }
           }
         }
       }
@@ -105,6 +171,17 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     const message: Record<string, unknown> = { role: "assistant" };
     if (hasContent) message.content = content;
     if (hasReasoning) message.reasoning_content = reasoningContent;
+    if (toolCallsMap.size > 0) {
+      message.tool_calls = Array.from(toolCallsMap.entries()).map(([idx, tc]) => ({
+        index: idx,
+        id: tc.id,
+        type: tc.type,
+        function: {
+          name: tc.function.name,
+          arguments: tc.function.arguments,
+        },
+      }));
+    }
 
     const result: Record<string, unknown> = {
       id: id || "",
@@ -123,13 +200,8 @@ export function assembleStreamResponse(sseChunks: string[]): string {
   }
 
   if (format === "anthropic") {
-    const contentBlocks: Array<Record<string, unknown>> = [];
-    if (hasAnthropicThinking) {
-      contentBlocks.push({ type: "thinking", thinking: anthropicThinking });
-    }
-    if (hasAnthropicText) {
-      contentBlocks.push({ type: "text", text: anthropicText });
-    }
+    const sortedIndices = Array.from(anthropicBlocks.keys()).sort((a, b) => a - b);
+    const contentBlocks = sortedIndices.map((i) => anthropicBlocks.get(i)!);
 
     const result: Record<string, unknown> = {
       id: id || "",
@@ -233,7 +305,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       }
     }
 
-    return originalWrite.call(this, chunk, encoding, callback);
+    return originalWrite(chunk, encoding, callback);
   };
 
   // 终结：组装并存储调试事件
