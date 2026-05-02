@@ -325,7 +325,7 @@ describe("debugMiddleware", () => {
     expect(body.content[0].type).toBe("tool_use");
     expect(body.content[0].id).toBe("toolu_abc");
     expect(body.content[0].name).toBe("get_weather");
-    expect(JSON.parse(body.content[0].input)).toEqual({ city: "Beijing" });
+    expect(body.content[0].input).toEqual({ city: "Beijing" });
     expect(body.content[1]).toEqual({
       type: "text",
       text: "Let me check the weather.",

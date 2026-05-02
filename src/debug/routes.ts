@@ -41,9 +41,8 @@ debugRouter.get("/calls", (req: Request, res: Response) => {
           model_upstream: e.model_upstream,
           stream: e.stream,
           error_type: e.error_type,
-          // 列表不返回完整 body，减少传输量
-          request_body_preview: e.request_body.slice(0, 200),
-          response_body_preview: e.response_body.slice(0, 200),
+          request_body: e.request_body,
+          response_body: e.response_body,
         })),
       },
     });

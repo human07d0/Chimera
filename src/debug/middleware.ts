@@ -17,6 +17,13 @@ export function assembleStreamResponse(sseChunks: string[]): string {
   let reasoningContent = "";
   let hasContent = false;
   let hasReasoning = false;
+  let created: number | undefined;
+  let systemFingerprint: string | undefined;
+  let finishReason: string | undefined;
+  let refusal: string | undefined;
+  let logprobs: unknown;
+  let promptTokensDetails: unknown;
+  let completionTokensDetails: unknown;
 
   // OpenAI tool_calls 累积：按 index 聚合增量 chunk
   const toolCallsMap = new Map<number, {
@@ -28,6 +35,12 @@ export function assembleStreamResponse(sseChunks: string[]): string {
   // Anthropic 累积字段：按 index 存储所有 content block（保持顺序）
   const anthropicBlocks = new Map<number, Record<string, unknown>>();
   let stopReason: string | undefined;
+  let stopSequence: string | undefined;
+  const contentSignatures = new Map<number, string>();
+  let cacheCreationTokens: number | undefined;
+  let cacheReadTokens: number | undefined;
+  let typeFromMessageStart: string | undefined;
+  let roleFromMessageStart: string | undefined;
 
   for (const chunk of sseChunks) {
     let parsed: Record<string, unknown>;
@@ -51,11 +64,20 @@ export function assembleStreamResponse(sseChunks: string[]): string {
       // 收集元数据
       if (parsed.id && !id) id = parsed.id as string;
       if (parsed.model && !model) model = parsed.model as string;
-      if (parsed.usage) usage = parsed.usage as Record<string, unknown>;
+      if (parsed.created && !created) created = parsed.created as number;
+      if (parsed.system_fingerprint && !systemFingerprint) systemFingerprint = parsed.system_fingerprint as string;
+      if (parsed.usage) {
+        const u = parsed.usage as Record<string, unknown>;
+        usage = u;
+        if (u.prompt_tokens_details !== undefined) promptTokensDetails = u.prompt_tokens_details;
+        if (u.completion_tokens_details !== undefined) completionTokensDetails = u.completion_tokens_details;
+      }
 
       // 提取 delta 内容
       const choices = parsed.choices as Array<Record<string, unknown>> | undefined;
       if (choices?.[0]) {
+        if (choices[0].finish_reason) finishReason = choices[0].finish_reason as string;
+        if (choices[0].logprobs !== undefined) logprobs = choices[0].logprobs;
         const delta = choices[0].delta as Record<string, unknown> | undefined;
         if (delta) {
           if (typeof delta.content === "string" && delta.content) {
@@ -66,6 +88,7 @@ export function assembleStreamResponse(sseChunks: string[]): string {
             reasoningContent += delta.reasoning_content;
             hasReasoning = true;
           }
+          if (delta.refusal !== undefined) refusal = delta.refusal as string;
           // 提取 tool_calls（增量合并）
           const deltaToolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
           if (Array.isArray(deltaToolCalls)) {
@@ -90,12 +113,14 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     } else if (format === "anthropic") {
       const type = parsed.type as string;
 
-      // message_start 中提取 id、model
+      // message_start 中提取 id、model、type、role
       if (type === "message_start") {
         const msg = parsed.message as Record<string, unknown> | undefined;
         if (msg) {
           if (msg.id && !id) id = msg.id as string;
           if (msg.model && !model) model = msg.model as string;
+          if (msg.type && !typeFromMessageStart) typeFromMessageStart = msg.type as string;
+          if (msg.role && !roleFromMessageStart) roleFromMessageStart = msg.role as string;
         }
       }
 
@@ -116,6 +141,7 @@ export function assembleStreamResponse(sseChunks: string[]): string {
               type: "thinking",
               thinking: (contentBlock.thinking as string) || "",
             });
+            if (contentBlock.signature) contentSignatures.set(cbIndex, contentBlock.signature as string);
           } else if (contentBlock.type === "text") {
             anthropicBlocks.set(cbIndex, {
               type: "text",
@@ -154,14 +180,24 @@ export function assembleStreamResponse(sseChunks: string[]): string {
               anthropicBlocks.set(cbIndex, { type: "tool_use", input: delta.partial_json });
             }
           }
+          if (delta.type === "signature_delta" && typeof delta.signature === "string") {
+            const existing = contentSignatures.get(cbIndex) || "";
+            contentSignatures.set(cbIndex, existing + delta.signature);
+          }
         }
       }
 
-      // message_delta 中提取 stop_reason 和 usage
+      // message_delta 中提取 stop_reason、stop_sequence 和 usage
       if (type === "message_delta") {
         const delta = parsed.delta as Record<string, unknown> | undefined;
         if (delta?.stop_reason) stopReason = delta.stop_reason as string;
-        if (parsed.usage) usage = parsed.usage as Record<string, unknown>;
+        if (delta?.stop_sequence !== undefined) stopSequence = delta.stop_sequence as string;
+        if (parsed.usage) {
+          const u = parsed.usage as Record<string, unknown>;
+          usage = u;
+          if (u.cache_creation_input_tokens !== undefined) cacheCreationTokens = u.cache_creation_input_tokens as number;
+          if (u.cache_read_input_tokens !== undefined) cacheReadTokens = u.cache_read_input_tokens as number;
+        }
       }
     }
   }
@@ -171,6 +207,7 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     const message: Record<string, unknown> = { role: "assistant" };
     if (hasContent) message.content = content;
     if (hasReasoning) message.reasoning_content = reasoningContent;
+    if (refusal) message.refusal = refusal;
     if (toolCallsMap.size > 0) {
       message.tool_calls = Array.from(toolCallsMap.entries()).map(([idx, tc]) => ({
         index: idx,
@@ -183,15 +220,24 @@ export function assembleStreamResponse(sseChunks: string[]): string {
       }));
     }
 
+    // 合并 usage 子字段
+    if (usage) {
+      if (promptTokensDetails !== undefined) usage.prompt_tokens_details = promptTokensDetails;
+      if (completionTokensDetails !== undefined) usage.completion_tokens_details = completionTokensDetails;
+    }
+
     const result: Record<string, unknown> = {
       id: id || "",
       object: "chat.completion",
+      created: created ?? 0,
       model: model || "",
+      system_fingerprint: systemFingerprint ?? null,
       choices: [
         {
           index: 0,
           message,
-          finish_reason: "stop",
+          finish_reason: finishReason || "stop",
+          logprobs: logprobs ?? null,
         },
       ],
     };
@@ -201,15 +247,37 @@ export function assembleStreamResponse(sseChunks: string[]): string {
 
   if (format === "anthropic") {
     const sortedIndices = Array.from(anthropicBlocks.keys()).sort((a, b) => a - b);
-    const contentBlocks = sortedIndices.map((i) => anthropicBlocks.get(i)!);
+    const contentBlocks = sortedIndices.map((i) => {
+      const block = { ...anthropicBlocks.get(i)! };
+      // tool_use: 将 input 从拼接字符串解析为 JSON object
+      if (block.type === "tool_use" && typeof block.input === "string") {
+        try {
+          block.input = JSON.parse(block.input as string);
+        } catch {
+          // 解析失败保留原始字符串
+        }
+      }
+      // thinking: 附加 signature
+      if (block.type === "thinking" && contentSignatures.has(i)) {
+        block.signature = contentSignatures.get(i);
+      }
+      return block;
+    });
+
+    // 合并 usage 子字段
+    if (usage) {
+      if (cacheCreationTokens !== undefined) usage.cache_creation_input_tokens = cacheCreationTokens;
+      if (cacheReadTokens !== undefined) usage.cache_read_input_tokens = cacheReadTokens;
+    }
 
     const result: Record<string, unknown> = {
       id: id || "",
-      type: "message",
-      role: "assistant",
+      type: typeFromMessageStart || "message",
+      role: roleFromMessageStart || "assistant",
       content: contentBlocks,
       model: model || "",
       stop_reason: stopReason || "end_turn",
+      stop_sequence: stopSequence ?? null,
     };
     if (usage) result.usage = usage;
     return JSON.stringify(result);

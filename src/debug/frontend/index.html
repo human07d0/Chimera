@@ -484,7 +484,7 @@
           <td>${escapeHtml(item.path)}</td>
           <td>${formatLatency(latency)}</td>
           <td>${item.error_type ? `<span class="error-badge">${escapeHtml(item.error_type)}</span>` : '-'}</td>
-          <td title="${escapeAttr(item.request_body_preview)}">${escapeHtml(item.request_body_preview.slice(0, 80))}</td>
+          <td title="${escapeAttr(item.request_body)}">${escapeHtml(item.request_body.slice(0, 80))}</td>
         </tr>`;
       }).join('');
     }
