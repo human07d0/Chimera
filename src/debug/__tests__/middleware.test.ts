@@ -689,6 +689,55 @@ describe("extractAndSummarizeMedia", () => {
     expect(result.media[2].kind).toBe("unknown");
   });
 
+  it("recognizes audio and video in Anthropic source format", () => {
+    const input = JSON.stringify({
+      messages: [
+        {
+          content: [
+            { type: "base64", media_type: "audio/mpeg", data: "AAAA==" },
+            { type: "base64", media_type: "video/webm", data: "BBBB==" },
+          ],
+        },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(2);
+    expect(result.media[0].kind).toBe("audio");
+    expect(result.media[0].media_type).toBe("audio/mpeg");
+    expect(result.media[1].kind).toBe("video");
+    expect(result.media[1].media_type).toBe("video/webm");
+  });
+
+  it("recognizes audio data URI variants", () => {
+    const input = JSON.stringify({
+      content: [
+        { type: "image_url", image_url: { url: "data:audio/wav;base64,WAVAAA==" } },
+        { type: "image_url", image_url: { url: "data:audio/mp3;base64,MP3AAA==" } },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(2);
+    expect(result.media[0].kind).toBe("audio");
+    expect(result.media[0].media_type).toBe("audio/wav");
+    expect(result.media[1].kind).toBe("audio");
+    expect(result.media[1].media_type).toBe("audio/mp3");
+  });
+
+  it("recognizes video data URI variants", () => {
+    const input = JSON.stringify({
+      content: [
+        { type: "image_url", image_url: { url: "data:video/mp4;base64,MP4AAA==" } },
+        { type: "image_url", image_url: { url: "data:video/webm;base64,WEBMAA==" } },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(2);
+    expect(result.media[0].kind).toBe("video");
+    expect(result.media[0].media_type).toBe("video/mp4");
+    expect(result.media[1].kind).toBe("video");
+    expect(result.media[1].media_type).toBe("video/webm");
+  });
+
   it("does not extract data_base64 when byte_length exceeds maxMediaBytes", () => {
     // Create a base64 that's ~1KB to test threshold
     const smallData = Buffer.alloc(512).toString("base64");

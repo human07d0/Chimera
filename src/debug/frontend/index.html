@@ -350,6 +350,99 @@
       .toolbar { padding: 8px 12px; }
       .header { padding: 8px 12px; }
     }
+
+    /* Media Placeholder */
+    .media-placeholder {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--accent);
+      font-size: 12px;
+      font-family: var(--font-sans);
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+      line-height: 1.4;
+    }
+
+    .media-placeholder:hover { background: var(--surface-hover); border-color: var(--accent); color: var(--accent-hover); }
+    .media-placeholder.disabled { color: var(--text-secondary); cursor: not-allowed; opacity: 0.6; }
+    .media-placeholder.disabled:hover { color: var(--text-secondary); border-color: var(--border); background: var(--surface); }
+    .media-placeholder .media-kind { font-weight: 600; text-transform: uppercase; margin-right: 2px; }
+
+    /* Media Viewer */
+    .media-viewer-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 300;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .media-viewer-overlay.active { display: flex; }
+
+    .media-viewer {
+      max-width: 90vw;
+      max-height: 90vh;
+      position: relative;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .media-viewer img {
+      max-width: 80vw;
+      max-height: 80vh;
+      object-fit: contain;
+      border-radius: 4px;
+    }
+
+    .media-viewer video {
+      max-width: 100%;
+      max-height: 75vh;
+    }
+
+    .media-viewer audio {
+      width: 100%;
+    }
+
+    .media-viewer .media-error {
+      color: var(--danger);
+      font-size: 14px;
+      padding: 32px;
+      text-align: center;
+    }
+
+    .media-viewer .media-info {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: var(--font-mono);
+    }
+
+    .media-viewer .media-close {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 20px;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .media-viewer .media-close:hover { background: var(--surface-hover); color: var(--text); }
   </style>
 </head>
 <body>
@@ -409,12 +502,24 @@
     </div>
   </div>
 
+  <div class="media-viewer-overlay" id="mediaViewerOverlay" onclick="closeMediaViewer()">
+    <div class="media-viewer" id="mediaViewer" onclick="event.stopPropagation()">
+      <button class="media-close" onclick="closeMediaViewer()" aria-label="Close media viewer">&times;</button>
+      <img id="mediaViewerImg" alt="Media preview">
+      <video id="mediaViewerVid" controls style="display:none"></video>
+      <audio id="mediaViewerAud" controls style="display:none"></audio>
+      <div class="media-error" id="mediaViewerError" style="display:none"></div>
+      <div class="media-info" id="mediaViewerInfo"></div>
+    </div>
+  </div>
+
   <script>
     const BASE = '/debug';
     let currentData = [];
     let selectedId = null;
     let currentDetail = null;
     let currentTab = 'request';
+    let currentMedia = null;
     let searchTimer = null;
 
     // --- API ---
@@ -494,7 +599,12 @@
       const d = detail.data;
       if (!d) return;
 
+      currentMedia = d.media || [];
+
       document.getElementById('detailTitle').textContent = `Request: ${d.request_id}`;
+      const mediaMeta = currentMedia.length > 0
+        ? `<div class="meta-item"><span class="meta-label">Media</span><span class="meta-value">${currentMedia.length} item${currentMedia.length !== 1 ? 's' : ''}</span></div>`
+        : '';
       document.getElementById('detailMeta').innerHTML = `
         <div class="meta-item"><span class="meta-label">Request ID</span><span class="meta-value">${escapeHtml(d.request_id)}</span></div>
         <div class="meta-item"><span class="meta-label">Time</span><span class="meta-value">${new Date(d.ts_start).toLocaleString('zh-CN')}</span></div>
@@ -504,6 +614,7 @@
         <div class="meta-item"><span class="meta-label">Model (upstream)</span><span class="meta-value">${escapeHtml(d.model_upstream)}</span></div>
         <div class="meta-item"><span class="meta-label">Stream</span><span class="meta-value">${d.stream ? 'Yes (SSE)' : 'No (JSON)'}</span></div>
         <div class="meta-item"><span class="meta-label">Path</span><span class="meta-value">${escapeHtml(d.method)} ${escapeHtml(d.path)}</span></div>
+        ${mediaMeta}
       `;
 
       const errorTab = document.getElementById('errorTab');
@@ -548,6 +659,10 @@
       if (typeof value === 'boolean') return `<span class="json-boolean">${value}</span>`;
       if (typeof value === 'number') return `<span class="json-number">${value}</span>`;
       if (typeof value === 'string') {
+        const mediaMatch = value.match(/^\[_debug_media id=(\S+) type=(\S+) bytes=(\d+)\]$/);
+        if (mediaMatch) {
+          return renderMediaPlaceholder(mediaMatch[1], mediaMatch[2], parseInt(mediaMatch[3], 10));
+        }
         const escaped = escapeHtml(value);
         return `<span class="json-string">"${escaped}"</span>`;
       }
@@ -569,6 +684,106 @@
       }
 
       return escapeHtml(String(value));
+    }
+
+    function renderMediaPlaceholder(mediaId, mediaType, byteLength) {
+      const meta = currentMedia ? currentMedia.find(m => m.id === mediaId) : null;
+      const kind = meta ? meta.kind : 'unknown';
+      const cached = meta ? meta.cached : false;
+      const sizeStr = byteLength > 1024 ? `${(byteLength / 1024).toFixed(1)}KB` : `${byteLength}B`;
+
+      if (kind === 'unknown') {
+        return `<span class="media-placeholder disabled" title="Unsupported media type">
+          <span class="media-kind">[UNKNOWN]</span> ${escapeHtml(mediaType)}, ${escapeHtml(sizeStr)}, unsupported media type
+        </span>`;
+      }
+
+      if (!cached) {
+        return `<span class="media-placeholder disabled" title="Media not cached (exceeded size limit)">
+          <span class="media-kind">[${escapeHtml(kind).toUpperCase()}]</span> ${escapeHtml(mediaType)}, ${escapeHtml(sizeStr)}, not cached: media too large
+        </span>`;
+      }
+
+      const action = kind === 'image' ? 'click to view' : 'click to play';
+      return `<button class="media-placeholder" data-media-id="${escapeAttr(mediaId)}" data-media-type="${escapeAttr(mediaType)}" data-media-kind="${escapeAttr(kind)}" title="Click to ${kind === 'image' ? 'view' : 'play'}">
+        <span class="media-kind">[${escapeHtml(kind).toUpperCase()}]</span> ${escapeHtml(mediaType)}, ${escapeHtml(sizeStr)}, ${action}
+      </button>`;
+    }
+
+    function openMediaViewer(mediaId, mediaType, kind) {
+      if (!currentDetail || !currentDetail.data) return;
+      const requestId = currentDetail.data.request_id;
+      const src = `${BASE}/media/${encodeURIComponent(requestId)}/${encodeURIComponent(mediaId)}`;
+
+      const overlay = document.getElementById('mediaViewerOverlay');
+      const img = document.getElementById('mediaViewerImg');
+      const vid = document.getElementById('mediaViewerVid');
+      const aud = document.getElementById('mediaViewerAud');
+      const error = document.getElementById('mediaViewerError');
+      const info = document.getElementById('mediaViewerInfo');
+
+      info.textContent = `${mediaType} — ${requestId}`;
+      error.style.display = 'none';
+      img.style.display = 'none';
+      vid.style.display = 'none';
+      aud.style.display = 'none';
+      img.src = '';
+      vid.src = '';
+      aud.src = '';
+      vid.onerror = null;
+      aud.onerror = null;
+
+      overlay.classList.add('active');
+      // Remove previous keyboard handler if any
+      if (_mediaViewerHandler) {
+        document.removeEventListener('keydown', _mediaViewerHandler);
+      }
+
+      if (kind === 'video') {
+        vid.style.display = '';
+        vid.onerror = function() {
+          vid.style.display = 'none';
+          error.style.display = '';
+          error.textContent = `Failed to play video (${mediaType}). The record may have been evicted from the buffer or the format is unsupported by your browser.`;
+        };
+        vid.src = src;
+      } else if (kind === 'audio') {
+        aud.style.display = '';
+        aud.onerror = function() {
+          aud.style.display = 'none';
+          error.style.display = '';
+          error.textContent = `Failed to play audio (${mediaType}). The record may have been evicted from the buffer or the format is unsupported by your browser.`;
+        };
+        aud.src = src;
+      } else {
+        img.style.display = '';
+        img.onload = function() { img.alt = mediaType; };
+        img.onerror = function() {
+          img.style.display = 'none';
+          error.style.display = '';
+          error.textContent = `Failed to load image (${mediaType}). The record may have been evicted from the buffer.`;
+        };
+        img.src = src;
+      }
+    }
+
+    var _mediaViewerHandler = null;
+
+    function closeMediaViewer() {
+      const overlay = document.getElementById('mediaViewerOverlay');
+      const img = document.getElementById('mediaViewerImg');
+      const vid = document.getElementById('mediaViewerVid');
+      const aud = document.getElementById('mediaViewerAud');
+      overlay.classList.remove('active');
+      img.src = '';
+      vid.pause();
+      vid.src = '';
+      aud.pause();
+      aud.src = '';
+      if (_mediaViewerHandler) {
+        document.removeEventListener('keydown', _mediaViewerHandler);
+        _mediaViewerHandler = null;
+      }
     }
 
     // --- Actions ---
@@ -627,7 +842,13 @@
         // Focus trap
         const focusableSelectors = 'a[href], area[href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), button:not([disabled]), iframe, object, embed, [tabindex]:not([tabindex="-1"])';
         _detailFocusHandler = (e) => {
-          if (e.key === 'Escape') { closeDetail(); return; }
+          if (e.key === 'Escape') {
+            if (document.getElementById('mediaViewerOverlay').classList.contains('active')) {
+              closeMediaViewer();
+              return;
+            }
+            closeDetail(); return;
+          }
           if (e.key !== 'Tab') return;
           const focusable = Array.from(panel.querySelectorAll(focusableSelectors));
           if (focusable.length === 0) { e.preventDefault(); return; }
@@ -648,6 +869,8 @@
     function closeDetail() {
       selectedId = null;
       currentDetail = null;
+      currentMedia = null;
+      closeMediaViewer();
       document.getElementById('detailOverlay').classList.remove('active');
       document.getElementById('detailPanel').classList.remove('active');
       if (_detailFocusHandler) {
@@ -678,7 +901,15 @@
 
     // --- Keyboard shortcuts ---
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeDetail();
+      if (e.key === 'Escape') {
+        // Media viewer takes priority over detail panel
+        if (document.getElementById('mediaViewerOverlay').classList.contains('active')) {
+          e.stopImmediatePropagation();
+          closeMediaViewer();
+          return;
+        }
+        closeDetail();
+      }
       if (e.key === 'r' && !e.ctrlKey && !e.metaKey && document.activeElement.tagName !== 'INPUT') {
         e.preventDefault();
         refresh();
@@ -701,6 +932,23 @@
         if (!tr) return;
         const id = tr.getAttribute('data-request-id');
         if (id) selectCall(id);
+      });
+    })();
+
+    (function() {
+      const detailBody = document.querySelector('.detail-body');
+      if (!detailBody) return;
+      detailBody.addEventListener('click', (e) => {
+        const target = e.target;
+        const el = target instanceof Element ? target : null;
+        if (!el) return;
+        const btn = el.closest('.media-placeholder');
+        if (!btn || btn.classList.contains('disabled')) return;
+        e.stopPropagation();
+        const mediaId = btn.getAttribute('data-media-id');
+        const mediaType = btn.getAttribute('data-media-type');
+        const mediaKind = btn.getAttribute('data-media-kind') || 'image';
+        if (mediaId) openMediaViewer(mediaId, mediaType || 'application/octet-stream', mediaKind);
       });
     })();
   </script>

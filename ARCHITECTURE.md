@@ -171,6 +171,7 @@ Token-plan 是小米的计费方案，使用不同的上游地址。通过 `crea
 3. 通过 monkey-patch 收集完整响应体（非流式 via `res.json`，流式 via `res.write`）
 4. `res.end` 时组装 `DebugEvent` 并写入 `DebugStore`
 5. `/debug/calls` API 返回列表（含 preview），`/debug/calls/:id` 返回完整 body
+6. `/debug/media/:requestId/:mediaId` 返回媒体资源二进制，支持 image/audio/video 三类 MIME 前缀
 
 ## 多模态数据流
 

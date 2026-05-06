@@ -63,6 +63,7 @@ MiMo Proxy 作为透传代理，多模态数据（图片、音频等）在主要
 ### 已知限制
 
 - **Debug 流式组装**：`assembleStreamResponse()` 支持 `text`、`thinking`、`tool_use`、`image` 四种 content block 类型。
+- **Debug 媒体预览**：Debug 界面支持图片、音频和视频资源的预览，但大文件受 `DEBUG_MAX_MEDIA_BYTES` 限制（默认 10MB），超限媒体不会被缓存。
 - **无 multipart 支持**：不支持 `multipart/form-data` 格式的请求，图片必须嵌入 JSON body。
 - **无图片 URL 代理**：上游返回的图片 URL 不会被代理，客户端需能直接访问。
 

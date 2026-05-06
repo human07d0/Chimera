@@ -60,6 +60,8 @@ function createMockRes() {
     statusCode: 200,
     json: vi.fn().mockReturnThis(),
     status: vi.fn().mockReturnThis(),
+    setHeader: vi.fn().mockReturnThis(),
+    send: vi.fn().mockReturnThis(),
   } as unknown as Response;
   return res;
 }
@@ -129,6 +131,232 @@ describe("Debug Routes (unit)", () => {
       const count = debugStore.prune();
       expect(count).toBe(2);
       expect(debugStore.size).toBe(0);
+    });
+  });
+
+  describe("GET /debug/media/:requestId/:mediaId", () => {
+    it("should return image binary with correct Content-Type", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-request-0",
+        location: "request",
+        path: "messages[0].content[1].image_url.url",
+        kind: "image",
+        media_type: "image/png",
+        encoding: "base64",
+        byte_length: 8,
+        data_base64: "dGVzdA==",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "img-test",
+        media: [media],
+      }));
+
+      const req = createMockReq({ params: { requestId: "img-test", mediaId: "media-request-0" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "image/png");
+        expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
+        const sentData = (res.send as any).mock.calls[0][0];
+        expect(Buffer.isBuffer(sentData)).toBe(true);
+        expect(sentData.toString()).toBe("test");
+      }
+    });
+
+    it("should return 404 when request not found", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const req = createMockReq({ params: { requestId: "nonexistent", mediaId: "m0" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect((res.json as any).mock.calls[0][0]).toEqual({ success: false, error: "Request not found" });
+      }
+    });
+
+    it("should return 404 when media not found", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-request-0",
+        location: "request",
+        path: "path",
+        kind: "image",
+        media_type: "image/png",
+        encoding: "base64",
+        byte_length: 8,
+        data_base64: "aaa",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "img-test2",
+        media: [media],
+      }));
+
+      const req = createMockReq({ params: { requestId: "img-test2", mediaId: "media-nonexistent" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.status).toHaveBeenCalledWith(404);
+        expect((res.json as any).mock.calls[0][0]).toEqual({ success: false, error: "Media not found" });
+      }
+    });
+
+    it("should return 415 for unknown kind media", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-request-0",
+        location: "request",
+        path: "path",
+        kind: "unknown",
+        media_type: "application/pdf",
+        encoding: "base64",
+        byte_length: 100,
+        data_base64: "aaa",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "unknown-test",
+        media: [media],
+      }));
+
+      const req = createMockReq({ params: { requestId: "unknown-test", mediaId: "media-request-0" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.status).toHaveBeenCalledWith(415);
+        expect((res.json as any).mock.calls[0][0].error).toContain("Unsupported");
+      }
+    });
+
+    it("should return video binary with correct Content-Type", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-response-0",
+        location: "response",
+        path: "data",
+        kind: "video",
+        media_type: "video/mp4",
+        encoding: "base64",
+        byte_length: 8,
+        data_base64: "dGVzdA==",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "vid-test",
+        media: [media],
+      }));
+
+      const req = createMockReq({ params: { requestId: "vid-test", mediaId: "media-response-0" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "video/mp4");
+        expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
+        const sentData = (res.send as any).mock.calls[0][0];
+        expect(Buffer.isBuffer(sentData)).toBe(true);
+        expect(sentData.toString()).toBe("test");
+      }
+    });
+
+    it("should return audio binary with correct Content-Type", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-response-0",
+        location: "response",
+        path: "data",
+        kind: "audio",
+        media_type: "audio/mpeg",
+        encoding: "base64",
+        byte_length: 8,
+        data_base64: "dGVzdA==",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "aud-test",
+        media: [media],
+      }));
+
+      const req = createMockReq({ params: { requestId: "aud-test", mediaId: "media-response-0" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "audio/mpeg");
+        expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
+        const sentData = (res.send as any).mock.calls[0][0];
+        expect(Buffer.isBuffer(sentData)).toBe(true);
+        expect(sentData.toString()).toBe("test");
+      }
+    });
+
+    it("should return 410 for uncached media", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-request-0",
+        location: "request",
+        path: "path",
+        kind: "image",
+        media_type: "image/png",
+        encoding: "base64",
+        byte_length: 100,
+        data_base64: "",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "uncached-test",
+        media: [media],
+      }));
+
+      const req = createMockReq({ params: { requestId: "uncached-test", mediaId: "media-request-0" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.status).toHaveBeenCalledWith(410);
+        expect((res.json as any).mock.calls[0][0].error).toContain("exceeded");
+      }
     });
   });
 

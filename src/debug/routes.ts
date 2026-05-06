@@ -6,9 +6,12 @@ import { DebugMediaItem } from "./types";
 
 export const debugRouter: Router = Router();
 
-function sanitizeMedia(items: DebugMediaItem[] | undefined): Omit<DebugMediaItem, "data_base64">[] {
+function sanitizeMedia(items: DebugMediaItem[] | undefined): (Omit<DebugMediaItem, "data_base64"> & { cached: boolean })[] {
   if (!items) return [];
-  return items.map(({ data_base64, ...rest }) => rest);
+  return items.map(({ data_base64, ...rest }) => ({
+    ...rest,
+    cached: data_base64.length > 0,
+  }));
 }
 
 function parseQueryInt(value: unknown, defaultValue: number): number {
@@ -83,6 +86,46 @@ debugRouter.get("/calls/:id", (req: Request, res: Response) => {
       error: err instanceof Error ? err.message : String(err),
     });
     res.status(500).json({ success: false, error: "Query failed" });
+  }
+});
+
+/** GET /debug/media/:requestId/:mediaId — 返回媒体资源二进制（image/audio/video） */
+debugRouter.get("/media/:requestId/:mediaId", (req: Request, res: Response) => {
+  try {
+    const requestId = Array.isArray(req.params.requestId) ? req.params.requestId[0] : req.params.requestId;
+    const mediaId = Array.isArray(req.params.mediaId) ? req.params.mediaId[0] : req.params.mediaId;
+
+    const event = debugStore.getById(requestId);
+    if (!event) {
+      res.status(404).json({ success: false, error: "Request not found" });
+      return;
+    }
+
+    const item = event.media?.find((m) => m.id === mediaId);
+    if (!item) {
+      res.status(404).json({ success: false, error: "Media not found" });
+      return;
+    }
+
+    if (item.kind === "unknown") {
+      res.status(415).json({ success: false, error: "Unsupported media type" });
+      return;
+    }
+
+    if (!item.data_base64) {
+      res.status(410).json({ success: false, error: "Media data not cached (exceeded size limit)" });
+      return;
+    }
+
+    const buffer = Buffer.from(item.data_base64, "base64");
+    res.setHeader("Content-Type", item.media_type);
+    res.setHeader("Cache-Control", "no-store");
+    res.send(buffer);
+  } catch (err) {
+    logger.error("Debug media failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    res.status(500).json({ success: false, error: "Media retrieval failed" });
   }
 });
 
