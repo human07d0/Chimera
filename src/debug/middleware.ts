@@ -147,6 +147,11 @@ export function assembleStreamResponse(sseChunks: string[]): string {
               type: "text",
               text: (contentBlock.text as string) || "",
             });
+          } else if (contentBlock.type === "image") {
+            anthropicBlocks.set(cbIndex, {
+              type: "image",
+              source: contentBlock.source || {},
+            });
           }
         }
       }
@@ -325,6 +330,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   let errorType: string | null = null;
   let errorBodyStr: string | null = null;
   const sseChunks: string[] = [];
+  let sseBuffer = "";
 
   // 非流式：通过 res.json 捕获响应体
   res.json = function (body: any): Response {
@@ -364,7 +370,9 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
     }
 
     if (str) {
-      const lines = str.split("\n");
+      sseBuffer += str;
+      const lines = sseBuffer.split("\n");
+      sseBuffer = lines.pop() ?? "";
       for (const line of lines) {
         if (!line.startsWith("data: ")) continue;
         const dataContent = line.slice("data: ".length);

@@ -364,6 +364,74 @@ describe("debugMiddleware", () => {
     expect(body.stop_reason).toBe("end_turn");
   });
 
+  it("should assemble Anthropic streaming response with image content block", () => {
+    const req = createMockReq({ path: "/messages", originalUrl: "/v1/messages" });
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    const sse = (obj: unknown) => (res.write as any)("data: " + JSON.stringify(obj) + "\n\n");
+
+    sse({type:"message_start",message:{id:"msg-img",model:"claude-3"}});
+    sse({type:"content_block_start",index:0,content_block:{
+      type:"image",
+      source:{type:"base64",media_type:"image/png",data:"iVBORw0KGgo="}
+    }});
+    sse({type:"content_block_start",index:1,content_block:{type:"text",text:""}});
+    sse({type:"content_block_delta",index:1,delta:{type:"text_delta",text:"Here is the image analysis."}});
+    sse({type:"message_delta",delta:{stop_reason:"end_turn"}});
+    (res.write as any)("data: [DONE]\n\n");
+    (res.end as any)();
+
+    const body = JSON.parse(debugStore.query().items[0].response_body);
+    expect(body.content).toHaveLength(2);
+    expect(body.content[0]).toEqual({
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" },
+    });
+    expect(body.content[1]).toEqual({
+      type: "text",
+      text: "Here is the image analysis.",
+    });
+    expect(body.stop_reason).toBe("end_turn");
+  });
+
+  it("should buffer partial SSE lines across split chunks", () => {
+    const req = createMockReq({ path: "/messages", originalUrl: "/v1/messages" });
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    // Simulate a single SSE event split into two write calls.
+    // First write: partial JSON, no newline — old implementation would lose this.
+    const sse1 = "data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"image\",\"source\":{\"type\":\"base64\",\"media_type\":\"image/png\",\"data\":\"";
+    const sse2 = "iVBORw0KGgo=\"}}}\n\n";
+    (res.write as any)(sse1);
+    (res.write as any)(sse2);
+
+    // Follow with a complete text block and DONE
+    (res.write as any)("data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n");
+    (res.write as any)("data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"text_delta\",\"text\":\"Analysis complete.\"}}\n\n");
+    (res.write as any)("data: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\"}}\n\n");
+    (res.write as any)("data: [DONE]\n\n");
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const body = JSON.parse(debugStore.query().items[0].response_body);
+    expect(body.content).toHaveLength(2);
+    expect(body.content[0]).toEqual({
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" },
+    });
+    expect(body.content[1]).toEqual({
+      type: "text",
+      text: "Analysis complete.",
+    });
+    expect(body.stop_reason).toBe("end_turn");
+  });
+
   it("should truncate oversized request bodies", () => {
     const req = createMockReq();
     const res = createMockRes();
@@ -412,6 +480,24 @@ describe("assembleStreamResponse", () => {
     expect(result.content[0]).toEqual({ type: "text", text: "Hi there" });
     expect(result.stop_reason).toBe("end_turn");
     expect(result.usage).toEqual({ output_tokens: 5 });
+  });
+
+  it("should assemble Anthropic streaming response with image content block", () => {
+    const chunks = [
+      '{"type":"message_start","message":{"id":"msg-img","model":"claude-3"}}',
+      '{"type":"content_block_start","index":0,"content_block":{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo="}}}',
+      '{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}',
+      '{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Image analysis result."}}',
+      '{"type":"message_delta","delta":{"stop_reason":"end_turn"}}',
+    ];
+    const result = JSON.parse(assembleStreamResponse(chunks));
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0]).toEqual({
+      type: "image",
+      source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" },
+    });
+    expect(result.content[1]).toEqual({ type: "text", text: "Image analysis result." });
+    expect(result.stop_reason).toBe("end_turn");
   });
 
   it("should return fallback format for empty chunk array", () => {

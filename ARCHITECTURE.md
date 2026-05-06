@@ -172,6 +172,35 @@ Token-plan 是小米的计费方案，使用不同的上游地址。通过 `crea
 4. `res.end` 时组装 `DebugEvent` 并写入 `DebugStore`
 5. `/debug/calls` API 返回列表（含 preview），`/debug/calls/:id` 返回完整 body
 
+## 多模态数据流
+
+MiMo Proxy 支持透传多模态数据（图片、音频等），采用 **passthrough-first** 策略：不解析或修改 `messages` 中的多模态 content parts，原样转发给上游 API。
+
+### 请求侧（客户端 → 上游）
+
+| 环节 | 处理方式 | 多模态影响 |
+|:-----|:---------|:----------|
+| `express.json()` | 解析 JSON body，limit 10MB | base64 图片受 10MB 限制（约可承载 5-6MB 原图） |
+| `transformRequest()` | 展开 `...clientBody`，只覆盖 model/thinking/tools 等字段 | `messages` 中的 `image_url`、`input_audio` 等 content parts 完整保留 |
+| Anthropic 透传 | `{ ...clientBody, model: upstreamModel }` | `image` 类型 content block 完整保留 |
+| Token-Plan 透传 | `JSON.stringify(req.body)` 原样序列化 | 所有多模态数据完整保留 |
+
+### 响应侧（上游 → 客户端）
+
+| 环节 | 处理方式 | 多模态影响 |
+|:-----|:---------|:----------|
+| SSE 流式传输 | 逐 chunk 转发，只替换 `model` 字段 | 流式响应中的多模态输出安全透传 |
+| 非流式响应 | `res.json(responseBody)` 直接返回 | 多模态响应完整透传 |
+| Monitor 中间件 | 只读取 `usage` 元数据 | 不影响多模态数据 |
+| Debug 中间件 | 收集 SSE chunks 并组装 | Anthropic `image` 类型 content block 已支持组装 |
+
+### 已知约束
+
+1. **Body size 限制**：`express.json({ limit: "10mb" })` — 超大图片（base64 编码后 >10MB）会被拒绝
+2. **仅支持 JSON body**：不支持 `multipart/form-data` 上传，图片必须以 base64 data URI 或 URL 形式嵌入 JSON
+3. **无图片 URL 代理**：上游返回的图片 URL 不会被代理或重写，客户端需能直接访问该 URL
+4. **无多模态内容校验**：代理层不校验图片格式、大小或 URL 合法性，完全依赖上游 API 报错
+
 ## 设计约束
 
 - **Streaming-first**: no full-buffer in chat path.
@@ -182,3 +211,4 @@ Token-plan 是小米的计费方案，使用不同的上游地址。通过 `crea
 - **Debug opt-in**: full payload recording only when `DEBUG_ENABLED=true`, memory-only.
 - **Path safety**: frontend/redirect all relative paths (`./...`).
 - **Single-port architecture**: token-plan 作为 router 挂载于主应用，消除独立端口。
+- **Multimodal passthrough**: 多模态 content parts 原样透传，不做解析、校验或转换。
