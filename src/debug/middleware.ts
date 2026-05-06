@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
 import { debugStore } from "./store";
+import { DebugMediaItem } from "./types";
 
 /**
  * 将 SSE chunk 数组解析并拼接为完整的响应对象 JSON 字符串。
@@ -292,6 +293,125 @@ export function assembleStreamResponse(sseChunks: string[]): string {
   return "[" + sseChunks.join(",") + "]";
 }
 
+const DATA_URI_RE = /^data:([a-z]+\/[a-z0-9+.-]+);base64,([A-Za-z0-9+/=\r\n]+)$/;
+
+function inferMediaKind(mediaType: string): DebugMediaItem["kind"] {
+  const lower = mediaType.toLowerCase();
+  if (lower.startsWith("image/")) return "image";
+  if (lower.startsWith("audio/")) return "audio";
+  if (lower.startsWith("video/")) return "video";
+  return "unknown";
+}
+
+function jsonPath(prefix: string, key: string | number): string {
+  if (typeof key === "number") return `${prefix}[${key}]`;
+  return prefix ? `${prefix}.${key}` : key;
+}
+
+/**
+ * 遍历 JSON 对象，提取数据 URI 和 Anthropic source 中的 base64 媒体数据，
+ * 将其替换为摘要占位符，并返回媒体元数据数组。
+ * 若 JSON 解析失败则原样返回。
+ */
+export function extractAndSummarizeMedia(
+  jsonStr: string,
+  location: "request" | "response",
+  options: { maxMediaBytes: number }
+): { body: string; media: DebugMediaItem[] } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonStr);
+  } catch {
+    return { body: jsonStr, media: [] };
+  }
+
+  const media: DebugMediaItem[] = [];
+  let mediaIndex = 0;
+
+  function walk(value: unknown, parent: Record<string, unknown> | unknown[], key: string | number, currentPath: string): void {
+    if (value === null || value === undefined) return;
+
+    // 处理 data URI 字符串
+    if (typeof value === "string") {
+      const match = value.match(DATA_URI_RE);
+      if (match) {
+        const mediaType = match[1];
+        const data = match[2];
+        const byteLength = Buffer.byteLength(Buffer.from(data, "base64"));
+        const kind = inferMediaKind(mediaType);
+        const id = `media-${location}-${mediaIndex++}`;
+
+        const item: DebugMediaItem = {
+          id,
+          location,
+          path: currentPath,
+          kind,
+          media_type: mediaType,
+          encoding: "base64",
+          byte_length: byteLength,
+          data_base64: byteLength <= options.maxMediaBytes ? data : "",
+        };
+
+        media.push(item);
+
+        const placeholder = `[_debug_media id=${id} type=${mediaType} bytes=${byteLength}]`;
+        if (Array.isArray(parent)) {
+          parent[key as number] = placeholder;
+        } else {
+          parent[key] = placeholder;
+        }
+      }
+      return;
+    }
+
+    if (typeof value !== "object") return;
+
+    // 处理 Anthropic source 对象: { type: "base64", media_type: string, data: string }
+    if (!Array.isArray(value)) {
+      const obj = value as Record<string, unknown>;
+      if (obj.type === "base64" && typeof obj.media_type === "string" && typeof obj.data === "string") {
+        const mediaType = obj.media_type;
+        const data = obj.data;
+        const byteLength = Buffer.byteLength(Buffer.from(data, "base64"));
+        const kind = inferMediaKind(mediaType);
+        const id = `media-${location}-${mediaIndex++}`;
+
+        const item: DebugMediaItem = {
+          id,
+          location,
+          path: currentPath,
+          kind,
+          media_type: mediaType,
+          encoding: "base64",
+          byte_length: byteLength,
+          data_base64: byteLength <= options.maxMediaBytes ? data : "",
+        };
+
+        media.push(item);
+
+        const placeholder = `[_debug_media id=${id} type=${mediaType} bytes=${byteLength}]`;
+        obj.data = placeholder;
+        return;
+      }
+    }
+
+    // 递归遍历
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i++) {
+        walk(value[i], value, i, jsonPath(currentPath, i));
+      }
+    } else {
+      const obj = value as Record<string, unknown>;
+      for (const k of Object.keys(obj)) {
+        walk(obj[k], obj, k, jsonPath(currentPath, k));
+      }
+    }
+  }
+
+  walk(parsed, {} as Record<string, unknown>, "__root__", "");
+  return { body: JSON.stringify(parsed), media };
+}
+
 /**
  * 调试中间件：捕获完整的请求/响应体，存入内存环形缓冲区。
  * 仅作用于 /chat/completions 和 /messages 路径。
@@ -309,6 +429,9 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   const method = req.method;
   const reqPath = req.originalUrl || req.path;
   const maxBodySize = config.debug.maxBodySize;
+  const maxMediaBytes = config.debug.maxMediaBytes;
+
+  let mediaItems: DebugMediaItem[] = [];
 
   // 捕获请求体
   let requestBodyStr: string;
@@ -317,6 +440,12 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   } catch {
     requestBodyStr = "{}";
   }
+
+  // 提取请求体中的媒体资源
+  const reqResult = extractAndSummarizeMedia(requestBodyStr, "request", { maxMediaBytes });
+  requestBodyStr = reqResult.body;
+  mediaItems = mediaItems.concat(reqResult.media);
+
   if (requestBodyStr.length > maxBodySize) {
     requestBodyStr = requestBodyStr.slice(0, maxBodySize) + "...[truncated]";
   }
@@ -339,6 +468,12 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
     } catch {
       responseBodyStr = "[unserializable]";
     }
+
+    // 提取响应体中的媒体资源
+    const respResult = extractAndSummarizeMedia(responseBodyStr, "response", { maxMediaBytes });
+    responseBodyStr = respResult.body;
+    mediaItems = mediaItems.concat(respResult.media);
+
     if (responseBodyStr.length > maxBodySize) {
       responseBodyStr = responseBodyStr.slice(0, maxBodySize) + "...[truncated]";
     }
@@ -406,6 +541,12 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       }
 
       responseBodyStr = assembleStreamResponse(sseChunks);
+
+      // 提取响应体中的媒体资源
+      const respResult = extractAndSummarizeMedia(responseBodyStr, "response", { maxMediaBytes });
+      responseBodyStr = respResult.body;
+      mediaItems = mediaItems.concat(respResult.media);
+
       if (responseBodyStr.length > maxBodySize) {
         responseBodyStr = responseBodyStr.slice(0, maxBodySize) + "...[truncated]";
       }
@@ -438,6 +579,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       response_body: responseBodyStr,
       error_type: errorType,
       error_body: errorBodyStr,
+      media: mediaItems.length > 0 ? mediaItems : undefined,
     });
 
     return originalEnd(...args);

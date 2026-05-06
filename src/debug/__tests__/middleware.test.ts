@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Request, Response, NextFunction } from "express";
-import { debugMiddleware, assembleStreamResponse } from "../middleware";
+import { debugMiddleware, assembleStreamResponse, extractAndSummarizeMedia } from "../middleware";
 import { debugStore } from "../store";
 
 // Mock config
@@ -10,6 +10,7 @@ vi.mock("../../config", () => ({
       enabled: true,
       maxRecords: 500,
       maxBodySize: 1_048_576,
+      maxMediaBytes: 10_485_760,
     },
     upstream: {
       defaultModel: "mimo-v2-flash",
@@ -386,10 +387,10 @@ describe("debugMiddleware", () => {
 
     const body = JSON.parse(debugStore.query().items[0].response_body);
     expect(body.content).toHaveLength(2);
-    expect(body.content[0]).toEqual({
-      type: "image",
-      source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" },
-    });
+    expect(body.content[0].type).toBe("image");
+    expect(body.content[0].source.media_type).toBe("image/png");
+    expect(body.content[0].source.type).toBe("base64");
+    expect(body.content[0].source.data).toContain("[_debug_media");
     expect(body.content[1]).toEqual({
       type: "text",
       text: "Here is the image analysis.",
@@ -421,10 +422,10 @@ describe("debugMiddleware", () => {
     expect(debugStore.size).toBe(1);
     const body = JSON.parse(debugStore.query().items[0].response_body);
     expect(body.content).toHaveLength(2);
-    expect(body.content[0]).toEqual({
-      type: "image",
-      source: { type: "base64", media_type: "image/png", data: "iVBORw0KGgo=" },
-    });
+    expect(body.content[0].type).toBe("image");
+    expect(body.content[0].source.media_type).toBe("image/png");
+    expect(body.content[0].source.type).toBe("base64");
+    expect(body.content[0].source.data).toContain("[_debug_media");
     expect(body.content[1]).toEqual({
       type: "text",
       text: "Analysis complete.",
@@ -448,7 +449,280 @@ describe("debugMiddleware", () => {
 
     expect(debugStore.size).toBe(1);
   });
+
+  it("should replace OpenAI data URI with placeholder and store media", () => {
+    const req = createMockReq({
+      body: {
+        model: "mimo-v2-flash",
+        messages: [
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Describe this image" },
+              {
+                type: "image_url",
+                image_url: { url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==" },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+    (res.json as any)({ choices: [{ message: { content: "It's a red dot" } }] });
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.request_body).not.toContain("iVBORw0KGgo");
+    expect(event.request_body).toContain("[_debug_media");
+    expect(event.media).toBeDefined();
+    expect(event.media!.length).toBeGreaterThanOrEqual(1);
+    expect(event.media![0].kind).toBe("image");
+    expect(event.media![0].location).toBe("request");
+  });
+
+  it("should replace Anthropic source.data with placeholder and store media", () => {
+    const req = createMockReq({
+      path: "/messages",
+      originalUrl: "/v1/messages",
+      body: {
+        model: "claude-3",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/jpeg",
+                  data: "/9j/4AAQSkZJRgABAQAAAQABAAD/2w==",
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    const sse = (obj: unknown) => (res.write as any)("data: " + JSON.stringify(obj) + "\n\n");
+    sse({type:"message_start",message:{id:"msg-1",model:"claude-3"}});
+    sse({type:"content_block_start",index:0,content_block:{type:"text",text:""}});
+    sse({type:"content_block_delta",index:0,delta:{type:"text_delta",text:"Image received."}});
+    sse({type:"message_delta",delta:{stop_reason:"end_turn"}});
+    (res.write as any)("data: [DONE]\n\n");
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.request_body).not.toContain("/9j/4AAQSkZJRg");
+    expect(event.request_body).toContain("[_debug_media");
+    expect(event.media).toBeDefined();
+    expect(event.media!.length).toBeGreaterThanOrEqual(1);
+    const reqMedia = event.media!.find(m => m.location === "request");
+    expect(reqMedia).toBeDefined();
+    expect(reqMedia!.kind).toBe("image");
+    expect(reqMedia!.media_type).toBe("image/jpeg");
+  });
+
+  it("should strip data_base64 from response body with Anthropic image block", () => {
+    const req = createMockReq({
+      path: "/messages",
+      originalUrl: "/v1/messages",
+    });
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    const sse = (obj: unknown) => (res.write as any)("data: " + JSON.stringify(obj) + "\n\n");
+    sse({type:"message_start",message:{id:"msg-img",model:"claude-3"}});
+    sse({type:"content_block_start",index:0,content_block:{
+      type:"image",
+      source:{type:"base64",media_type:"image/png",data:"iVBORw0KGgo="}
+    }});
+    sse({type:"content_block_start",index:1,content_block:{type:"text",text:""}});
+    sse({type:"content_block_delta",index:1,delta:{type:"text_delta",text:"Here is the image analysis."}});
+    sse({type:"message_delta",delta:{stop_reason:"end_turn"}});
+    (res.write as any)("data: [DONE]\n\n");
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    const body = JSON.parse(event.response_body);
+    expect(body.content).toHaveLength(2);
+    expect(body.content[0].source.data).toContain("[_debug_media");
+    expect(body.content[0].source.data).not.toContain("iVBORw0KGgo");
+    expect(body.content[1].text).toBe("Here is the image analysis.");
+    expect(event.media).toBeDefined();
+    expect(event.media!.length).toBeGreaterThanOrEqual(1);
+  });
 });
+
+// ============================================================
+// extractAndSummarizeMedia unit tests
+// ============================================================
+
+describe("extractAndSummarizeMedia", () => {
+  const opts = { maxMediaBytes: 10_485_760 };
+
+  it("returns body unchanged and empty media for invalid JSON", () => {
+    const result = extractAndSummarizeMedia("not json", "request", opts);
+    expect(result.body).toBe("not json");
+    expect(result.media).toEqual([]);
+  });
+
+  it("returns body unchanged and empty media for plain JSON without media", () => {
+    const input = '{"model":"test","messages":[{"role":"user","content":"hello"}]}';
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toEqual([]);
+    expect(JSON.parse(result.body)).toEqual(JSON.parse(input));
+  });
+
+  it("replaces OpenAI data URI with placeholder and creates media item", () => {
+    const input = JSON.stringify({
+      messages: [
+        {
+          content: [
+            { type: "image_url", image_url: { url: "data:image/png;base64,iVBORw0KGgo=" } },
+          ],
+        },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0].kind).toBe("image");
+    expect(result.media[0].media_type).toBe("image/png");
+    expect(result.media[0].encoding).toBe("base64");
+    expect(result.media[0].location).toBe("request");
+    expect(result.media[0].path).toContain("image_url");
+    expect(result.media[0].data_base64).toBe("iVBORw0KGgo=");
+
+    const body = JSON.parse(result.body);
+    const url = body.messages[0].content[0].image_url.url;
+    expect(url).toContain("[_debug_media");
+    expect(url).not.toContain("iVBORw0KGgo");
+  });
+
+  it("replaces Anthropic source.data with placeholder and creates media item", () => {
+    const input = JSON.stringify({
+      messages: [
+        {
+          content: [
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/jpeg", data: "/9j/4Q==" },
+            },
+          ],
+        },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0].kind).toBe("image");
+    expect(result.media[0].media_type).toBe("image/jpeg");
+    expect(result.media[0].data_base64).toBe("/9j/4Q==");
+
+    const body = JSON.parse(result.body);
+    expect(body.messages[0].content[0].source.data).toContain("[_debug_media");
+    expect(body.messages[0].content[0].source.data).not.toContain("/9j/4Q");
+  });
+
+  it("replaces multiple media sources with unique IDs", () => {
+    const input = JSON.stringify({
+      messages: [
+        {
+          content: [
+            { type: "image_url", image_url: { url: "data:image/png;base64,AAAA==" } },
+            { type: "image_url", image_url: { url: "data:image/jpeg;base64,BBBB==" } },
+          ],
+        },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(2);
+    expect(result.media[0].id).not.toBe(result.media[1].id);
+    expect(result.media[0].id).toContain("media-request-");
+    expect(result.media[1].id).toContain("media-request-");
+  });
+
+  it("handles mixed OpenAI and Anthropic formats", () => {
+    const input = JSON.stringify({
+      messages: [
+        {
+          content: [
+            { type: "image_url", image_url: { url: "data:image/png;base64,OPENAI==" } },
+            {
+              type: "image",
+              source: { type: "base64", media_type: "image/gif", data: "ANTHROPIC==" },
+            },
+          ],
+        },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(2);
+    expect(result.media[0].media_type).toBe("image/png");
+    expect(result.media[1].media_type).toBe("image/gif");
+  });
+
+  it("infers kind from media_type: audio, video, unknown", () => {
+    const input = JSON.stringify({
+      messages: [
+        { content: [{ type: "image_url", image_url: { url: "data:audio/mp3;base64,AAAA==" } }] },
+        { content: [{ type: "image_url", image_url: { url: "data:video/mp4;base64,AAAA==" } }] },
+        { content: [{ type: "image_url", image_url: { url: "data:application/pdf;base64,AAAA==" } }] },
+      ],
+    });
+    const result = extractAndSummarizeMedia(input, "request", opts);
+    expect(result.media).toHaveLength(3);
+    expect(result.media[0].kind).toBe("audio");
+    expect(result.media[1].kind).toBe("video");
+    expect(result.media[2].kind).toBe("unknown");
+  });
+
+  it("does not extract data_base64 when byte_length exceeds maxMediaBytes", () => {
+    // Create a base64 that's ~1KB to test threshold
+    const smallData = Buffer.alloc(512).toString("base64");
+    const input = JSON.stringify({
+      content: [{ type: "image_url", image_url: { url: `data:image/png;base64,${smallData}` } }],
+    });
+    // Set maxMediaBytes very small (100 bytes)
+    const result = extractAndSummarizeMedia(input, "request", { maxMediaBytes: 100 });
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0].data_base64).toBe("");
+    expect(result.body).not.toContain(smallData);
+  });
+
+  it("preserves data_base64 when byte_length is within maxMediaBytes", () => {
+    // Tiny base64 data
+    const input = JSON.stringify({
+      content: [{ type: "image_url", image_url: { url: "data:image/png;base64,tiny==" } }],
+    });
+    const result = extractAndSummarizeMedia(input, "request", { maxMediaBytes: 10_485_760 });
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0].data_base64).toBe("tiny==");
+  });
+
+  it("handles location=response correctly", () => {
+    const input = JSON.stringify({
+      content: [{ type: "image_url", image_url: { url: "data:image/png;base64,RESP==" } }],
+    });
+    const result = extractAndSummarizeMedia(input, "response", opts);
+    expect(result.media).toHaveLength(1);
+    expect(result.media[0].location).toBe("response");
+    expect(result.media[0].id).toContain("media-response-");
+  });
+});
+
 
 // ============================================================
 // assembleStreamResponse direct unit tests

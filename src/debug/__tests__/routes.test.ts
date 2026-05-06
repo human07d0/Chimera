@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Request, Response } from "express";
 import { debugStore } from "../store";
-import { DebugEvent } from "../types";
+import { DebugEvent, DebugMediaItem } from "../types";
 
 // Mock config
 vi.mock("../../config", () => ({
@@ -10,6 +10,7 @@ vi.mock("../../config", () => ({
       enabled: true,
       maxRecords: 500,
       maxBodySize: 1_048_576,
+      maxMediaBytes: 10_485_760,
     },
     upstream: {
       defaultModel: "mimo-v2-flash",
@@ -128,6 +129,66 @@ describe("Debug Routes (unit)", () => {
       const count = debugStore.prune();
       expect(count).toBe(2);
       expect(debugStore.size).toBe(0);
+    });
+  });
+
+  describe("media sanitization", () => {
+    it("route response should not leak data_base64", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-request-0",
+        location: "request",
+        path: "messages[0].content[1].image_url.url",
+        kind: "image",
+        media_type: "image/png",
+        encoding: "base64",
+        byte_length: 100,
+        data_base64: "SECRET_BASE64_DATA",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "test-media-leak",
+        request_body: '{"placeholder":"[_debug_media id=media-request-0 type=image/png bytes=100]"}',
+        media: [media],
+      }));
+
+      // Simulate the /calls endpoint
+      const callsReq = createMockReq();
+      const callsRes = createMockRes();
+      const callsHandler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/calls" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (callsHandler) {
+        callsHandler(callsReq, callsRes);
+        // data_base64 should not be present in the response
+        const calledWith: any = (callsRes.json as any).mock.calls[0][0];
+        expect(calledWith.success).toBe(true);
+        const items = calledWith.data.items;
+        if (items.length > 0 && items[0].media) {
+          for (const m of items[0].media) {
+            expect(m.data_base64).toBeUndefined();
+          }
+        }
+      }
+
+      // Simulate the /calls/:id endpoint
+      const detailReq = createMockReq({ params: { id: "test-media-leak" } });
+      const detailRes = createMockRes();
+      const callsIdHandler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/calls/:id" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (callsIdHandler) {
+        callsIdHandler(detailReq, detailRes);
+        const calledWith: any = (detailRes.json as any).mock.calls[0][0];
+        if (calledWith.data?.media) {
+          for (const m of calledWith.data.media) {
+            expect(m.data_base64).toBeUndefined();
+          }
+        }
+      }
     });
   });
 });

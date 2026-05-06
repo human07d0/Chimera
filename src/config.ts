@@ -203,6 +203,7 @@ export const config = {
     enabled: optionalBoolEnv("DEBUG_ENABLED", false),
     maxRecords: optionalIntEnv("DEBUG_MAX_RECORDS", 500),
     maxBodySize: optionalIntEnv("DEBUG_MAX_BODY_SIZE", 1_048_576),
+    maxMediaBytes: optionalIntEnv("DEBUG_MAX_MEDIA_BYTES", 10_485_760),
   },
 };
 
@@ -245,3 +246,34 @@ function validateMonitorConfig(): void {
 }
 
 validateMonitorConfig();
+
+function validateDebugConfig(): void {
+  warnInvalidIntEnv("DEBUG_MAX_RECORDS", 500);
+  warnInvalidIntEnv("DEBUG_MAX_BODY_SIZE", 1_048_576);
+  warnInvalidIntEnv("DEBUG_MAX_MEDIA_BYTES", 10_485_760);
+
+  const { maxRecords, maxBodySize, maxMediaBytes } = config.debug;
+
+  if (maxRecords < 1) {
+    warnConfig(
+      `Invalid DEBUG_MAX_RECORDS: ${maxRecords}, falling back to 500`,
+    );
+    config.debug.maxRecords = 500;
+  }
+
+  if (maxBodySize < 1024) {
+    warnConfig(
+      `Invalid DEBUG_MAX_BODY_SIZE: ${maxBodySize}, falling back to 1048576`,
+    );
+    config.debug.maxBodySize = 1_048_576;
+  }
+
+  if (maxMediaBytes < 1024) {
+    warnConfig(
+      `Invalid DEBUG_MAX_MEDIA_BYTES: ${maxMediaBytes}, falling back to 10485760`,
+    );
+    config.debug.maxMediaBytes = 10_485_760;
+  }
+}
+
+validateDebugConfig();

@@ -1,3 +1,14 @@
+export interface DebugMediaItem {
+  id: string;
+  location: "request" | "response";
+  path: string;
+  kind: "image" | "audio" | "video" | "unknown";
+  media_type: string;
+  encoding: "base64";
+  byte_length: number;
+  data_base64: string;
+}
+
 export interface DebugEvent {
   request_id: string;
   ts_start: number;
@@ -8,13 +19,15 @@ export interface DebugEvent {
   model_requested: string;
   model_upstream: string;
   stream: boolean;
-  /** 完整请求体（JSON 序列化后的字符串） */
+  /** 完整请求体（JSON 序列化后的字符串，base64 媒体已替换为摘要占位符） */
   request_body: string;
-  /** 完整响应体（非流式为 JSON 字符串，流式为拼接后的完整响应对象 JSON） */
+  /** 完整响应体（非流式为 JSON 字符串，流式为拼接后的完整响应对象 JSON，base64 媒体已替换为摘要占位符） */
   response_body: string;
   /** 错误信息（如有） */
   error_type: string | null;
   error_body: string | null;
+  /** 被提取的媒体资源元数据与原始数据 */
+  media?: DebugMediaItem[];
 }
 
 export interface DebugQueryParams {

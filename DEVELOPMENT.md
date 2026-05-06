@@ -31,6 +31,10 @@ pnpm run dev           # http://localhost:3000
 | `MONITOR_STORAGE` | 否 | `memory` 或 `sqlite`，默认 `memory` |
 | `MONITOR_SQLITE_PATH` | 否 | SQLite 文件路径，默认 `./data/monitor.db` |
 | `OPS_PASSWORD` | 否 | 运维界面密码 |
+| `DEBUG_ENABLED` | 否 | 启用调试模式，默认 `false` |
+| `DEBUG_MAX_RECORDS` | 否 | 最大调试记录数，默认 `500` |
+| `DEBUG_MAX_BODY_SIZE` | 否 | JSON body 字符串最大字节，默认 `1048576` |
+| `DEBUG_MAX_MEDIA_BYTES` | 否 | 单个媒体缓存最大字节，默认 `10485760` |
 
 ## 多模态数据注意事项
 

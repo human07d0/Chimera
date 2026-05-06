@@ -17,6 +17,9 @@ describe("config module", () => {
       "MONITOR_STORAGE",
       "DEBUG_ENABLED",
       "TOKEN_PLAN_ENABLED",
+      "DEBUG_MAX_RECORDS",
+      "DEBUG_MAX_BODY_SIZE",
+      "DEBUG_MAX_MEDIA_BYTES",
     ].forEach((k) => { process.env[k] = ""; });
   });
 
@@ -71,6 +74,54 @@ describe("config module", () => {
     expect(config.upstream.enabledModels).toEqual([...SUPPORTED_UPSTREAM_MODELS]);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it("debug config defaults are sensible", async () => {
+    const { config } = await import("../config");
+    expect(config.debug.maxRecords).toBe(500);
+    expect(config.debug.maxBodySize).toBe(1_048_576);
+    expect(config.debug.maxMediaBytes).toBe(10_485_760);
+  });
+
+  it("invalid DEBUG_MAX_BODY_SIZE below 1024 falls back to default", async () => {
+    process.env.DEBUG_MAX_BODY_SIZE = "500";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.resetModules();
+    const { config } = await import("../config");
+    expect(config.debug.maxBodySize).toBe(1_048_576);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("invalid DEBUG_MAX_MEDIA_BYTES below 1024 falls back to default", async () => {
+    process.env.DEBUG_MAX_MEDIA_BYTES = "10";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.resetModules();
+    const { config } = await import("../config");
+    expect(config.debug.maxMediaBytes).toBe(10_485_760);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("invalid DEBUG_MAX_RECORDS falls back to default", async () => {
+    process.env.DEBUG_MAX_RECORDS = "0";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.resetModules();
+    const { config } = await import("../config");
+    expect(config.debug.maxRecords).toBe(500);
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("valid debug config values are accepted", async () => {
+    process.env.DEBUG_MAX_BODY_SIZE = "2097152";
+    process.env.DEBUG_MAX_MEDIA_BYTES = "52428800";
+    process.env.DEBUG_MAX_RECORDS = "100";
+    vi.resetModules();
+    const { config } = await import("../config");
+    expect(config.debug.maxBodySize).toBe(2097152);
+    expect(config.debug.maxMediaBytes).toBe(52428800);
+    expect(config.debug.maxRecords).toBe(100);
   });
 });
 

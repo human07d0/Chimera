@@ -2,8 +2,14 @@ import { Request, Response, Router } from "express";
 import { config } from "../config";
 import { logger } from "../utils/logger";
 import { debugStore } from "./store";
+import { DebugMediaItem } from "./types";
 
 export const debugRouter: Router = Router();
+
+function sanitizeMedia(items: DebugMediaItem[] | undefined): Omit<DebugMediaItem, "data_base64">[] {
+  if (!items) return [];
+  return items.map(({ data_base64, ...rest }) => rest);
+}
 
 function parseQueryInt(value: unknown, defaultValue: number): number {
   if (typeof value !== "string") return defaultValue;
@@ -43,6 +49,7 @@ debugRouter.get("/calls", (req: Request, res: Response) => {
           error_type: e.error_type,
           request_body: e.request_body,
           response_body: e.response_body,
+          media: sanitizeMedia(e.media),
         })),
       },
     });
@@ -64,7 +71,13 @@ debugRouter.get("/calls/:id", (req: Request, res: Response) => {
       return;
     }
 
-    res.json({ success: true, data: event });
+    res.json({
+      success: true,
+      data: {
+        ...event,
+        media: sanitizeMedia(event.media),
+      },
+    });
   } catch (err) {
     logger.error("Debug get-by-id failed", {
       error: err instanceof Error ? err.message : String(err),

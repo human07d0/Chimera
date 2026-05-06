@@ -134,6 +134,9 @@ OPS_PASSWORD=your_password
 | `MONITOR_STORAGE` | `memory` | 存储后端：`memory` / `sqlite` |
 | `MONITOR_RETENTION_DAYS` | `30` | 数据保留天数 |
 | `DEBUG_ENABLED` | `false` | 启用调试模式 |
+| `DEBUG_MAX_RECORDS` | `500` | 最大调试记录数 |
+| `DEBUG_MAX_BODY_SIZE` | `1048576` | JSON body 字符串最大长度（字节） |
+| `DEBUG_MAX_MEDIA_BYTES` | `10485760` | 单个媒体资源缓存最大原始字节数 |
 | `OPS_PASSWORD` | 空 | Ops 界面密码，留空禁用 |
 
 ## 接口列表
