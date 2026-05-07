@@ -16,8 +16,11 @@ import { createTokenPlanRouter } from "./token-plan/server";
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 
-export function createApp(): express.Application {
+export async function createApp(): Promise<express.Application> {
   const app = express();
+
+  // 判断是否开发环境
+  const isDev = process.env["NODE_ENV"] !== "production";
 
   // --------------------------------------------------------------------------
   // 基础中间件
@@ -101,22 +104,32 @@ export function createApp(): express.Application {
 
   // --------------------------------------------------------------------------
   // Ops 运维界面（同进程托管）
-  // 说明：本项目默认前后端不分离，统一由当前服务进程在 PORT 上提供
-  // 顺序：静态资源 -> Ops API -> SPA fallback
+  //
+  // 开发环境：Vite 中间件模式 — 即时编译 TypeScript，HMR 热更新
+  // 生产环境：预构建 dist/ops 静态文件
   // --------------------------------------------------------------------------
-  const opsPublicDir = resolveStaticDir("ops");
-
-  if (opsPublicDir) {
-    // 先挂静态资源，让 /ops/*.js /ops/*.css 等文件直接命中
-    app.use("/ops", express.static(opsPublicDir));
-
-    // 再挂 Ops API 路由，确保 /ops/info 等接口可访问
-    app.use("/ops", opsRouter);
-
-    // 最后做 SPA fallback：仅当前面都未匹配时返回 index.html
-    app.use("/ops", (_req: Request, res: Response) => {
-      res.sendFile(path.join(opsPublicDir, "index.html"));
+  if (isDev) {
+    const { createServer: createViteServer } = await import("vite");
+    const viteDevServer = await createViteServer({
+      configFile: path.resolve(process.cwd(), "vite.config.ts"),
+      server: { middlewareMode: true },
     });
+
+    // API 路由优先，非 API 请求透传给 Vite（HTML、TS、CSS、HMR）
+    app.use("/ops", opsRouter);
+    app.use("/ops", viteDevServer.middlewares);
+    logger.info("Ops dev mode: Vite middleware enabled (HMR)");
+  } else {
+    // 静态文件 -> API 路由 -> SPA fallback
+    const opsPublicDir = resolveStaticDir("ops");
+
+    if (opsPublicDir) {
+      app.use("/ops", express.static(opsPublicDir));
+      app.use("/ops", opsRouter);
+      app.use("/ops", (_req: Request, res: Response) => {
+        res.sendFile(path.join(opsPublicDir, "index.html"));
+      });
+    }
   }
 
   // --------------------------------------------------------------------------

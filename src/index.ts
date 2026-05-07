@@ -25,8 +25,8 @@ export {
 
 let signalsRegistered = false;
 
-export function startServer(): http.Server {
-  const app = createApp();
+export async function startServer(): Promise<http.Server> {
+  const app = await createApp();
   const server = http.createServer(app);
 
   setServer(server);
@@ -79,5 +79,5 @@ function registerSignalHandlers(): void {
 }
 
 if (require.main === module) {
-  startServer();
+  void startServer();
 }

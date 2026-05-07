@@ -7,7 +7,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: resolve(__dirname, "src/ops/frontend"),
-    base: "./",
+    base: "/ops/",
     build: {
       outDir: resolve(__dirname, "dist/ops"),
       emptyOutDir: false,
