@@ -19,11 +19,8 @@ opsRouter.get("/info", (_req: Request, res: Response) => {
   });
 });
 
-// Ops 路由组统一鉴权（此后的路由需要鉴权）
-opsRouter.use(opsAuthMiddleware);
-
-// 获取当前配置（只读）
-opsRouter.get("/config", (_req: Request, res: Response) => {
+// 获取当前配置（只读）- 需要鉴权
+opsRouter.get("/config", opsAuthMiddleware, (_req: Request, res: Response) => {
   const currentConfig = OpsConfigManager.getCurrentConfig();
 
   res.json({
@@ -32,8 +29,8 @@ opsRouter.get("/config", (_req: Request, res: Response) => {
   });
 });
 
-// 更新配置
-opsRouter.post("/config", (req: Request, res: Response) => {
+// 更新配置 - 需要鉴权
+opsRouter.post("/config", opsAuthMiddleware, (req: Request, res: Response) => {
   const updates = req.body as Record<string, unknown>;
 
   if (!updates || typeof updates !== "object" || Object.keys(updates).length === 0) {
@@ -62,8 +59,8 @@ opsRouter.post("/config", (req: Request, res: Response) => {
   });
 });
 
-// 获取可修改的配置项白名单
-opsRouter.get("/config/schema", (_req: Request, res: Response) => {
+// 获取可修改的配置项白名单 - 需要鉴权
+opsRouter.get("/config/schema", opsAuthMiddleware, (_req: Request, res: Response) => {
   const schema = {
     logLevel: {
       key: "LOG_LEVEL",
@@ -159,8 +156,8 @@ opsRouter.get("/config/schema", (_req: Request, res: Response) => {
   });
 });
 
-// 服务状态
-opsRouter.get("/status", (_req: Request, res: Response) => {
+// 服务状态 - 需要鉴权
+opsRouter.get("/status", opsAuthMiddleware, (_req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
@@ -175,8 +172,8 @@ opsRouter.get("/status", (_req: Request, res: Response) => {
   });
 });
 
-// 停机（graceful shutdown）
-opsRouter.post("/shutdown", (req: Request, res: Response) => {
+// 停机（graceful shutdown）- 需要鉴权
+opsRouter.post("/shutdown", opsAuthMiddleware, (req: Request, res: Response) => {
   logger.info("Ops shutdown requested", {
     ip: req.ip,
   });
@@ -193,8 +190,8 @@ opsRouter.post("/shutdown", (req: Request, res: Response) => {
   }, 100);
 });
 
-// 重启
-opsRouter.post("/restart", (req: Request, res: Response) => {
+// 重启 - 需要鉴权
+opsRouter.post("/restart", opsAuthMiddleware, (req: Request, res: Response) => {
   logger.info("Ops restart requested", {
     ip: req.ip,
     watcherActive: isWatcherActive(),
