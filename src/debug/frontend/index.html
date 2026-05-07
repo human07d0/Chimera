@@ -19,6 +19,7 @@
       --success: #3fb950;
       --warning: #d29922;
       --danger: #f85149;
+      --media-link: #ffa657;
       --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
       --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
     }
@@ -351,26 +352,22 @@
       .header { padding: 8px 12px; }
     }
 
-    /* Media Placeholder */
+    /* Media Placeholder — rendered as an underlined hyperlink */
     .media-placeholder {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      background: var(--surface);
-      color: var(--accent);
+      color: var(--media-link);
       font-size: 12px;
       font-family: var(--font-sans);
       cursor: pointer;
-      transition: all 0.15s;
-      text-decoration: none;
+      text-decoration: underline;
+      text-decoration-thickness: 1px;
+      text-underline-offset: 2px;
       line-height: 1.4;
+      white-space: nowrap;
     }
 
-    .media-placeholder:hover { background: var(--surface-hover); border-color: var(--accent); color: var(--accent-hover); }
-    .media-placeholder.disabled { color: var(--text-secondary); cursor: not-allowed; opacity: 0.6; }
-    .media-placeholder.disabled:hover { color: var(--text-secondary); border-color: var(--border); background: var(--surface); }
-    .media-placeholder .media-kind { font-weight: 600; text-transform: uppercase; margin-right: 2px; }
+    .media-placeholder:hover { color: #ffbd7a; }
+    .media-placeholder.disabled { color: var(--text-secondary); cursor: not-allowed; opacity: 0.6; text-decoration: none; }
+    .media-placeholder.disabled:hover { color: var(--text-secondary); }
 
     /* Media Viewer */
     .media-viewer-overlay {
@@ -691,23 +688,17 @@
       const kind = meta ? meta.kind : 'unknown';
       const cached = meta ? meta.cached : false;
       const sizeStr = byteLength > 1024 ? `${(byteLength / 1024).toFixed(1)}KB` : `${byteLength}B`;
+      const label = `${escapeHtml(mediaType)} (${escapeHtml(sizeStr)})`;
 
       if (kind === 'unknown') {
-        return `<span class="media-placeholder disabled" title="Unsupported media type">
-          <span class="media-kind">[UNKNOWN]</span> ${escapeHtml(mediaType)}, ${escapeHtml(sizeStr)}, unsupported media type
-        </span>`;
+        return `<span class="media-placeholder disabled" title="Unsupported media type">${label}</span>`;
       }
 
       if (!cached) {
-        return `<span class="media-placeholder disabled" title="Media not cached (exceeded size limit)">
-          <span class="media-kind">[${escapeHtml(kind).toUpperCase()}]</span> ${escapeHtml(mediaType)}, ${escapeHtml(sizeStr)}, not cached: media too large
-        </span>`;
+        return `<span class="media-placeholder disabled" title="Media not cached (exceeded size limit)">${label}</span>`;
       }
 
-      const action = kind === 'image' ? 'click to view' : 'click to play';
-      return `<button class="media-placeholder" data-media-id="${escapeAttr(mediaId)}" data-media-type="${escapeAttr(mediaType)}" data-media-kind="${escapeAttr(kind)}" title="Click to ${kind === 'image' ? 'view' : 'play'}">
-        <span class="media-kind">[${escapeHtml(kind).toUpperCase()}]</span> ${escapeHtml(mediaType)}, ${escapeHtml(sizeStr)}, ${action}
-      </button>`;
+      return `<span class="media-placeholder" data-media-id="${escapeAttr(mediaId)}" data-media-type="${escapeAttr(mediaType)}" data-media-kind="${escapeAttr(kind)}" title="Click to ${kind === 'image' ? 'view' : 'play'}">${label}</span>`;
     }
 
     function openMediaViewer(mediaId, mediaType, kind) {
