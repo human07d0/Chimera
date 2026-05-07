@@ -70,6 +70,15 @@ export class DebugStore {
   get size(): number {
     return this.buffer.length;
   }
+
+  /** 运行时更新环形缓冲区最大容量，缩小时裁剪最旧记录 */
+  setMaxRecords(n: number): void {
+    if (!Number.isFinite(n) || n < 1) return;
+    this.maxSize = n;
+    while (this.buffer.length > this.maxSize) {
+      this.buffer.shift();
+    }
+  }
 }
 
 /** 全局单例 */

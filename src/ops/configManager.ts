@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { config } from "../config";
 import { logger } from "../utils/logger";
+import { debugStore } from "../debug/store";
 
 /**
  * 运行时配置管理器
@@ -23,6 +24,12 @@ export class OpsConfigManager {
     "WEB_SEARCH_CITY",
     "MONITOR_FLUSH_INTERVAL_MS",
     "MONITOR_RETENTION_DAYS",
+    "UPSTREAM_TIMEOUT_MS",
+    "MONITOR_FLUSH_BATCH_SIZE",
+    "MONITOR_QUEUE_MAX_SIZE",
+    "DEBUG_MAX_RECORDS",
+    "DEBUG_MAX_BODY_SIZE",
+    "DEBUG_MAX_MEDIA_BYTES",
   ]);
 
   private static readonly KEY_ALIASES: Readonly<Record<string, string>> = {
@@ -35,6 +42,12 @@ export class OpsConfigManager {
     webSearchCity: "WEB_SEARCH_CITY",
     monitorFlushIntervalMs: "MONITOR_FLUSH_INTERVAL_MS",
     monitorRetentionDays: "MONITOR_RETENTION_DAYS",
+    upstreamTimeoutMs: "UPSTREAM_TIMEOUT_MS",
+    monitorFlushBatchSize: "MONITOR_FLUSH_BATCH_SIZE",
+    monitorQueueMaxSize: "MONITOR_QUEUE_MAX_SIZE",
+    debugMaxRecords: "DEBUG_MAX_RECORDS",
+    debugMaxBodySize: "DEBUG_MAX_BODY_SIZE",
+    debugMaxMediaBytes: "DEBUG_MAX_MEDIA_BYTES",
   };
 
   /**
@@ -44,6 +57,8 @@ export class OpsConfigManager {
     "MIMO_API_KEY",
     "PROXY_API_KEY",
     "OPS_PASSWORD",
+    "TOKEN_PLAN_PROXY_API_KEY",
+    "TOKEN_PLAN_MIMO_API_KEY",
   ]);
 
   /**
@@ -65,12 +80,24 @@ export class OpsConfigManager {
       // Monitor
       monitorRetentionDays: config.monitor.retentionDays,
       monitorFlushIntervalMs: config.monitor.flushIntervalMs,
+      monitorFlushBatchSize: config.monitor.flushBatchSize,
+      monitorQueueMaxSize: config.monitor.queueMaxSize,
+
+      // Upstream
+      upstreamTimeoutMs: config.upstream.timeout,
+
+      // Debug
+      debugMaxRecords: config.debug.maxRecords,
+      debugMaxBodySize: config.debug.maxBodySize,
+      debugMaxMediaBytes: config.debug.maxMediaBytes,
 
       // 敏感字段（仅显示是否已配置，不暴露实际值）
       sensitive: {
         hasMimoApiKey: !!config.mimoApiKey,
         hasProxyApiKey: !!config.proxyApiKey,
         hasOpsPassword: !!config.opsPassword,
+        hasTokenPlanProxyApiKey: !!config.tokenPlan.proxyApiKey,
+        hasTokenPlanMimoApiKey: !!config.tokenPlan.mimoApiKey,
       },
     };
   }
@@ -168,6 +195,42 @@ export class OpsConfigManager {
         }
         return { value: String(Math.trunc(value)) };
 
+      case "UPSTREAM_TIMEOUT_MS":
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 1000) {
+          return { error: "UPSTREAM_TIMEOUT_MS must be a number >= 1000" };
+        }
+        return { value: String(Math.trunc(value)) };
+
+      case "MONITOR_FLUSH_BATCH_SIZE":
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
+          return { error: "MONITOR_FLUSH_BATCH_SIZE must be a positive number" };
+        }
+        return { value: String(Math.trunc(value)) };
+
+      case "MONITOR_QUEUE_MAX_SIZE":
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
+          return { error: "MONITOR_QUEUE_MAX_SIZE must be a positive number" };
+        }
+        return { value: String(Math.trunc(value)) };
+
+      case "DEBUG_MAX_RECORDS":
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
+          return { error: "DEBUG_MAX_RECORDS must be a positive number" };
+        }
+        return { value: String(Math.trunc(value)) };
+
+      case "DEBUG_MAX_BODY_SIZE":
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 1024) {
+          return { error: "DEBUG_MAX_BODY_SIZE must be a number >= 1024" };
+        }
+        return { value: String(Math.trunc(value)) };
+
+      case "DEBUG_MAX_MEDIA_BYTES":
+        if (typeof value !== "number" || !Number.isFinite(value) || value < 1024) {
+          return { error: "DEBUG_MAX_MEDIA_BYTES must be a number >= 1024" };
+        }
+        return { value: String(Math.trunc(value)) };
+
       default:
         return { error: `Unknown configuration key: ${key}` };
     }
@@ -221,6 +284,32 @@ export class OpsConfigManager {
 
         case "MONITOR_RETENTION_DAYS":
           config.monitor.retentionDays = parseInt(value, 10);
+          break;
+
+        case "UPSTREAM_TIMEOUT_MS":
+          config.upstream.timeout = parseInt(value, 10);
+          config.tokenPlan.timeout = parseInt(value, 10);
+          break;
+
+        case "MONITOR_FLUSH_BATCH_SIZE":
+          config.monitor.flushBatchSize = parseInt(value, 10);
+          break;
+
+        case "MONITOR_QUEUE_MAX_SIZE":
+          config.monitor.queueMaxSize = parseInt(value, 10);
+          break;
+
+        case "DEBUG_MAX_RECORDS":
+          config.debug.maxRecords = parseInt(value, 10);
+          debugStore.setMaxRecords(config.debug.maxRecords);
+          break;
+
+        case "DEBUG_MAX_BODY_SIZE":
+          config.debug.maxBodySize = parseInt(value, 10);
+          break;
+
+        case "DEBUG_MAX_MEDIA_BYTES":
+          config.debug.maxMediaBytes = parseInt(value, 10);
           break;
       }
     }
