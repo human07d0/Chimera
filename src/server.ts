@@ -109,16 +109,8 @@ export async function createApp(): Promise<express.Application> {
   // 生产环境：预构建 dist/ops 静态文件
   // --------------------------------------------------------------------------
   if (isDev) {
-    const { createServer: createViteServer } = await import("vite");
-    const viteDevServer = await createViteServer({
-      configFile: path.resolve(process.cwd(), "vite.config.ts"),
-      server: { middlewareMode: true },
-    });
-
-    // API 路由优先，非 API 请求透传给 Vite（HTML、TS、CSS、HMR）
-    app.use("/ops", opsRouter);
-    app.use("/ops", viteDevServer.middlewares);
-    logger.info("Ops dev mode: Vite middleware enabled (HMR)");
+    const { createViteDevMiddleware } = await import("./ops/vite-dev");
+    await createViteDevMiddleware(app);
   } else {
     // 静态文件 -> API 路由 -> SPA fallback
     const opsPublicDir = resolveStaticDir("ops");
