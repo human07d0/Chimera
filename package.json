@@ -15,22 +15,24 @@
     "test:ops": "npm run build && node scripts/test-ops-config.cjs",
     "test:monitor": "npm run build && node scripts/monitor-checks.cjs",
     "test:models": "npm run build && node scripts/test-all-models.cjs",
-    "bun:build": "npx -y bun@latest build src/index.ts --outdir=dist-bun --target=bun",
+    "bun:build": "npx -y bun@latest build src/index.ts --outdir=dist-bun --target=bun --external vite --external lightningcss --external postcss",
     "bun:start": "npx -y bun@latest run dist-bun/index.js"
   },
   "dependencies": {
-    "sql.js": "^1.10.3",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "sql.js": "^1.10.3"
   },
   "devDependencies": {
-    "@types/sql.js": "^1.4.9",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.12.0",
+    "@types/sql.js": "^1.4.9",
     "bun-types": "^1.2.0",
+    "lightningcss": "^1.32.0",
     "nodemon": "^3.1.7",
+    "postcss": "^8.5.14",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
     "vite": "^6.2.0",
