@@ -64,11 +64,6 @@ function isPruneAuthorized(req: Request): boolean {
   return providedKey === config.proxyApiKey;
 }
 
-// /monitor 重定向到当前路由根，避免在子路径部署时跳转到站点根
-monitorRouter.get("/", (_req: Request, res: Response) => {
-  res.redirect("./");
-});
-
 // 获取监控统计数据
 monitorRouter.get("/stats", (req: Request, res: Response) => {
   try {
