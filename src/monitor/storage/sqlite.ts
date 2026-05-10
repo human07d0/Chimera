@@ -279,8 +279,58 @@ export class SqliteStorage implements MonitorStorage {
     };
   }
 
-  trend(_params: TrendParams): TrendBucket[] {
-    return [];
+  trend(params: TrendParams): TrendBucket[] {
+    if (!this.db) {
+      throw new Error('Storage not initialized. Call init() first.');
+    }
+
+    const { days = 3, model, source, granularity } = params;
+    const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const truncation = granularity === "hour" ? 3600000 : 86400000;
+
+    let sql = `
+      SELECT
+        CAST((ts_start / ?) * ? AS INTEGER) as bucket_ts,
+        COUNT(*) as calls,
+        COALESCE(SUM(input_tokens + output_tokens), 0) as tokens,
+        COALESCE(SUM(cost), 0) as cost,
+        COALESCE(AVG(latency_ms), 0) as latency_ms
+      FROM requests
+      WHERE ts_start >= ?
+    `;
+
+    const bind: (number | string)[] = [truncation, truncation, cutoffTs];
+
+    if (model) {
+      sql += ` AND model_requested = ?`;
+      bind.push(model);
+    }
+
+    if (source) {
+      sql += ` AND source = ?`;
+      bind.push(source);
+    }
+
+    sql += ` GROUP BY bucket_ts ORDER BY bucket_ts ASC`;
+
+    const stmt = this.db.prepare(sql);
+    stmt.bind(bind);
+
+    const buckets: TrendBucket[] = [];
+    while (stmt.step()) {
+      const row = stmt.get() as [number, number, number, number, number];
+      buckets.push({
+        ts: row[0],
+        calls: row[1],
+        tokens: row[2],
+        cost: row[3],
+        latency_ms: Math.round(row[4]),
+      });
+    }
+    stmt.free();
+
+    return buckets;
   }
 
   prune(retentionDays: number): number {

@@ -123,4 +123,51 @@ describe("SqliteStorage", () => {
       expect(result.totalTokens).toBe(0);
     });
   });
+
+  describe("trend", () => {
+    beforeEach(() => {
+      storage.prune(-1);
+    });
+
+    it("returns empty array when no records", () => {
+      const result = storage.trend({ days: 7, granularity: "day" });
+      expect(result).toEqual([]);
+    });
+
+    it("buckets records by day", () => {
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      storage.append(makeEvent({ ts_start: now - 0 * oneDayMs, input_tokens: 100, output_tokens: 50, cost: 0.01, latency_ms: 200 }));
+      storage.append(makeEvent({ ts_start: now - 1 * oneDayMs, input_tokens: 200, output_tokens: 80, cost: 0.02, latency_ms: 300 }));
+      storage.append(makeEvent({ ts_start: now - 2 * oneDayMs, input_tokens: 300, output_tokens: 120, cost: 0.03, latency_ms: 400 }));
+
+      const result = storage.trend({ days: 7, granularity: "day" });
+      expect(result.length).toBe(3);
+      const day0 = result.find(b => b.calls === 1 && b.tokens === 150);
+      expect(day0).toBeDefined();
+      expect(day0!.cost).toBeCloseTo(0.01);
+      expect(day0!.latency_ms).toBe(200);
+    });
+
+    it("filters by model", () => {
+      const now = Date.now();
+      storage.append(makeEvent({ model_requested: "mimo-v2-flash", input_tokens: 100, output_tokens: 50, cost: 0.01, latency_ms: 100 }));
+      storage.append(makeEvent({ model_requested: "mimo-v2-pro", input_tokens: 200, output_tokens: 80, cost: 0.02, latency_ms: 200 }));
+
+      const result = storage.trend({ days: 1, granularity: "day", model: "mimo-v2-flash" });
+      expect(result.length).toBe(1);
+      expect(result[0].calls).toBe(1);
+      expect(result[0].tokens).toBe(150);
+    });
+
+    it("filters by source", () => {
+      const now = Date.now();
+      storage.append(makeEvent({ source: "main", input_tokens: 100, output_tokens: 50, cost: 0.01, latency_ms: 100 }));
+      storage.append(makeEvent({ source: "token-plan", input_tokens: 200, output_tokens: 80, cost: 0.02, latency_ms: 200 }));
+
+      const result = storage.trend({ days: 1, granularity: "day", source: "main" });
+      expect(result.length).toBe(1);
+      expect(result[0].calls).toBe(1);
+    });
+  });
 });
