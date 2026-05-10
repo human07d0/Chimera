@@ -109,6 +109,27 @@ export async function createApp(): Promise<express.Application> {
   }
 
   // --------------------------------------------------------------------------
+  // Playground（独立页面，服务端注入配置）
+  // --------------------------------------------------------------------------
+  const playgroundDir = resolveStaticDir("playground");
+  if (playgroundDir) {
+    app.use("/playground", express.static(playgroundDir));
+    app.get("/playground", (_req: Request, res: Response) => {
+      const indexPath = path.join(playgroundDir, "index.html");
+      let html = fs.readFileSync(indexPath, "utf-8");
+
+      const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify({
+        proxyApiKey: config.proxyApiKey,
+        tokenPlanProxyApiKey: config.tokenPlan.proxyApiKey,
+      })}</script>`;
+      html = html.replace("<head>", `<head>\n    ${configScript}`);
+
+      res.setHeader("Content-Type", "text/html");
+      res.send(html);
+    });
+  }
+
+  // --------------------------------------------------------------------------
   // Ops 运维界面（同进程托管）
   //
   // 开发环境：Vite 中间件模式 — 即时编译 TypeScript，HMR 热更新

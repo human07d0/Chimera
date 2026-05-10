@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Playground - Mimo Proxy</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface-hover: #1c2129;
+            --border: #30363d;
+            --text: #e6edf3;
+            --text-secondary: #8b949e;
+            --accent: #58a6ff;
+            --accent-hover: #79c0ff;
+            --success: #3fb950;
+            --warning: #d29922;
+            --danger: #f85149;
+            --font-mono: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, monospace;
+            --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header h1 { font-size: 18px; font-weight: 600; }
+        .header h1 span { color: var(--text-secondary); font-weight: 400; font-size: 14px; margin-left: 8px; }
+
+        .header-actions { display: flex; gap: 8px; align-items: center; }
+
+        .nav-link {
+            padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border);
+            background: var(--surface); color: var(--text); font-size: 13px;
+            cursor: pointer; transition: all 0.15s; text-decoration: none; font-family: var(--font-sans);
+        }
+        .nav-link:hover { background: var(--surface-hover); border-color: var(--text-secondary); }
+        .nav-link.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+
+        .playground {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            height: calc(100vh - 49px);
+        }
+
+        @media (max-width: 900px) {
+            .playground { grid-template-columns: 1fr; height: auto; }
+        }
+
+        .panel {
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid var(--border);
+        }
+
+        .panel:last-child { border-right: none; }
+
+        .panel h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 16px;
+        }
+
+        .form-group { margin-bottom: 14px; }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .form-group select,
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface-hover);
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-sans);
+        }
+
+        .form-group textarea {
+            font-family: var(--font-mono);
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .form-group select:focus,
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .toggle-group { display: flex; gap: 6px; flex-wrap: wrap; }
+
+        .toggle-chip {
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .toggle-chip.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .toggle-chip:hover:not(.active) { border-color: var(--text-secondary); }
+
+        .reasoning-group { display: flex; gap: 4px; }
+        .reasoning-btn {
+            flex: 1;
+            padding: 6px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-secondary);
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .reasoning-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #fff;
+        }
+        .reasoning-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .btn {
+            padding: 8px 18px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text);
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: var(--font-sans);
+        }
+        .btn:hover { background: var(--surface-hover); }
+        .btn-primary { background: #238636; border-color: #238636; color: #fff; }
+        .btn-primary:hover { background: #2ea043; }
+        .btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+        .btn-danger:hover { opacity: 0.9; }
+
+        .actions { display: flex; gap: 8px; margin-top: 16px; }
+
+        /* Metrics */
+        .metrics-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .metric-card {
+            flex: 1;
+            padding: 8px 12px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            text-align: center;
+        }
+        .metric-card .label {
+            font-size: 10px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .metric-card .val {
+            font-size: 18px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            color: var(--text);
+        }
+
+        /* Output */
+        .output-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .output-header .status {
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+        }
+        .status-dot.streaming {
+            background: var(--success);
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .output-area {
+            background: #0a0e14;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+            font-family: var(--font-mono);
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+            overflow-y: auto;
+            height: calc(100vh - 260px);
+            min-height: 300px;
+            color: var(--text);
+        }
+
+        .output-area .error { color: var(--danger); }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Mimo Proxy <span>Playground</span></h1>
+        <div class="header-actions">
+            <a class="nav-link" href="./">Monitor</a>
+            <a class="nav-link" href="./debug/">Debug</a>
+            <a class="nav-link" href="./ops/">Ops</a>
+            <a class="nav-link active" href="./playground/">Playground</a>
+        </div>
+    </div>
+
+    <div class="playground">
+        <!-- Left: Config -->
+        <div class="panel">
+            <h2>Request Config</h2>
+
+            <div class="form-group">
+                <label>Endpoint</label>
+                <select id="endpoint">
+                    <option value="openai-main">OpenAI &middot; Main</option>
+                    <option value="openai-tp">OpenAI &middot; Token-Plan</option>
+                    <option value="anthropic-main">Anthropic &middot; Main</option>
+                    <option value="anthropic-tp">Anthropic &middot; Token-Plan</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Model</label>
+                <select id="model">
+                    <option value="">Loading models...</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Max Tokens</label>
+                <input type="number" id="maxTokens" value="4096" min="1" max="131072">
+            </div>
+
+            <div class="form-group">
+                <label>Temperature</label>
+                <input type="number" id="temperature" value="0.7" min="0" max="2" step="0.1">
+            </div>
+
+            <div class="form-group">
+                <label>Features</label>
+                <div class="toggle-group">
+                    <span class="toggle-chip" data-feature="web" onclick="toggleFeature(this)">Web Search</span>
+                    <span class="toggle-chip" data-feature="json" onclick="toggleFeature(this)">JSON Mode</span>
+                    <span class="toggle-chip" data-feature="thinking" onclick="toggleFeature(this)">Thinking</span>
+                    <span class="toggle-chip active" data-feature="stream" onclick="toggleFeature(this)">Stream</span>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Reasoning Effort</label>
+                <div class="reasoning-group" id="reasoningGroup">
+                    <button class="reasoning-btn" data-effort="low" onclick="setReasoning('low')" disabled>Low</button>
+                    <button class="reasoning-btn active" data-effort="medium" onclick="setReasoning('medium')" disabled>Medium</button>
+                    <button class="reasoning-btn" data-effort="high" onclick="setReasoning('high')" disabled>High</button>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>System Message</label>
+                <textarea id="systemMsg" placeholder="You are a helpful assistant."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label>User Message</label>
+                <textarea id="userMsg" placeholder="Hello, what can you do?" style="min-height: 100px;"></textarea>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-primary" id="sendBtn" onclick="sendRequest()">&#9654; Send</button>
+                <button class="btn" onclick="clearAll()">Clear</button>
+            </div>
+        </div>
+
+        <!-- Right: Output -->
+        <div class="panel">
+            <div class="metrics-bar">
+                <div class="metric-card"><div class="label">TTFT</div><div class="val" id="mTtft">&mdash;</div></div>
+                <div class="metric-card"><div class="label">Duration</div><div class="val" id="mDuration">&mdash;</div></div>
+                <div class="metric-card"><div class="label">In Tokens</div><div class="val" id="mInTokens">&mdash;</div></div>
+                <div class="metric-card"><div class="label">Out Tokens</div><div class="val" id="mOutTokens">&mdash;</div></div>
+            </div>
+
+            <div class="output-header">
+                <span class="status"><span class="status-dot" id="statusDot"></span><span id="statusText">Ready</span></span>
+                <button class="btn btn-danger hidden" id="stopBtn" onclick="stopStream()" style="margin-left:auto;padding:4px 12px;font-size:12px;">Stop</button>
+            </div>
+
+            <div class="output-area" id="outputArea"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- Config injected server-side ---
+        const CONFIG = window.PLAYGROUND_CONFIG || {};
+
+        // --- State ---
+        let activeFeatures = new Set(['stream']);
+        let reasoningEffort = 'medium';
+        let abortController = null;
+        let isStreaming = false;
+
+        // --- Feature toggles ---
+        function toggleFeature(el) {
+            const f = el.dataset.feature;
+            if (activeFeatures.has(f)) {
+                activeFeatures.delete(f);
+                el.classList.remove('active');
+            } else {
+                activeFeatures.add(f);
+                el.classList.add('active');
+            }
+            updateReasoningState();
+        }
+
+        function updateReasoningState() {
+            const thinking = activeFeatures.has('thinking');
+            document.querySelectorAll('.reasoning-btn').forEach(b => b.disabled = !thinking);
+        }
+
+        function setReasoning(level) {
+            reasoningEffort = level;
+            document.querySelectorAll('.reasoning-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.effort === level);
+            });
+        }
+
+        // --- Fetch models ---
+        async function fetchModels() {
+            try {
+                const res = await fetch('./v1/models');
+                const data = await res.json();
+                const select = document.getElementById('model');
+                select.innerHTML = '';
+                if (data.data) {
+                    data.data.forEach(m => {
+                        const opt = document.createElement('option');
+                        opt.value = m.id;
+                        opt.textContent = m.id;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch {
+                document.getElementById('model').innerHTML = '<option value="">Failed to load</option>';
+            }
+        }
+
+        // --- Send request ---
+        async function sendRequest() {
+            if (isStreaming) {
+                if (!confirm('Abort current request?')) return;
+                stopStream();
+                return;
+            }
+
+            const endpoint = document.getElementById('endpoint').value;
+            const model = document.getElementById('model').value;
+            const maxTokens = parseInt(document.getElementById('maxTokens').value, 10) || 4096;
+            const temperature = parseFloat(document.getElementById('temperature').value) || 0.7;
+            const systemMsg = document.getElementById('systemMsg').value.trim();
+            const userMsg = document.getElementById('userMsg').value.trim();
+
+            if (!userMsg) {
+                document.getElementById('outputArea').innerHTML = '<span class="error">User message is required.</span>';
+                return;
+            }
+
+            const isStream = activeFeatures.has('stream');
+            const isAnthropic = endpoint.startsWith('anthropic');
+
+            // Build model name with suffixes
+            let modelName = model;
+            if (!isAnthropic) {
+                if (activeFeatures.has('web')) modelName += '-web';
+                if (activeFeatures.has('thinking')) modelName += '-thinking';
+            }
+
+            // Build messages
+            const messages = [];
+            if (systemMsg) {
+                if (isAnthropic) {
+                    // Anthropic uses system as top-level param
+                } else {
+                    messages.push({ role: 'system', content: systemMsg });
+                }
+            }
+            messages.push({ role: 'user', content: userMsg });
+
+            // Build body
+            let body;
+            if (isAnthropic) {
+                body = {
+                    model: modelName,
+                    max_tokens: maxTokens,
+                    messages,
+                    stream: isStream,
+                };
+                if (systemMsg) body.system = systemMsg;
+                if (activeFeatures.has('thinking')) {
+                    const budgetMap = { low: 1024, medium: 4096, high: 16384 };
+                    body.thinking = { type: 'enabled', budget_tokens: budgetMap[reasoningEffort] };
+                }
+            } else {
+                body = {
+                    model: modelName,
+                    max_tokens: maxTokens,
+                    temperature,
+                    messages,
+                    stream: isStream,
+                };
+                if (activeFeatures.has('json')) {
+                    body.response_format = { type: 'json_object' };
+                }
+                if (activeFeatures.has('thinking')) {
+                    body.reasoning_effort = reasoningEffort;
+                }
+            }
+
+            // Determine URL and headers
+            let url, headers;
+            const tpKey = CONFIG.tokenPlanProxyApiKey || '';
+            const proxyKey = CONFIG.proxyApiKey || '';
+
+            if (endpoint === 'openai-main') {
+                url = './v1/chat/completions';
+                headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + proxyKey };
+            } else if (endpoint === 'openai-tp') {
+                url = './token-plan/v1/chat/completions';
+                headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tpKey };
+            } else if (endpoint === 'anthropic-main') {
+                url = './v1/messages';
+                headers = { 'Content-Type': 'application/json', 'x-api-key': proxyKey, 'anthropic-version': '2023-06-01' };
+            } else {
+                url = './token-plan/v1/messages';
+                headers = { 'Content-Type': 'application/json', 'x-api-key': tpKey, 'anthropic-version': '2023-06-01' };
+            }
+
+            // UI state
+            setStreaming(true);
+            const outputArea = document.getElementById('outputArea');
+            outputArea.innerHTML = '';
+            const startTime = performance.now();
+            let firstTokenTime = null;
+            let inputTokens = 0;
+            let outputTokens = 0;
+
+            abortController = new AbortController();
+
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body),
+                    signal: abortController.signal,
+                });
+
+                if (!res.ok) {
+                    const err = await res.text();
+                    outputArea.innerHTML = '<span class="error">Error ' + res.status + ': ' + escapeHtml(err) + '</span>';
+                    setStreaming(false);
+                    return;
+                }
+
+                if (isStream) {
+                    const reader = res.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop();
+
+                        for (const line of lines) {
+                            if (!line.startsWith('data: ')) continue;
+                            const data = line.slice(6).trim();
+                            if (data === '[DONE]') break;
+
+                            try {
+                                const parsed = JSON.parse(data);
+
+                                // OpenAI format
+                                if (parsed.choices) {
+                                    const delta = parsed.choices[0]?.delta?.content;
+                                    if (delta) {
+                                        if (!firstTokenTime) firstTokenTime = performance.now();
+                                        outputArea.textContent += delta;
+                                        outputArea.scrollTop = outputArea.scrollHeight;
+                                    }
+                                }
+                                // Anthropic format
+                                if (parsed.type === 'content_block_delta') {
+                                    if (!firstTokenTime) firstTokenTime = performance.now();
+                                    outputArea.textContent += parsed.delta?.text || '';
+                                    outputArea.scrollTop = outputArea.scrollHeight;
+                                }
+                                // Usage in final chunk
+                                if (parsed.usage) {
+                                    inputTokens = parsed.usage.input_tokens || 0;
+                                    outputTokens = parsed.usage.output_tokens || 0;
+                                }
+                                if (parsed.type === 'message_delta' && parsed.usage) {
+                                    outputTokens = parsed.usage.output_tokens || outputTokens;
+                                }
+                            } catch {}
+                        }
+                    }
+
+                    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+                    const ttft = firstTokenTime ? ((firstTokenTime - startTime) / 1000).toFixed(2) : '\u2014';
+                    document.getElementById('mTtft').textContent = ttft + 's';
+                    document.getElementById('mDuration').textContent = duration + 's';
+                    document.getElementById('mInTokens').textContent = inputTokens || '\u2014';
+                    document.getElementById('mOutTokens').textContent = outputTokens || '\u2014';
+                } else {
+                    const result = await res.json();
+                    const duration = ((performance.now() - startTime) / 1000).toFixed(2);
+                    const text = result.content?.[0]?.text || result.choices?.[0]?.message?.content || JSON.stringify(result, null, 2);
+                    outputArea.textContent = text;
+                    inputTokens = result.usage?.input_tokens || result.usage?.prompt_tokens || 0;
+                    outputTokens = result.usage?.output_tokens || result.usage?.completion_tokens || 0;
+                    document.getElementById('mTtft').textContent = '\u2014';
+                    document.getElementById('mDuration').textContent = duration + 's';
+                    document.getElementById('mInTokens').textContent = inputTokens || '\u2014';
+                    document.getElementById('mOutTokens').textContent = outputTokens || '\u2014';
+                }
+            } catch (err) {
+                if (err.name === 'AbortError') {
+                    outputArea.innerHTML += '\n<span class="error">[Aborted]</span>';
+                } else {
+                    outputArea.innerHTML = '<span class="error">Error: ' + escapeHtml(err.message) + '</span>';
+                }
+            } finally {
+                setStreaming(false);
+            }
+        }
+
+        function stopStream() {
+            if (abortController) abortController.abort();
+        }
+
+        function setStreaming(val) {
+            isStreaming = val;
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            const stopBtn = document.getElementById('stopBtn');
+            const sendBtn = document.getElementById('sendBtn');
+
+            if (val) {
+                dot.classList.add('streaming');
+                text.textContent = 'Streaming';
+                stopBtn.classList.remove('hidden');
+                sendBtn.textContent = '\u23F9 Stop';
+                sendBtn.classList.remove('btn-primary');
+                sendBtn.classList.add('btn-danger');
+            } else {
+                dot.classList.remove('streaming');
+                text.textContent = 'Ready';
+                stopBtn.classList.add('hidden');
+                sendBtn.innerHTML = '&#9654; Send';
+                sendBtn.classList.add('btn-primary');
+                sendBtn.classList.remove('btn-danger');
+                abortController = null;
+            }
+        }
+
+        function clearAll() {
+            document.getElementById('outputArea').innerHTML = '';
+            document.getElementById('systemMsg').value = '';
+            document.getElementById('userMsg').value = '';
+            document.getElementById('mTtft').textContent = '\u2014';
+            document.getElementById('mDuration').textContent = '\u2014';
+            document.getElementById('mInTokens').textContent = '\u2014';
+            document.getElementById('mOutTokens').textContent = '\u2014';
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // --- Init ---
+        fetchModels();
+    </script>
+</body>
+</html>
