@@ -6,6 +6,7 @@ import { pipeSSEStream } from "../proxy/streaming";
 import { logger } from "../utils/logger";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { sanitizeForLog } from "../utils/sanitizeForLog";
+import { generateRequestId } from "../utils/requestId";
 
 export const chatRouter: import("express").Router = Router();
 
@@ -191,9 +192,5 @@ function sendError(
   });
 }
 
-
-function generateRequestId(): string {
-  return `proxy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
 
 

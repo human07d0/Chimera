@@ -4,6 +4,7 @@ import { findVirtualModel, VIRTUAL_MODELS } from "../models/presets";
 import { logger } from "../utils/logger";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { sanitizeForLog } from "../utils/sanitizeForLog";
+import { generateRequestId } from "../utils/requestId";
 
 // Anthropic 请求体类型
 interface AnthropicMessagesRequest {
@@ -21,7 +22,7 @@ export const anthropicRouter: import("express").Router = Router();
  * Anthropic Messages API 兼容接口 - 直接透传到上游
  */
 anthropicRouter.post("/messages", async (req: Request, res: Response) => {
-  const requestId = `proxy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const requestId = generateRequestId();
   const startTime = Date.now();
 
   const clientBody = req.body as AnthropicMessagesRequest;

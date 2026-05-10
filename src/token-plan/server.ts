@@ -4,6 +4,7 @@ import { config } from "../config";
 import { logger } from "../utils/logger";
 import { extractApiKey } from "../utils/auth";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { generateRequestId } from "../utils/requestId";
 
 // --------------------------------------------------------------------------
 // 鉴权逻辑
@@ -50,11 +51,6 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
 function getUpstreamApiKey(): string {
   return config.tokenPlan.mimoApiKey || config.mimoApiKey;
 }
-
-function generateRequestId(): string {
-  return `tp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
 /**
  * 将客户端请求原样透传到上游，支持流式和非流式响应
  */
@@ -215,7 +211,7 @@ export function createTokenPlanRouter(): Router {
 
   // OpenAI 兼容格式: POST /v1/chat/completions
   router.post("/v1/chat/completions", async (req: Request, res: Response) => {
-    const requestId = generateRequestId();
+    const requestId = generateRequestId("tp");
     try {
       await proxyPassthrough(req, res, config.tokenPlan.baseUrl, "/v1/chat/completions", requestId);
     } catch (err) {
@@ -233,7 +229,7 @@ export function createTokenPlanRouter(): Router {
 
   // Anthropic Messages API: POST /anthropic/v1/messages
   router.post("/anthropic/v1/messages", async (req: Request, res: Response) => {
-    const requestId = generateRequestId();
+    const requestId = generateRequestId("tp");
     try {
       await proxyPassthrough(req, res, config.tokenPlan.anthropicBaseUrl, "/v1/messages", requestId);
     } catch (err) {
