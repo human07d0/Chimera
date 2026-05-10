@@ -113,7 +113,6 @@ export async function createApp(): Promise<express.Application> {
   // --------------------------------------------------------------------------
   const playgroundDir = resolveStaticDir("playground");
   if (playgroundDir) {
-    app.use("/playground", express.static(playgroundDir));
     app.get(["/playground", "/playground/"], (_req: Request, res: Response) => {
       const indexPath = path.join(playgroundDir, "index.html");
       let html = fs.readFileSync(indexPath, "utf-8");
