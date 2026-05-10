@@ -1,3 +1,4 @@
+import * as http from "http";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Request, Response } from "express";
 import { debugStore } from "../store";
