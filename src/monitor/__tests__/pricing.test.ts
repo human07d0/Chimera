@@ -18,6 +18,28 @@ describe("getTier", () => {
     expect(getTier(0, tiers)).toBe(tiers[0]);
     expect(getTier(1_000_000, tiers)).toBe(tiers[0]);
   });
+
+  it("returns tier 0 when tokens are below threshold", () => {
+    const tiers = PRICING["mimo-v2-pro"].tiers;
+    const tier = getTier(100_000, tiers);
+    expect(tier.threshold).toBe(256_000);
+  });
+
+  it("returns tier 1 when tokens exceed threshold", () => {
+    const tiers = PRICING["mimo-v2-pro"].tiers;
+    const tier = getTier(300_000, tiers);
+    expect(tier.threshold).toBe(Infinity);
+  });
+
+  it("returns tier at exact threshold boundary", () => {
+    const tiers = PRICING["mimo-v2-pro"].tiers;
+    const tier = getTier(256_000, tiers);
+    expect(tier.threshold).toBe(256_000);
+  });
+
+  it("throws on empty tiers array", () => {
+    expect(() => getTier(100, [])).toThrow("Empty tiers");
+  });
 });
 
 describe("calculateCost", () => {
@@ -40,11 +62,11 @@ describe("calculateCost", () => {
     expect(cost).toBeCloseTo(0.7 + 2.1, 6);
   });
 
-  it("uses higher tier for large input on mimo-v2-pro", () => {
-    // 300K input (tier 2): 300K * 14.0/1M = 4.2
-    // 100K output (tier 1): 100K * 21.0/1M = 2.1
+  it("uses higher tier for large total tokens on mimo-v2-pro", () => {
+    // 300K input + 100K output = 400K total > 256K → tier 1 for both
+    // input: 300K * 14.0/1M = 4.2, output: 100K * 42.0/1M = 4.2
     const cost = calculateCost("mimo-v2-pro", 300_000, 0, 100_000);
-    expect(cost).toBeCloseTo(4.2 + 2.1, 6);
+    expect(cost).toBeCloseTo(4.2 + 4.2, 6);
   });
 
   it("falls back to mimo-v2-flash for unknown model", () => {
@@ -61,4 +83,35 @@ describe("calculateCost", () => {
     const cost = calculateCost("mimo-v2-flash", 1_000_000, 1_000_000, 0);
     expect(cost).toBeCloseTo(0.07, 6);
   });
+
+  it("uses single tier based on total tokens (C1)", () => {
+    // 10 prompt + 300K completion = 300K total > 256K threshold
+    // Should use tier 1 for BOTH input and output
+    const cost = calculateCost("mimo-v2-pro", 10, 0, 300_000);
+
+    const tier1 = PRICING["mimo-v2-pro"].tiers[1]; // threshold: Infinity
+    const expectedPrompt = (10 / 1_000_000) * tier1.inputPrice;
+    const expectedCompletion = (300_000 / 1_000_000) * tier1.outputPrice;
+    expect(cost).toBeCloseTo(expectedPrompt + expectedCompletion, 5);
+  });
+
+  it("uses tier 0 when total tokens below threshold", () => {
+    const cost = calculateCost("mimo-v2-pro", 100_000, 0, 100_000);
+
+    const tier0 = PRICING["mimo-v2-pro"].tiers[0]; // threshold: 256_000
+    const expectedPrompt = (100_000 / 1_000_000) * tier0.inputPrice;
+    const expectedCompletion = (100_000 / 1_000_000) * tier0.outputPrice;
+    expect(cost).toBeCloseTo(expectedPrompt + expectedCompletion);
+  });
+
+  it("accounts for cached tokens at cached price", () => {
+    const cost = calculateCost("mimo-v2-pro", 100_000, 50_000, 100_000);
+
+    const tier0 = PRICING["mimo-v2-pro"].tiers[0];
+    const expectedCached = (50_000 / 1_000_000) * tier0.cachedPrice;
+    const expectedPrompt = (50_000 / 1_000_000) * tier0.inputPrice;
+    const expectedCompletion = (100_000 / 1_000_000) * tier0.outputPrice;
+    expect(cost).toBeCloseTo(expectedCached + expectedPrompt + expectedCompletion);
+  });
+
 });

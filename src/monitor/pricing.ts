@@ -42,6 +42,9 @@ export const PRICING: Record<string, ModelPricing> = {
 };
 
 export function getTier(tokens: number, tiers: PriceTier[]): PriceTier {
+  if (tiers.length === 0) {
+    throw new Error("Empty tiers");
+  }
   for (const tier of tiers) {
     if (tokens <= tier.threshold) return tier;
   }
@@ -55,12 +58,11 @@ export function calculateCost(
   completionTokens: number,
 ): number {
   const pricing = PRICING[modelId] || PRICING["mimo-v2-flash"];
-  const inputTier = getTier(promptTokens, pricing.tiers);
-  const outputTier = getTier(completionTokens, pricing.tiers);
+  const tier = getTier(promptTokens + completionTokens, pricing.tiers);
 
   const paidPromptTokens = Math.max(promptTokens - cachedPromptTokens, 0);
-  const cachedCost = (cachedPromptTokens / 1_000_000) * inputTier.cachedPrice;
-  const promptCost = (paidPromptTokens / 1_000_000) * inputTier.inputPrice;
-  const completionCost = (completionTokens / 1_000_000) * outputTier.outputPrice;
+  const cachedCost = (cachedPromptTokens / 1_000_000) * tier.cachedPrice;
+  const promptCost = (paidPromptTokens / 1_000_000) * tier.inputPrice;
+  const completionCost = (completionTokens / 1_000_000) * tier.outputPrice;
   return cachedCost + promptCost + completionCost;
 }
