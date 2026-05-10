@@ -6,14 +6,33 @@ import { DebugEvent, DebugMediaItem } from "../types";
 // Mock config
 vi.mock("../../config", () => ({
   config: {
+    mimoApiKey: "",
+    proxyApiKey: "",
+    opsPassword: "",
+    server: { port: 3000, host: "0.0.0.0", maxBodySize: "10mb" },
+    upstream: {
+      baseUrl: "https://api.xiaomimimo.com",
+      anthropicBaseUrl: "https://api.xiaomimimo.com/anthropic",
+      enabledModels: ["mimo-v2-flash"],
+      defaultModel: "mimo-v2-flash",
+      timeout: 120_000,
+    },
+    webSearch: { maxKeyword: 3, forceSearch: true, limit: 3, userLocation: { type: "approximate", country: "China", region: "Beijing", city: "Beijing" } },
+    monitor: {
+      storage: "memory",
+      sqlitePath: "./data/monitor.db",
+      retentionDays: 30,
+      flushIntervalMs: 200,
+      flushBatchSize: 100,
+      queueMaxSize: 10_000,
+    },
+    tokenPlan: { enabled: false, proxyApiKey: "", mimoApiKey: "", baseUrl: "", anthropicBaseUrl: "", timeout: 120_000 },
+    logLevel: "info",
     debug: {
       enabled: true,
       maxRecords: 500,
       maxBodySize: 1_048_576,
       maxMediaBytes: 10_485_760,
-    },
-    upstream: {
-      defaultModel: "mimo-v2-flash",
     },
   },
 }));
@@ -290,6 +309,42 @@ describe("Debug Routes (unit)", () => {
       }
     });
 
+    it("should fall back to application/octet-stream for disallowed media_type", async () => {
+      const { debugRouter } = await import("../routes");
+
+      const media: DebugMediaItem = {
+        id: "media-request-0",
+        location: "request",
+        path: "messages[0].content",
+        kind: "image",
+        media_type: "text/html",
+        encoding: "base64",
+        byte_length: 8,
+        data_base64: "dGVzdA==",
+      };
+
+      debugStore.append(makeEvent({
+        request_id: "disallowed-test",
+        media: [media],
+      }));
+
+      const req = createMockReq({ params: { requestId: "disallowed-test", mediaId: "media-request-0" } });
+      const res = createMockRes();
+
+      const handler = (debugRouter as any).stack
+        .find((layer: any) => layer.route?.path === "/media/:requestId/:mediaId" && layer.route?.methods?.get)
+        ?.route?.stack?.[0]?.handle;
+
+      if (handler) {
+        handler(req, res);
+        expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "application/octet-stream");
+        expect(res.setHeader).toHaveBeenCalledWith("Cache-Control", "no-store");
+        const sentData = (res.send as any).mock.calls[0][0];
+        expect(Buffer.isBuffer(sentData)).toBe(true);
+        expect(sentData.toString()).toBe("test");
+      }
+    });
+
     it("should return audio binary with correct Content-Type", async () => {
       const { debugRouter } = await import("../routes");
 
@@ -356,6 +411,32 @@ describe("Debug Routes (unit)", () => {
         handler(req, res);
         expect(res.status).toHaveBeenCalledWith(410);
         expect((res.json as any).mock.calls[0][0].error).toContain("exceeded");
+      }
+    });
+  });
+
+  describe("Security headers middleware", () => {
+    it("should set X-Content-Type-Options and X-Frame-Options on responses", async () => {
+      const http = await import("http");
+      const { createApp } = await import("../../server");
+
+      const app = await createApp();
+      const server = app.listen(0);
+
+      try {
+        const addr = server.address();
+        if (!addr || typeof addr === "string") throw new Error("Server address unavailable");
+
+        const res = await new Promise<http.IncomingMessage>((resolve, reject) => {
+          http.get(`http://127.0.0.1:${addr.port}/health`, (r) => {
+            resolve(r);
+          }).on("error", reject);
+        });
+
+        expect(res.headers["x-content-type-options"]).toBe("nosniff");
+        expect(res.headers["x-frame-options"]).toBe("DENY");
+      } finally {
+        server.close();
       }
     });
   });
