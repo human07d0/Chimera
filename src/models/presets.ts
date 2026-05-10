@@ -79,20 +79,14 @@ const FEATURE_PRESETS: FeaturePreset[] = [
 // 固定时间戳，让模型列表看起来正常
 const BASE_TS = 1_700_000_000;
 
-function displayNameForUpstreamModel(modelId: string): string {
-  return modelId;
-}
-
 function buildVirtualModels(): VirtualModel[] {
   const models: VirtualModel[] = [];
 
   for (const upstreamModel of config.upstream.enabledModels) {
-    const modelDisplayName = displayNameForUpstreamModel(upstreamModel);
-
     for (const preset of FEATURE_PRESETS) {
       models.push({
         id: `${upstreamModel}${preset.suffix}`,
-        description: `${modelDisplayName} — ${preset.descriptionSuffix}`,
+        description: `${upstreamModel} — ${preset.descriptionSuffix}`,
         upstreamModel,
         features: preset.features,
         created: BASE_TS,
@@ -103,6 +97,7 @@ function buildVirtualModels(): VirtualModel[] {
   return models;
 }
 
+// NOTE: Built once at module load time. Does not reflect runtime config changes.
 export const VIRTUAL_MODELS: VirtualModel[] = buildVirtualModels();
 
 // 快速查找 Map

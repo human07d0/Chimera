@@ -452,7 +452,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
 
   const originalJson = res.json.bind(res);
   const originalWrite = res.write.bind(res);
-  const originalEnd = res.end.bind(res) as (...args: any[]) => Response;
+  const originalEnd = res.end.bind(res);
 
   let stream = false;
   let responseBodyStr = "";

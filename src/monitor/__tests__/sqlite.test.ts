@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import path from "path";
 import { SqliteStorage } from "../storage/sqlite";
 import { MonitorEvent } from "../storage/index";
 import { unlinkSync, existsSync } from "fs";
 
-const TEST_DB_PATH = "./data/test-monitor.db";
+const TEST_DB_PATH = path.resolve(__dirname, "../../data/test-monitor.db");
 
 function makeEvent(overrides: Partial<MonitorEvent> = {}): MonitorEvent {
   return {

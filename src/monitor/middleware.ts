@@ -48,7 +48,7 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
 
   const originalJson = res.json.bind(res);
   const originalWrite = res.write.bind(res);
-  const originalEnd = res.end.bind(res) as (...args: any[]) => Response;
+  const originalEnd = res.end.bind(res);
 
   let inputTokens = 0;
   let outputTokens = 0;

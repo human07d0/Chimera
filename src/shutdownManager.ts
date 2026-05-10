@@ -9,7 +9,6 @@ import { logger } from "./utils/logger";
 
 let serverInstance: http.Server | null = null;
 let isShuttingDown = false;
-let shutdownResolve: (() => void) | null = null;
 
 /**
  * 设置服务器实例，供 shutdown 管理器使用
@@ -27,11 +26,6 @@ export async function gracefulShutdown(
 ): Promise<void> {
   if (isShuttingDown) {
     logger.info(`Shutdown already in progress (reason: ${reason})`);
-    if (shutdownResolve) {
-      await new Promise<void>((resolve) => {
-        shutdownResolve = resolve;
-      });
-    }
     return;
   }
 
@@ -72,21 +66,12 @@ export async function gracefulShutdown(
 
     clearTimeout(forceExitTimer);
     logger.info("Graceful shutdown completed");
-
-    if (shutdownResolve) {
-      shutdownResolve();
-      shutdownResolve = null;
-    }
   } catch (error) {
     logger.error("Graceful shutdown failed", {
       error: error instanceof Error ? error.message : String(error),
     });
     stopCleanupTask();
     clearTimeout(forceExitTimer);
-    if (shutdownResolve) {
-      shutdownResolve();
-      shutdownResolve = null;
-    }
     process.exit(1);
   }
 }

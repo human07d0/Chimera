@@ -44,7 +44,6 @@ function startNewMainProcess() {
 
   newMainProcess = spawn("pnpm", ["start"], {
     stdio: "inherit",
-    shell: true,
     detached: false,
     env: process.env,
     cwd: process.cwd(),
