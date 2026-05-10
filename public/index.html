@@ -115,7 +115,7 @@
         /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
             gap: 12px;
             margin-bottom: 24px;
         }
@@ -438,25 +438,6 @@
             <span class="filter-meta" id="filterMeta">updated — · 0 calls</span>
         </div>
 
-        <!-- Time Trend Chart -->
-        <details class="chart-section" id="chartSection" open>
-            <summary class="chart-toggle">Time Trend</summary>
-            <div class="chart-controls">
-                <label>Granularity:</label>
-                <select id="chartGranularity">
-                    <option value="day" selected>Daily</option>
-                    <option value="hour">Hourly</option>
-                </select>
-                <button class="metric-btn active" data-metric="calls" onclick="toggleMetric(this)">Calls</button>
-                <button class="metric-btn active" data-metric="tokens" onclick="toggleMetric(this)">Tokens</button>
-                <button class="metric-btn active" data-metric="cost" onclick="toggleMetric(this)">Cost</button>
-                <button class="metric-btn" data-metric="latency_ms" onclick="toggleMetric(this)">Latency</button>
-            </div>
-            <div class="chart-wrapper">
-                <canvas id="trendChart"></canvas>
-            </div>
-        </details>
-
         <!-- 按量计费 (Main) -->
         <h2>Pay-as-you-go (Main)</h2>
         <div id="stats-main" class="stats-grid">
@@ -516,6 +497,25 @@
                 <div class="value" id="tp-totalOutputTokens">-</div>
             </div>
         </div>
+
+        <!-- Time Trend Chart -->
+        <details class="chart-section" id="chartSection" open>
+            <summary class="chart-toggle">Time Trend</summary>
+            <div class="chart-controls">
+                <label>Granularity:</label>
+                <select id="chartGranularity">
+                    <option value="day" selected>Daily</option>
+                    <option value="hour">Hourly</option>
+                </select>
+                <button class="metric-btn active" data-metric="calls" onclick="toggleMetric(this)">Calls</button>
+                <button class="metric-btn active" data-metric="tokens" onclick="toggleMetric(this)">Tokens</button>
+                <button class="metric-btn active" data-metric="cost" onclick="toggleMetric(this)">Cost</button>
+                <button class="metric-btn" data-metric="latency_ms" onclick="toggleMetric(this)">Latency</button>
+            </div>
+            <div class="chart-wrapper">
+                <canvas id="trendChart"></canvas>
+            </div>
+        </details>
 
         <div class="calls-header">
             <h2>Call Details</h2>
