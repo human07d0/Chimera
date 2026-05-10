@@ -229,10 +229,14 @@ async function pipeUpstreamStream(
       buffer = "";
     }
   } catch (err) {
-    logger.error("Stream pipe error", {
-      requestId,
-      error: err instanceof Error ? err.message : String(err),
-    });
+    if (cancelled) {
+      logger.debug("Stream cancelled (client disconnected)", { requestId });
+    } else {
+      logger.error("Stream pipe error", {
+        requestId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
   } finally {
     res.off("close", onClientClose);
     reader.releaseLock();

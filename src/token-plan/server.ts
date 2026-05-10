@@ -167,12 +167,17 @@ async function proxyPassthrough(
         res.write(value);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!res.writableEnded) {
-        logger.error("Token-plan stream pipe error", { requestId, error: msg });
+      if (cancelled) {
+        logger.debug("Token-plan stream cancelled (client disconnected)", { requestId });
+      } else {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!res.writableEnded) {
+          logger.error("Token-plan stream pipe error", { requestId, error: msg });
+        }
       }
     } finally {
       res.off("close", onClientClose);
+      reader.releaseLock();
       if (!res.writableEnded) {
         res.end();
       }

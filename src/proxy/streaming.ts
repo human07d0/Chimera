@@ -115,19 +115,23 @@ export async function pipeSSEStream(
       });
     }
   } catch (err) {
-    logger.error("Error while reading upstream SSE stream", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    // 流中途报错时，写一个 error chunk 通知客户端（符合 OpenAI 错误格式）
-    const errorChunk = {
-      error: {
-        message: "Upstream stream interrupted",
-        type: "upstream_error",
-        code: "stream_error",
-      },
-    };
-    clientRes.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
-    clientRes.write("data: [DONE]\n\n");
+    if (cancelled) {
+      logger.debug("Stream cancelled (client disconnected)");
+    } else {
+      logger.error("Error while reading upstream SSE stream", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // 流中途报错时，写一个 error chunk 通知客户端（符合 OpenAI 错误格式）
+      const errorChunk = {
+        error: {
+          message: "Upstream stream interrupted",
+          type: "upstream_error",
+          code: "stream_error",
+        },
+      };
+      clientRes.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+      clientRes.write("data: [DONE]\n\n");
+    }
   } finally {
     clientRes.off("close", onClientClose);
     reader.releaseLock();
