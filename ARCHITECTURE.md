@@ -138,7 +138,7 @@ Token-plan 是小米的计费方案，使用不同的上游地址。通过 `crea
 
 - 自动创建数据库目录（默认 `./data/monitor.db`）
 - `requests` 表存 request-level 核心字段
-- 插入策略：`ON CONFLICT(request_id) DO NOTHING`（重复请求幂等）
+- 插入策略：普通 INSERT（重复 request_id 会抛出 PRIMARY KEY 冲突错误）
 - 索引：
   - `requests(ts_start)`
   - `requests(status_code, ts_start)`
