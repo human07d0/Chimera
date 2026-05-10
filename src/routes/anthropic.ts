@@ -243,9 +243,10 @@ async function pipeUpstreamStream(
   } finally {
     res.off("close", onClientClose);
     reader.releaseLock();
+    if (!res.writableEnded) {
+      res.end();
+    }
   }
-
-  res.end();
 }
 
 function sendAnthropicError(
