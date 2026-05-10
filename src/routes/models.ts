@@ -14,7 +14,8 @@ modelsRouter.get("/models", (_req: Request, res: Response) => {
     created: m.created,
     owned_by: "xiaomi-mimo-proxy",
     description: m.description,
-    // 将特性标志暴露出来，方便客户端了解每个模型的能力
+    context_length: m.contextLength,
+    max_output_tokens: m.maxOutputTokens,
     capabilities: {
       thinking: m.features.thinking,
       web_search: m.features.search,
@@ -53,6 +54,8 @@ modelsRouter.get("/models/:modelId", (req: Request, res: Response) => {
     created: model.created,
     owned_by: "xiaomi-mimo-proxy",
     description: model.description,
+    context_length: model.contextLength,
+    max_output_tokens: model.maxOutputTokens,
     capabilities: {
       thinking: model.features.thinking,
       web_search: model.features.search,

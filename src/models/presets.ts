@@ -25,6 +25,10 @@ export interface VirtualModel {
   features: ModelFeatures;
   /** OpenAI /v1/models 接口中的 created 时间戳 */
   created: number;
+  /** Maximum input context length in tokens */
+  contextLength: number;
+  /** Maximum output tokens */
+  maxOutputTokens: number;
 }
 
 interface FeaturePreset {
@@ -79,10 +83,23 @@ const FEATURE_PRESETS: FeaturePreset[] = [
 // 固定时间戳，让模型列表看起来正常
 const BASE_TS = 1_700_000_000;
 
+// Token limits by upstream model ID
+const TOKEN_LIMITS: Record<string, { contextLength: number; maxOutputTokens: number }> = {
+  "mimo-v2.5-pro": { contextLength: 1_000_000, maxOutputTokens: 128_000 },
+  "mimo-v2-pro":   { contextLength: 1_000_000, maxOutputTokens: 128_000 },
+  "mimo-v2.5":     { contextLength: 1_000_000, maxOutputTokens: 128_000 },
+  "mimo-v2-omni":  { contextLength: 256_000,   maxOutputTokens: 128_000 },
+  "mimo-v2-flash": { contextLength: 256_000,   maxOutputTokens: 64_000 },
+};
+
+const DEFAULT_TOKEN_LIMITS = { contextLength: 256_000, maxOutputTokens: 64_000 };
+
 function buildVirtualModels(): VirtualModel[] {
   const models: VirtualModel[] = [];
 
   for (const upstreamModel of config.upstream.enabledModels) {
+    const limits = TOKEN_LIMITS[upstreamModel] ?? DEFAULT_TOKEN_LIMITS;
+
     for (const preset of FEATURE_PRESETS) {
       models.push({
         id: `${upstreamModel}${preset.suffix}`,
@@ -90,6 +107,8 @@ function buildVirtualModels(): VirtualModel[] {
         upstreamModel,
         features: preset.features,
         created: BASE_TS,
+        contextLength: limits.contextLength,
+        maxOutputTokens: limits.maxOutputTokens,
       });
     }
   }

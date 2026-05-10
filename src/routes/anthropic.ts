@@ -305,8 +305,8 @@ anthropicRouter.get("/models", (_req: Request, res: Response) => {
     name: m.id,
     display_name: m.description,
     description: m.description,
-    input_token_limit: 200000,
-    output_token_limit: 16384,
+    input_token_limit: m.contextLength,
+    output_token_limit: m.maxOutputTokens,
     thinking: {
       type: m.features.thinking ? "enabled" : "disabled",
     },
