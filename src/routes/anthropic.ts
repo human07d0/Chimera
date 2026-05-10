@@ -209,11 +209,18 @@ async function pipeUpstreamStream(
     return;
   }
 
+  let cancelled = false;
+  const onClientClose = () => {
+    cancelled = true;
+    reader.cancel().catch(() => {});
+  };
+  res.on("close", onClientClose);
+
   const decoder = new TextDecoder();
   let buffer = "";
 
   try {
-    while (true) {
+    while (!cancelled) {
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -227,6 +234,7 @@ async function pipeUpstreamStream(
       error: err instanceof Error ? err.message : String(err),
     });
   } finally {
+    res.off("close", onClientClose);
     reader.releaseLock();
   }
 

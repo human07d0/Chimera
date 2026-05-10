@@ -153,8 +153,15 @@ async function proxyPassthrough(
       return;
     }
 
+    let cancelled = false;
+    const onClientClose = () => {
+      cancelled = true;
+      reader.cancel().catch(() => {});
+    };
+    res.on("close", onClientClose);
+
     try {
-      while (true) {
+      while (!cancelled) {
         const { done, value } = await reader.read();
         if (done) break;
         res.write(value);
@@ -165,6 +172,7 @@ async function proxyPassthrough(
         logger.error("Token-plan stream pipe error", { requestId, error: msg });
       }
     } finally {
+      res.off("close", onClientClose);
       if (!res.writableEnded) {
         res.end();
       }

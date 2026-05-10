@@ -38,8 +38,15 @@ export async function pipeSSEStream(
   // 用于跨 chunk 拼接不完整行
   let buffer = "";
 
+  let cancelled = false;
+  const onClientClose = () => {
+    cancelled = true;
+    reader.cancel().catch(() => {});
+  };
+  clientRes.on("close", onClientClose);
+
   try {
-    while (true) {
+    while (!cancelled) {
       const { done, value } = await reader.read();
       if (done) break;
 
@@ -122,6 +129,7 @@ export async function pipeSSEStream(
     clientRes.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
     clientRes.write("data: [DONE]\n\n");
   } finally {
+    clientRes.off("close", onClientClose);
     reader.releaseLock();
     clientRes.end();
   }
