@@ -147,7 +147,7 @@ OPS_PASSWORD=your_password
 | `GET` | `/v1/models` | 虚拟模型列表 |
 | `POST` | `/v1/chat/completions` | OpenAI 对话补全 |
 | `POST` | `/anthropic/v1/messages` | Anthropic 对话补全 |
-| `GET` | `/monitor` | 监控页面 |
+| `GET` | `/monitor` | 监控 API |
 | `GET` | `/debug` | 调试页面 |
 | `GET` | `/ops` | 运维界面 |
 
