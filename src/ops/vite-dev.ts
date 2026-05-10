@@ -9,9 +9,9 @@ const VITE_CONFIG_PATH = path.resolve(process.cwd(), "vite.config.ts");
 /**
  * Creates Vite dev middleware for the Ops UI in development mode.
  * Mounts the Ops router and Vite's HMR-enabled middleware at /ops.
+ * On failure, logs the error and returns so the server starts without Vite HMR.
  *
  * @param app - Express application instance
- * @throws {Error} If Vite config is missing or vite is not installed
  */
 export async function createViteDevMiddleware(app: Application): Promise<void> {
   try {
