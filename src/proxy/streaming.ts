@@ -53,14 +53,13 @@ export async function pipeSSEStream(
       for (const line of lines) {
         const trimmed = line.trimEnd();
 
+        // Skip empty lines produced by split on \n\n boundary.
+        // The data handler already writes \n\n as the event terminator.
         if (trimmed === "") {
-          // 空行：SSE 事件分隔符，直接写入
-          clientRes.write("\n");
           continue;
         }
 
         if (!trimmed.startsWith("data:")) {
-          // 其他 SSE 字段（如 event:, id:, retry:）原样转发
           clientRes.write(`${trimmed}\n`);
           continue;
         }
@@ -72,12 +71,10 @@ export async function pipeSSEStream(
           continue;
         }
 
-        // 尝试解析 JSON，替换 model 字段后重新序列化
         try {
           const parsed = JSON.parse(dataContent) as Record<string, unknown>;
           parsed["model"] = virtualModelId;
 
-          // 提取使用信息
           const usage = parsed["usage"];
           if (usage && typeof usage === "object") {
             const usageObj = usage as Record<string, unknown>;
@@ -96,7 +93,6 @@ export async function pipeSSEStream(
 
           clientRes.write(`data: ${JSON.stringify(parsed)}\n\n`);
         } catch {
-          // JSON 解析失败：原样转发，避免数据丢失
           logger.warn("Failed to parse SSE chunk JSON, forwarding as-is", {
             chunk: dataContent.slice(0, 200),
           });
