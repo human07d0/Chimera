@@ -8,6 +8,8 @@ describe("config module", () => {
     [
       "PORT",
       "HOST",
+      "MIMO_BASE_URL",
+      "ANTHROPIC_BASE_URL",
       "MIMO_ENABLED_MODELS",
       "MIMO_API_KEY",
       "MONITOR_RETENTION_DAYS",
