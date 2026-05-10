@@ -49,7 +49,7 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
 // --------------------------------------------------------------------------
 
 function getUpstreamApiKey(): string {
-  return config.tokenPlan.mimoApiKey || config.mimoApiKey;
+  return config.tokenPlan.mimoApiKey;
 }
 /**
  * 将客户端请求原样透传到上游，支持流式和非流式响应
