@@ -18,7 +18,7 @@ flowchart TD
     IDX["index.ts<br/>bootstrap + config"] --> SRV["server.ts<br/>middleware + routing"]
 
     SRV --> HEALTH["/health"]
-    SRV --> MON["/monitor (PWA)"]
+    SRV --> MON["/monitor (API)"]
     SRV --> DBG["/debug (PWA)"]
     SRV --> OPS["/ops (PWA)"]
     SRV --> API["/v1 (auth)"]
