@@ -44,7 +44,7 @@ export interface StatsResult {
 }
 
 export interface MonitorStorage {
-  // better-sqlite3 使用同步 API
+  // sql.js 使用同步 API
   init(): void;
   append(event: MonitorEvent): void;
   query(params: QueryParams): MonitorEvent[];
