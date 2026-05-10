@@ -333,7 +333,7 @@ export class SqliteStorage implements MonitorStorage {
       cached_prompt_tokens: row[15],
       cost: row[16],
       error_type: row[17],
-      source: (row[18] as "main" | "token-plan") || "main",
+      source: row[18] === "token-plan" ? "token-plan" : "main",
     };
   }
 }

@@ -29,6 +29,11 @@ function extractUsage(payload: unknown): {
   };
 }
 
+function validateSource(value: unknown): "main" | "token-plan" {
+  if (value === "token-plan") return "token-plan";
+  return "main";
+}
+
 export function monitorMiddleware(req: Request, res: Response, next: NextFunction): void {
   const monitoredPaths = new Set(["/chat/completions", "/messages"]);
   if (!monitoredPaths.has(req.path)) {
@@ -101,9 +106,9 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
         try {
           const parsed = JSON.parse(dataContent) as Record<string, unknown>;
           const usage = extractUsage(parsed);
-          inputTokens = usage.input_tokens || inputTokens;
-          outputTokens = usage.output_tokens || outputTokens;
-          cachedPromptTokens = usage.cached_prompt_tokens || cachedPromptTokens;
+          inputTokens = usage.input_tokens ?? inputTokens;
+          outputTokens = usage.output_tokens ?? outputTokens;
+          cachedPromptTokens = usage.cached_prompt_tokens ?? cachedPromptTokens;
 
           const chunkError = parsed["error"];
           if (chunkError && typeof chunkError === "object") {
@@ -158,7 +163,7 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       cached_prompt_tokens: cachedPromptTokens,
       cost,
       error_type: errorType,
-      source: ((res.locals.source as string) || "main") as "main" | "token-plan",
+      source: validateSource(res.locals.source),
     });
 
     return originalEnd(...args);
