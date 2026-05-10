@@ -280,6 +280,8 @@
             gap: 12px;
             margin-bottom: 12px;
             flex-wrap: wrap;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 1.5rem;
         }
 
         .calls-header h2 {
@@ -502,11 +504,6 @@
         <details class="chart-section" id="chartSection" open>
             <summary class="chart-toggle">Time Trend</summary>
             <div class="chart-controls">
-                <label>Granularity:</label>
-                <select id="chartGranularity">
-                    <option value="day" selected>Daily</option>
-                    <option value="hour">Hourly</option>
-                </select>
                 <button class="metric-btn active" data-metric="calls" onclick="toggleMetric(this)">Calls</button>
                 <button class="metric-btn active" data-metric="tokens" onclick="toggleMetric(this)">Tokens</button>
                 <button class="metric-btn active" data-metric="cost" onclick="toggleMetric(this)">Cost</button>
@@ -530,6 +527,7 @@
                 </select>
                 <label>Page:</label>
                 <select id="callsPageSize">
+                    <option value="20">20</option>
                     <option value="50">50</option>
                     <option value="100" selected>100</option>
                     <option value="200">200</option>
@@ -611,6 +609,8 @@
         document.getElementById('filterTime').addEventListener('change', (e) => {
             currentDays = parseInt(e.target.value, 10);
             loadData();
+            const chartSection = document.getElementById('chartSection');
+            if (chartSection.open) loadTrendChart();
         });
 
         // --- Calls table controls ---
@@ -745,11 +745,17 @@
             });
         }
 
+        function deriveGranularity(days) {
+            if (days <= 1) return 'hour';
+            if (days <= 3) return '6h';
+            return 'day';
+        }
+
         async function loadTrendChart() {
             await loadChartJs();
 
             const modelParam = currentModel ? `&model=${encodeURIComponent(currentModel)}` : '';
-            const granularity = document.getElementById('chartGranularity').value;
+            const granularity = deriveGranularity(currentDays);
 
             let allBuckets = [];
             try {
@@ -782,9 +788,12 @@
 
             const labels = allBuckets.map(b => {
                 const d = new Date(b.ts);
-                return granularity === 'hour'
-                    ? d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
-                    : d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+                if (granularity === 'hour') {
+                    return d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                } else if (granularity === '6h') {
+                    return d.toLocaleString('zh-CN', { month: 'short', day: 'numeric', hour: '2-digit' });
+                }
+                return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
             });
 
             const datasets = Array.from(activeMetrics).map(metric => {
@@ -835,8 +844,6 @@
                 });
             }
         }
-
-        document.getElementById('chartGranularity').addEventListener('change', () => loadTrendChart());
 
         document.getElementById('chartSection').addEventListener('toggle', (e) => {
             if (e.target.open && !chartLoaded) {

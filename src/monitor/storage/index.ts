@@ -47,7 +47,7 @@ export interface TrendParams {
   days?: number;
   model?: string;
   source?: "main" | "token-plan";
-  granularity: "hour" | "day";
+  granularity: "hour" | "6h" | "day";
 }
 
 export interface TrendBucket {

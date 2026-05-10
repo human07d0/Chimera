@@ -70,9 +70,9 @@ monitorRouter.get("/trend", (req: Request, res: Response) => {
     const days = parseQueryInt(req.query.days, 3);
     const model = parseModelParam(req.query.model);
     const source = parseSourceParam(req.query.source);
-    const granularity = (typeof req.query.granularity === "string" && (req.query.granularity === "hour" || req.query.granularity === "day")
+    const granularity = (typeof req.query.granularity === "string" && (req.query.granularity === "hour" || req.query.granularity === "6h" || req.query.granularity === "day")
       ? req.query.granularity
-      : "day") as "hour" | "day";
+      : "day") as "hour" | "6h" | "day";
 
     const storage = getStorage();
     const buckets = storage.trend({ days, model, source, granularity });

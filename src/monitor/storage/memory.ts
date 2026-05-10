@@ -79,7 +79,7 @@ class MemoryStorage implements MonitorStorage {
       filtered = filtered.filter((record) => record.source === source);
     }
 
-    const bucketMs = granularity === "hour" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const bucketMs = granularity === "hour" ? 60 * 60 * 1000 : granularity === "6h" ? 6 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
     const buckets = new Map<number, TrendBucket>();
 
     for (const record of filtered) {

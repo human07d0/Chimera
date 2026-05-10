@@ -287,7 +287,7 @@ export class SqliteStorage implements MonitorStorage {
     const { days = 3, model, source, granularity } = params;
     const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    const truncation = granularity === "hour" ? 3600000 : 86400000;
+    const truncation = granularity === "hour" ? 3600000 : granularity === "6h" ? 21600000 : 86400000;
 
     let sql = `
       SELECT
