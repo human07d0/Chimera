@@ -4,6 +4,13 @@ import { logger } from "../utils/logger";
 import { debugStore } from "./store";
 import { DebugMediaItem } from "./types";
 
+const ALLOWED_MEDIA_TYPES = new Set([
+  "image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml",
+  "audio/mpeg", "audio/wav", "audio/ogg", "audio/flac", "audio/aac",
+  "video/mp4", "video/webm", "video/ogg",
+  "application/octet-stream",
+]);
+
 export const debugRouter: Router = Router();
 
 function sanitizeMedia(items: DebugMediaItem[] | undefined): (Omit<DebugMediaItem, "data_base64"> & { cached: boolean })[] {
@@ -118,7 +125,10 @@ debugRouter.get("/media/:requestId/:mediaId", (req: Request, res: Response) => {
     }
 
     const buffer = Buffer.from(item.data_base64, "base64");
-    res.setHeader("Content-Type", item.media_type);
+    const contentType = ALLOWED_MEDIA_TYPES.has(item.media_type)
+      ? item.media_type
+      : "application/octet-stream";
+    res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "no-store");
     res.send(buffer);
   } catch (err) {
