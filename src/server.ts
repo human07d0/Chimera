@@ -1,6 +1,7 @@
 import express, { NextFunction, Request, Response } from "express";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 
 import { monitorRouter, monitorMiddleware } from "./monitor";
 import { opsRouter } from "./ops/index";
@@ -8,6 +9,7 @@ import { getStorage } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
+import { VIRTUAL_MODELS } from "./models/presets";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 import { extractApiKey } from "./utils/auth";
@@ -18,6 +20,7 @@ let cleanupInterval: NodeJS.Timeout | null = null;
 
 export async function createApp(): Promise<express.Application> {
   const app = express();
+  const playgroundToken = crypto.randomUUID();
 
   // 判断是否开发环境
   const isDev = process.env["NODE_ENV"] !== "production";
@@ -33,7 +36,7 @@ export async function createApp(): Promise<express.Application> {
     );
     res.header(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, api-key, x-api-key, x-requested-with",
+      "Content-Type, Authorization, api-key, x-api-key, x-requested-with, x-playground-token, anthropic-version",
     );
 
     // 处理预检请求 (OPTIONS)
@@ -113,13 +116,14 @@ export async function createApp(): Promise<express.Application> {
   // --------------------------------------------------------------------------
   const playgroundDir = resolveStaticDir("playground");
   if (playgroundDir) {
-    app.get(["/playground", "/playground/"], (_req: Request, res: Response) => {
+    app.get("/playground", (_req: Request, res: Response) => {
       const indexPath = path.join(playgroundDir, "index.html");
       let html = fs.readFileSync(indexPath, "utf-8");
 
       const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify({
-        proxyApiKey: config.proxyApiKey,
-        tokenPlanProxyApiKey: config.tokenPlan.proxyApiKey,
+        models: VIRTUAL_MODELS.map(m => m.id),
+        playgroundToken,
+        featureSuffixes: { thinking: "-thinking", search: "-search", json: "-json" },
       })}</script>`;
       html = html.replace("<head>", `<head>\n    ${configScript}`);
 
@@ -148,6 +152,23 @@ export async function createApp(): Promise<express.Application> {
         res.sendFile(path.join(opsPublicDir, "index.html"));
       });
     }
+  }
+
+  // --------------------------------------------------------------------------
+  // Playground proxy routes（绕过主鉴权，使用独立 token 验证）
+  // --------------------------------------------------------------------------
+  app.use("/playground/api", (_req: Request, res: Response, next: NextFunction) => {
+    if (_req.headers["x-playground-token"] !== playgroundToken) {
+      res.status(403).json({ error: "Invalid playground token" });
+      return;
+    }
+    next();
+  });
+  app.use("/playground/api/v1", monitorMiddleware, modelsRouter, chatRouter);
+  app.use("/playground/api/anthropic/v1", monitorMiddleware, anthropicRouter);
+  if (config.tokenPlan.enabled) {
+    const tpRouter = createTokenPlanRouter({ skipAuth: true });
+    app.use("/playground/api/token-plan", tpRouter);
   }
 
   // --------------------------------------------------------------------------

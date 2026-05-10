@@ -255,10 +255,10 @@
     <div class="header">
         <h1>Mimo Proxy <span>Playground</span></h1>
         <div class="header-actions">
-            <a class="nav-link" href="./">Monitor</a>
-            <a class="nav-link" href="./debug/">Debug</a>
-            <a class="nav-link" href="./ops/">Ops</a>
-            <a class="nav-link active" href="./playground/">Playground</a>
+            <a class="nav-link" href="/">Monitor</a>
+            <a class="nav-link" href="/debug/">Debug</a>
+            <a class="nav-link" href="/ops/">Ops</a>
+            <a class="nav-link active" href="/playground/">Playground</a>
         </div>
     </div>
 
@@ -297,7 +297,7 @@
             <div class="form-group">
                 <label>Features</label>
                 <div class="toggle-group">
-                    <span class="toggle-chip" data-feature="web" onclick="toggleFeature(this)">Web Search</span>
+                    <span class="toggle-chip" data-feature="search" onclick="toggleFeature(this)">Web Search</span>
                     <span class="toggle-chip" data-feature="json" onclick="toggleFeature(this)">JSON Mode</span>
                     <span class="toggle-chip" data-feature="thinking" onclick="toggleFeature(this)">Thinking</span>
                     <span class="toggle-chip active" data-feature="stream" onclick="toggleFeature(this)">Stream</span>
@@ -382,26 +382,6 @@
             });
         }
 
-        // --- Fetch models ---
-        async function fetchModels() {
-            try {
-                const res = await fetch('/v1/models');
-                const data = await res.json();
-                const select = document.getElementById('model');
-                select.innerHTML = '';
-                if (data.data) {
-                    data.data.forEach(m => {
-                        const opt = document.createElement('option');
-                        opt.value = m.id;
-                        opt.textContent = m.id;
-                        select.appendChild(opt);
-                    });
-                }
-            } catch {
-                document.getElementById('model').innerHTML = '<option value="">Failed to load</option>';
-            }
-        }
-
         // --- Send request ---
         async function sendRequest() {
             if (isStreaming) {
@@ -428,8 +408,11 @@
             // Build model name with suffixes
             let modelName = model;
             if (!isAnthropic) {
-                if (activeFeatures.has('web')) modelName += '-web';
-                if (activeFeatures.has('thinking')) modelName += '-thinking';
+              const suffixes = CONFIG.featureSuffixes || {};
+              const suffixOrder = ['thinking', 'search', 'json'];
+              for (const f of suffixOrder) {
+                if (activeFeatures.has(f)) modelName += suffixes[f] || '';
+              }
             }
 
             // Build messages
@@ -475,21 +458,19 @@
 
             // Determine URL and headers
             let url, headers;
-            const tpKey = CONFIG.tokenPlanProxyApiKey || '';
-            const proxyKey = CONFIG.proxyApiKey || '';
-
+            const tpHeaders = { 'Content-Type': 'application/json', 'x-playground-token': CONFIG.playgroundToken };
             if (endpoint === 'openai-main') {
-                url = '/v1/chat/completions';
-                headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + proxyKey };
+                url = '/playground/api/v1/chat/completions';
+                headers = { 'Content-Type': 'application/json', 'x-playground-token': CONFIG.playgroundToken };
             } else if (endpoint === 'openai-tp') {
-                url = '/token-plan/v1/chat/completions';
-                headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tpKey };
+                url = '/playground/api/token-plan/v1/chat/completions';
+                headers = tpHeaders;
             } else if (endpoint === 'anthropic-main') {
-                url = '/v1/messages';
-                headers = { 'Content-Type': 'application/json', 'x-api-key': proxyKey, 'anthropic-version': '2023-06-01' };
+                url = '/playground/api/anthropic/v1/messages';
+                headers = { ...tpHeaders, 'anthropic-version': '2023-06-01' };
             } else {
-                url = '/token-plan/v1/messages';
-                headers = { 'Content-Type': 'application/json', 'x-api-key': tpKey, 'anthropic-version': '2023-06-01' };
+                url = '/playground/api/token-plan/anthropic/v1/messages';
+                headers = { ...tpHeaders, 'anthropic-version': '2023-06-01' };
             }
 
             // UI state
@@ -639,7 +620,15 @@
         }
 
         // --- Init ---
-        fetchModels();
+        const models = CONFIG.models || [];
+        const select = document.getElementById('model');
+        select.innerHTML = '';
+        models.forEach(m => {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = m;
+          select.appendChild(opt);
+        });
     </script>
 </body>
 </html>

@@ -202,12 +202,14 @@ async function proxyPassthrough(
  * 复用主应用的 CORS、JSON 解析、请求日志等基础中间件。
  * 鉴权中间件由本 Router 自行管理（使用 TOKEN_PLAN_PROXY_API_KEY）。
  */
-export function createTokenPlanRouter(): Router {
+export function createTokenPlanRouter(options?: { skipAuth?: boolean }): Router {
   const router = Router();
 
   // 鉴权中间件（作用于所有 token-plan 路由）
-  router.use("/v1", authMiddleware);
-  router.use("/anthropic", authMiddleware);
+  if (!options?.skipAuth) {
+    router.use("/v1", authMiddleware);
+    router.use("/anthropic", authMiddleware);
+  }
 
   // OpenAI 兼容格式: POST /v1/chat/completions
   router.post("/v1/chat/completions", async (req: Request, res: Response) => {
