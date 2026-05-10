@@ -139,41 +139,48 @@ export class SqliteStorage implements MonitorStorage {
       throw new Error('Storage not initialized. Call init() first.');
     }
 
-    const stmt = this.db.prepare(`
-      INSERT INTO requests (
-        request_id, ts_start, ts_end, latency_ms,
-        path, method, status_code,
-        model_requested, model_upstream,
-        stream, chunks, bytes_out, first_token_ms,
-        input_tokens, output_tokens, cached_prompt_tokens, cost,
-        error_type, source
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `);
+    this.db.run('BEGIN TRANSACTION');
+    try {
+      const stmt = this.db.prepare(`
+        INSERT INTO requests (
+          request_id, ts_start, ts_end, latency_ms,
+          path, method, status_code,
+          model_requested, model_upstream,
+          stream, chunks, bytes_out, first_token_ms,
+          input_tokens, output_tokens, cached_prompt_tokens, cost,
+          error_type, source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
 
-    stmt.bind([
-      event.request_id,
-      event.ts_start,
-      event.ts_end,
-      event.latency_ms,
-      event.path,
-      event.method,
-      event.status_code,
-      event.model_requested,
-      event.model_upstream,
-      event.stream ? 1 : 0,
-      event.chunks,
-      event.bytes_out,
-      event.first_token_ms,
-      event.input_tokens,
-      event.output_tokens,
-      event.cached_prompt_tokens,
-      event.cost,
-      event.error_type,
-      event.source,
-    ]);
+      stmt.bind([
+        event.request_id,
+        event.ts_start,
+        event.ts_end,
+        event.latency_ms,
+        event.path,
+        event.method,
+        event.status_code,
+        event.model_requested,
+        event.model_upstream,
+        event.stream ? 1 : 0,
+        event.chunks,
+        event.bytes_out,
+        event.first_token_ms,
+        event.input_tokens,
+        event.output_tokens,
+        event.cached_prompt_tokens,
+        event.cost,
+        event.error_type,
+        event.source,
+      ]);
 
-    stmt.step();
-    stmt.free();
+      stmt.step();
+      stmt.free();
+      this.db.run('COMMIT');
+    } catch (err) {
+      this.db.run('ROLLBACK');
+      throw err;
+    }
 
     this.saveToFile();
   }
