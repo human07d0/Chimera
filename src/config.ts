@@ -9,6 +9,8 @@ export const SUPPORTED_UPSTREAM_MODELS = [
 ] as const;
 type SupportedUpstreamModel = (typeof SUPPORTED_UPSTREAM_MODELS)[number];
 
+// NOTE: Uses console.warn because logger.ts imports config.ts (circular dependency).
+// Prefix intentionally differs from logger format ([timestamp] [LEVEL]).
 function warnConfig(message: string): void {
   console.warn(`[config] ${message}`);
 }
@@ -131,6 +133,7 @@ export const config = {
   server: {
     port: optionalIntEnv("PORT", 3000),
     host: optionalEnv("HOST", "0.0.0.0"),
+    maxBodySize: optionalEnv("MAX_BODY_SIZE", "10mb"),
   },
 
   upstream: {
