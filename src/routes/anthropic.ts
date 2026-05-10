@@ -225,8 +225,11 @@ async function pipeUpstreamStream(
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });
-      res.write(buffer);
-      buffer = "";
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        res.write(line + "\n");
+      }
     }
   } catch (err) {
     if (cancelled) {
