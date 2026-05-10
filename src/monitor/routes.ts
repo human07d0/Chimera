@@ -64,6 +64,28 @@ function isPruneAuthorized(req: Request): boolean {
   return providedKey === config.proxyApiKey;
 }
 
+// 获取趋势数据
+monitorRouter.get("/trend", (req: Request, res: Response) => {
+  try {
+    const days = parseQueryInt(req.query.days, 3);
+    const model = parseModelParam(req.query.model);
+    const source = parseSourceParam(req.query.source);
+    const granularity = (typeof req.query.granularity === "string" && (req.query.granularity === "hour" || req.query.granularity === "day")
+      ? req.query.granularity
+      : "day") as "hour" | "day";
+
+    const storage = getStorage();
+    const buckets = storage.trend({ days, model, source, granularity });
+
+    res.json({ success: true, data: { buckets } });
+  } catch (_error) {
+    res.status(500).json({
+      success: false,
+      error: "获取趋势数据失败",
+    });
+  }
+});
+
 // 获取监控统计数据
 monitorRouter.get("/stats", (req: Request, res: Response) => {
   try {
