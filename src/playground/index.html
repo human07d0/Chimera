@@ -385,7 +385,7 @@
         // --- Fetch models ---
         async function fetchModels() {
             try {
-                const res = await fetch('./v1/models');
+                const res = await fetch('/v1/models');
                 const data = await res.json();
                 const select = document.getElementById('model');
                 select.innerHTML = '';
@@ -479,16 +479,16 @@
             const proxyKey = CONFIG.proxyApiKey || '';
 
             if (endpoint === 'openai-main') {
-                url = './v1/chat/completions';
+                url = '/v1/chat/completions';
                 headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + proxyKey };
             } else if (endpoint === 'openai-tp') {
-                url = './token-plan/v1/chat/completions';
+                url = '/token-plan/v1/chat/completions';
                 headers = { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + tpKey };
             } else if (endpoint === 'anthropic-main') {
-                url = './v1/messages';
+                url = '/v1/messages';
                 headers = { 'Content-Type': 'application/json', 'x-api-key': proxyKey, 'anthropic-version': '2023-06-01' };
             } else {
-                url = './token-plan/v1/messages';
+                url = '/token-plan/v1/messages';
                 headers = { 'Content-Type': 'application/json', 'x-api-key': tpKey, 'anthropic-version': '2023-06-01' };
             }
 

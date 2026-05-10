@@ -415,6 +415,7 @@
             <a class="nav-link active" href="./">Monitor</a>
             <a class="nav-link" href="./debug/">Debug</a>
             <a class="nav-link" href="./ops/">Ops</a>
+            <a class="nav-link" href="./playground/">Playground</a>
             <button class="btn" onclick="loadData()">Refresh</button>
         </div>
     </div>
@@ -438,7 +439,7 @@
         </div>
 
         <!-- Time Trend Chart -->
-        <details class="chart-section" id="chartSection">
+        <details class="chart-section" id="chartSection" open>
             <summary class="chart-toggle">Time Trend</summary>
             <div class="chart-controls">
                 <label>Granularity:</label>
@@ -447,8 +448,8 @@
                     <option value="hour">Hourly</option>
                 </select>
                 <button class="metric-btn active" data-metric="calls" onclick="toggleMetric(this)">Calls</button>
-                <button class="metric-btn" data-metric="tokens" onclick="toggleMetric(this)">Tokens</button>
-                <button class="metric-btn" data-metric="cost" onclick="toggleMetric(this)">Cost</button>
+                <button class="metric-btn active" data-metric="tokens" onclick="toggleMetric(this)">Tokens</button>
+                <button class="metric-btn active" data-metric="cost" onclick="toggleMetric(this)">Cost</button>
                 <button class="metric-btn" data-metric="latency_ms" onclick="toggleMetric(this)">Latency</button>
             </div>
             <div class="chart-wrapper">
@@ -711,7 +712,7 @@
         // --- Chart ---
         let chartInstance = null;
         let chartLoaded = false;
-        let activeMetrics = new Set(['calls']);
+        let activeMetrics = new Set(['calls', 'tokens', 'cost']);
 
         const METRIC_CONFIG = {
             calls: { label: 'Calls', color: '#58a6ff', yAxisID: 'y' },
@@ -760,10 +761,10 @@
                 const tpData = await tpRes.json();
 
                 const bucketMap = new Map();
-                for (const b of (mainData.data || [])) {
+                for (const b of (mainData.data?.buckets || [])) {
                     bucketMap.set(b.ts, { ...b });
                 }
-                for (const b of (tpData.data || [])) {
+                for (const b of (tpData.data?.buckets || [])) {
                     const existing = bucketMap.get(b.ts);
                     if (existing) {
                         existing.calls += b.calls;
@@ -826,7 +827,7 @@
                         maintainAspectRatio: false,
                         interaction: { intersect: false, mode: 'index' },
                         plugins: {
-                            legend: { labels: { color: '#e6edf3', font: { size: 12 } } },
+                            legend: { labels: { color: '#e6edf3', font: { size: 12 }, usePointStyle: true, pointStyle: 'circle', boxHeight: 7 } },
                             tooltip: { backgroundColor: '#161b22', borderColor: '#30363d', borderWidth: 1 },
                         },
                         scales,

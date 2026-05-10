@@ -15,6 +15,10 @@ const tasks = [
     source: path.join(rootDir, "src", "debug", "frontend"),
     target: path.join(rootDir, "dist", "debug", "frontend"),
   },
+  {
+    source: path.join(rootDir, "src", "playground"),
+    target: path.join(rootDir, "dist", "playground"),
+  },
 ];
 
 // Frontend files that should be copied into dist/ops (without deleting the whole folder)

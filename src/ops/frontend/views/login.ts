@@ -18,6 +18,7 @@ export function renderLoginView(): void {
         <a class="nav-link" href="../">Monitor</a>
         <a class="nav-link" href="../debug/">Debug</a>
         <a class="nav-link active" href="#/login">Ops</a>
+        <a class="nav-link" href="../playground/">Playground</a>
       </div>
     </header>
     <div class="login-container">
@@ -86,6 +87,7 @@ export function renderDisabledView(): void {
         <a class="nav-link" href="../">Monitor</a>
         <a class="nav-link" href="../debug/">Debug</a>
         <a class="nav-link active" href="#/">Ops</a>
+        <a class="nav-link" href="../playground/">Playground</a>
       </div>
     </header>
     <div class="disabled-container">

@@ -113,6 +113,7 @@ async function renderDashboard(): Promise<void> {
         <a class="nav-link" href="../">Monitor</a>
         <a class="nav-link" href="../debug/">Debug</a>
         <a class="nav-link active" href="#/dashboard">Ops</a>
+        <a class="nav-link" href="../playground/">Playground</a>
         <button class="btn btn-secondary btn-sm" id="btn-refresh">Refresh</button>
         <button class="btn btn-secondary btn-sm" id="btn-logout">Logout</button>
       </div>
