@@ -43,12 +43,28 @@ export interface StatsResult {
   totalCost: number;
 }
 
+export interface TrendParams {
+  days?: number;
+  model?: string;
+  source?: "main" | "token-plan";
+  granularity: "hour" | "day";
+}
+
+export interface TrendBucket {
+  ts: number;
+  calls: number;
+  tokens: number;
+  cost: number;
+  latency_ms: number;
+}
+
 export interface MonitorStorage {
   // sql.js 使用同步 API
   init(): void;
   append(event: MonitorEvent): void;
   query(params: QueryParams): MonitorEvent[];
   stats(params: StatsParams): StatsResult;
+  trend(params: TrendParams): TrendBucket[];
   prune(retentionDays: number): number;
   close(): void;
 }

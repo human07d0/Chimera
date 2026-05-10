@@ -1,5 +1,5 @@
 import { logger } from "../../utils/logger";
-import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult } from "./index";
+import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult, TrendParams, TrendBucket } from "./index";
 
 class MemoryStorage implements MonitorStorage {
   private records: MonitorEvent[] = [];
@@ -63,6 +63,46 @@ class MemoryStorage implements MonitorStorage {
       totalTokens: totalInputTokens + totalOutputTokens,
       totalCost: filtered.reduce((sum, item) => sum + item.cost, 0),
     };
+  }
+
+  trend(params: TrendParams): TrendBucket[] {
+    const { days = 3, model, source, granularity } = params;
+    const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    let filtered = this.records.filter((record) => record.ts_start >= cutoffTs);
+
+    if (model) {
+      filtered = filtered.filter((record) => record.model_requested === model);
+    }
+
+    if (source) {
+      filtered = filtered.filter((record) => record.source === source);
+    }
+
+    const bucketMs = granularity === "hour" ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const buckets = new Map<number, TrendBucket>();
+
+    for (const record of filtered) {
+      const bucketTs = Math.floor(record.ts_start / bucketMs) * bucketMs;
+
+      let bucket = buckets.get(bucketTs);
+      if (!bucket) {
+        bucket = { ts: bucketTs, calls: 0, tokens: 0, cost: 0, latency_ms: 0 };
+        buckets.set(bucketTs, bucket);
+      }
+
+      bucket.calls++;
+      bucket.tokens += record.input_tokens + record.output_tokens;
+      bucket.cost += record.cost;
+      bucket.latency_ms += record.latency_ms;
+    }
+
+    return Array.from(buckets.values())
+      .sort((a, b) => a.ts - b.ts)
+      .map((b) => ({
+        ...b,
+        latency_ms: b.calls > 0 ? Math.round(b.latency_ms / b.calls) : 0,
+      }));
   }
 
   prune(retentionDays: number): number {

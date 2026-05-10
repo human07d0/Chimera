@@ -2,7 +2,7 @@ import initSqlJs, { Database, Statement } from 'sql.js';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { logger } from '../../utils/logger';
-import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult } from './index';
+import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult, TrendParams, TrendBucket } from './index';
 
 type RequestRow = [
   string,  // request_id
@@ -277,6 +277,10 @@ export class SqliteStorage implements MonitorStorage {
       totalTokens: 0,
       totalCost: 0,
     };
+  }
+
+  trend(_params: TrendParams): TrendBucket[] {
+    return [];
   }
 
   prune(retentionDays: number): number {
