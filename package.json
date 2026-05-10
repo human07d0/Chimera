@@ -1,7 +1,7 @@
 {
   "name": "mimo-proxy",
   "version": "1.0.0",
-  "description": "OpenAI-compatible proxy for Xiaomi MiMo API with feature preset models",
+  "description": "OpenAI & Anthropic-compatible proxy for Xiaomi MiMo API with feature preset models",
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
