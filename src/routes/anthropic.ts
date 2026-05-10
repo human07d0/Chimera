@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from "express";
+import { Router, Request, Response } from "express";
 import { config } from "../config";
 import { findVirtualModel, VIRTUAL_MODELS } from "../models/presets";
 import { logger } from "../utils/logger";
@@ -20,153 +20,149 @@ export const anthropicRouter: import("express").Router = Router();
  * POST /anthropic/v1/messages
  * Anthropic Messages API 兼容接口 - 直接透传到上游
  */
-anthropicRouter.post("/messages", async (req: Request, res: Response, next: NextFunction) => {
+anthropicRouter.post("/messages", async (req: Request, res: Response) => {
   const requestId = `proxy-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const startTime = Date.now();
 
+  const clientBody = req.body as AnthropicMessagesRequest;
+
+  // ------------------------------------------------------------------
+  // 1. 校验基本参数
+  // ------------------------------------------------------------------
+  if (!clientBody || typeof clientBody !== "object") {
+    sendAnthropicError(res, 400, "invalid_request", "Request body must be a JSON object");
+    return;
+  }
+
+  if (!clientBody.model) {
+    sendAnthropicError(res, 400, "invalid_request", "Missing required parameter: model");
+    return;
+  }
+
+  if (!Array.isArray(clientBody.messages) || clientBody.messages.length === 0) {
+    sendAnthropicError(res, 400, "invalid_request", "Missing or empty required parameter: messages");
+    return;
+  }
+
+  if (!clientBody.max_tokens || clientBody.max_tokens < 1) {
+    sendAnthropicError(res, 400, "invalid_request", "max_tokens is required and must be positive");
+    return;
+  }
+
+  // ------------------------------------------------------------------
+  // 2. 校验虚拟模型（用于日志和请求 ID）
+  // ------------------------------------------------------------------
+  res.locals.requestId = requestId;
+  const virtualModel = findVirtualModel(clientBody.model);
+  if (!virtualModel) {
+    sendAnthropicError(
+      res,
+      404,
+      "model_not_found",
+      `The model '${clientBody.model}' does not exist. ` +
+        `Available models can be retrieved via GET /v1/models.`
+    );
+    return;
+  }
+
+  const isStreaming = clientBody.stream === true;
+  res.locals.upstreamModel = virtualModel.upstreamModel;
+
+  logger.info("Anthropic incoming request (passthrough)", {
+    requestId,
+    model: clientBody.model,
+    upstreamModel: virtualModel.upstreamModel,
+    features: virtualModel.features,
+    stream: isStreaming,
+    messageCount: clientBody.messages.length,
+  });
+
+  // ------------------------------------------------------------------
+  // 3. 直接透传到上游 MiMo Anthropic 接口
+  // ------------------------------------------------------------------
+  // 注意：小米上游 /anthropic/v1/messages 接口已经兼容 Anthropic 格式
+  // 只需要将 model 替换为上游模型 ID，其他字段直接透传
+  const upstreamBody = {
+    ...clientBody,
+    model: virtualModel.upstreamModel,
+  };
+
+  const upstreamUrl = `${config.upstream.anthropicBaseUrl}/v1/messages`;
+
+  let upstreamResponse: globalThis.Response;
   try {
-    const clientBody = req.body as AnthropicMessagesRequest;
+    upstreamResponse = await fetchWithTimeout(
+      upstreamUrl,
+      {
+        method: "POST",
+        headers: {
+          "api-key": config.mimoApiKey,
+          "x-api-key": config.mimoApiKey,
+          "Content-Type": "application/json",
+          "X-Request-Id": requestId,
+        },
+        body: JSON.stringify(upstreamBody),
+      },
+      config.upstream.timeout
+    );
+  } catch (fetchErr) {
+    const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    const isTimeout = message.includes("timed out") || message.includes("timeout");
+    logger.error("Upstream fetch failed", { requestId, error: message });
+    sendAnthropicError(
+      res,
+      502,
+      isTimeout ? "rate_limit_error" : "upstream_error",
+      isTimeout ? "Request to upstream API timed out" : `Failed to reach upstream API: ${message}`
+    );
+    return;
+  }
 
-    // ------------------------------------------------------------------
-    // 1. 校验基本参数
-    // ------------------------------------------------------------------
-    if (!clientBody || typeof clientBody !== "object") {
-      sendAnthropicError(res, 400, "invalid_request", "Request body must be a JSON object");
-      return;
+  // ------------------------------------------------------------------
+  // 4. 处理上游响应
+  // ------------------------------------------------------------------
+  if (!upstreamResponse.ok) {
+    const errorStatus = upstreamResponse.status;
+    let errorBody: unknown;
+    try {
+      errorBody = await upstreamResponse.json();
+    } catch {
+      errorBody = { message: await upstreamResponse.text().catch(() => "Unknown error") };
     }
 
-    if (!clientBody.model) {
-      sendAnthropicError(res, 400, "invalid_request", "Missing required parameter: model");
-      return;
-    }
-
-    if (!Array.isArray(clientBody.messages) || clientBody.messages.length === 0) {
-      sendAnthropicError(res, 400, "invalid_request", "Missing or empty required parameter: messages");
-      return;
-    }
-
-    if (!clientBody.max_tokens || clientBody.max_tokens < 1) {
-      sendAnthropicError(res, 400, "invalid_request", "max_tokens is required and must be positive");
-      return;
-    }
-
-    // ------------------------------------------------------------------
-    // 2. 校验虚拟模型（用于日志和请求 ID）
-    // ------------------------------------------------------------------
-    res.locals.requestId = requestId;
-    const virtualModel = findVirtualModel(clientBody.model);
-    if (!virtualModel) {
-      sendAnthropicError(
-        res,
-        404,
-        "model_not_found",
-        `The model '${clientBody.model}' does not exist. ` +
-          `Available models can be retrieved via GET /v1/models.`
-      );
-      return;
-    }
-
-    const isStreaming = clientBody.stream === true;
-    res.locals.upstreamModel = virtualModel.upstreamModel;
-
-    logger.info("Anthropic incoming request (passthrough)", {
+    logger.warn("Upstream returned error", {
       requestId,
-      model: clientBody.model,
-      upstreamModel: virtualModel.upstreamModel,
-      features: virtualModel.features,
-      stream: isStreaming,
-      messageCount: clientBody.messages.length,
+      status: errorStatus,
+      body: sanitizeForLog(errorBody),
     });
 
-    // ------------------------------------------------------------------
-    // 3. 直接透传到上游 MiMo Anthropic 接口
-    // ------------------------------------------------------------------
-    // 注意：小米上游 /anthropic/v1/messages 接口已经兼容 Anthropic 格式
-    // 只需要将 model 替换为上游模型 ID，其他字段直接透传
-    const upstreamBody = {
-      ...clientBody,
-      model: virtualModel.upstreamModel,
-    };
+    // 转换为 Anthropic 错误格式
+    const anthropicError = convertUpstreamError(errorBody, errorStatus);
+    res.status(errorStatus).json(anthropicError);
+    return;
+  }
 
-    const upstreamUrl = `${config.upstream.anthropicBaseUrl}/v1/messages`;
+  // ------------------------------------------------------------------
+  // 5. 流式 vs 非流式处理
+  // ------------------------------------------------------------------
+  if (isStreaming) {
+    // 流式：直接 pipe 上游 SSE 到客户端
+    await pipeUpstreamStream(upstreamResponse, res, requestId);
+    logger.info("Anthropic streaming request completed", {
+      requestId,
+      durationMs: Date.now() - startTime,
+      upstreamModel: virtualModel.upstreamModel,
+    });
+  } else {
+    // 非流式：直接透传 JSON 响应
+    const responseBody = await upstreamResponse.json();
+    res.json(responseBody);
 
-    let upstreamResponse: globalThis.Response;
-    try {
-      upstreamResponse = await fetchWithTimeout(
-        upstreamUrl,
-        {
-          method: "POST",
-          headers: {
-            "api-key": config.mimoApiKey,
-            "x-api-key": config.mimoApiKey,
-            "Content-Type": "application/json",
-            "X-Request-Id": requestId,
-          },
-          body: JSON.stringify(upstreamBody),
-        },
-        config.upstream.timeout
-      );
-    } catch (fetchErr) {
-      const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-      const isTimeout = message.includes("timed out") || message.includes("timeout");
-      logger.error("Upstream fetch failed", { requestId, error: message });
-      sendAnthropicError(
-        res,
-        502,
-        isTimeout ? "rate_limit_error" : "upstream_error",
-        isTimeout ? "Request to upstream API timed out" : `Failed to reach upstream API: ${message}`
-      );
-      return;
-    }
-
-    // ------------------------------------------------------------------
-    // 4. 处理上游响应
-    // ------------------------------------------------------------------
-    if (!upstreamResponse.ok) {
-      const errorStatus = upstreamResponse.status;
-      let errorBody: unknown;
-      try {
-        errorBody = await upstreamResponse.json();
-      } catch {
-        errorBody = { message: await upstreamResponse.text().catch(() => "Unknown error") };
-      }
-
-      logger.warn("Upstream returned error", {
-        requestId,
-        status: errorStatus,
-        body: sanitizeForLog(errorBody),
-      });
-
-      // 转换为 Anthropic 错误格式
-      const anthropicError = convertUpstreamError(errorBody, errorStatus);
-      res.status(errorStatus).json(anthropicError);
-      return;
-    }
-
-    // ------------------------------------------------------------------
-    // 5. 流式 vs 非流式处理
-    // ------------------------------------------------------------------
-    if (isStreaming) {
-      // 流式：直接 pipe 上游 SSE 到客户端
-      await pipeUpstreamStream(upstreamResponse, res, requestId);
-      logger.info("Anthropic streaming request completed", {
-        requestId,
-        durationMs: Date.now() - startTime,
-        upstreamModel: virtualModel.upstreamModel,
-      });
-    } else {
-      // 非流式：直接透传 JSON 响应
-      const responseBody = await upstreamResponse.json();
-      res.json(responseBody);
-
-      logger.info("Anthropic non-streaming request completed", {
-        requestId,
-        durationMs: Date.now() - startTime,
-        upstreamModel: virtualModel.upstreamModel,
-      });
-    }
-  } catch (err) {
-    next(err);
+    logger.info("Anthropic non-streaming request completed", {
+      requestId,
+      durationMs: Date.now() - startTime,
+      upstreamModel: virtualModel.upstreamModel,
+    });
   }
 });
 
