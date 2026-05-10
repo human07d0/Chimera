@@ -45,6 +45,12 @@ export async function createApp(): Promise<express.Application> {
     next();
   });
 
+  app.use((_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "DENY");
+    next();
+  });
+
   app.use(express.json({ limit: config.server.maxBodySize }));
 
   // --------------------------------------------------------------------------
@@ -82,12 +88,12 @@ export async function createApp(): Promise<express.Application> {
   });
 
   // --------------------------------------------------------------------------
-  // 监控路由（不需要鉴权）
+  // 监控路由（设计上不需要鉴权 — 本地可观测性端点）
   // --------------------------------------------------------------------------
   app.use("/monitor", monitorRouter);
 
   // --------------------------------------------------------------------------
-  // 调试路由（不需要鉴权，仅 DEBUG_ENABLED=true 时挂载）
+  // 调试路由（设计上不需要鉴权，仅 DEBUG_ENABLED=true 时挂载）
   // --------------------------------------------------------------------------
   if (config.debug.enabled) {
     app.use("/debug", debugRouter);
