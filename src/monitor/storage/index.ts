@@ -30,6 +30,8 @@ export interface QueryParams {
 
 export interface StatsParams {
   days?: number;
+  start?: number;
+  end?: number;
   model?: string;
   source?: "main" | "token-plan";
 }
@@ -45,6 +47,8 @@ export interface StatsResult {
 
 export interface TrendParams {
   days?: number;
+  start?: number;
+  end?: number;
   model?: string;
   source?: "main" | "token-plan";
   granularity: "hour" | "6h" | "day";
@@ -58,6 +62,21 @@ export interface TrendBucket {
   latency_ms: number;
 }
 
+export interface TokenTrendBucket {
+  ts: number;
+  model_upstream: string;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cached_prompt_tokens: number;
+}
+
+export interface TokenTrendParams {
+  start?: number;
+  end?: number;
+  source?: "main" | "token-plan";
+}
+
 export interface MonitorStorage {
   // sql.js 使用同步 API
   init(): void;
@@ -65,6 +84,7 @@ export interface MonitorStorage {
   query(params: QueryParams): MonitorEvent[];
   stats(params: StatsParams): StatsResult;
   trend(params: TrendParams): TrendBucket[];
+  tokenTrend(params: TokenTrendParams): TokenTrendBucket[];
   prune(retentionDays: number): number;
   close(): void;
 }

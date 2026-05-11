@@ -2,7 +2,7 @@ import initSqlJs, { Database, Statement } from 'sql.js';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'fs';
 import { dirname } from 'path';
 import { logger } from '../../utils/logger';
-import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult, TrendParams, TrendBucket } from './index';
+import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult, TrendParams, TrendBucket, TokenTrendParams, TokenTrendBucket } from './index';
 
 type RequestRow = [
   string,  // request_id
@@ -225,8 +225,8 @@ export class SqliteStorage implements MonitorStorage {
       throw new Error('Storage not initialized. Call init() first.');
     }
 
-    const { days = 3, model, source } = params;
-    const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
+    const { days = 3, start, end, model, source } = params;
+    const cutoffTs = start ?? Date.now() - days * 24 * 60 * 60 * 1000;
 
     let sql = `
       SELECT 
@@ -241,6 +241,10 @@ export class SqliteStorage implements MonitorStorage {
     `;
     
     const bind: (number | string)[] = [cutoffTs];
+    if (end !== undefined) {
+      sql += ` AND ts_start < ?`;
+      bind.push(end);
+    }
 
     if (model) {
       sql += ` AND model_requested = ?`;
@@ -284,8 +288,8 @@ export class SqliteStorage implements MonitorStorage {
       throw new Error('Storage not initialized. Call init() first.');
     }
 
-    const { days = 3, model, source, granularity } = params;
-    const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
+    const { days = 3, start, end, model, source, granularity } = params;
+    const cutoffTs = start ?? Date.now() - days * 24 * 60 * 60 * 1000;
 
     const truncation = granularity === "hour" ? 3600000 : granularity === "6h" ? 21600000 : 86400000;
 
@@ -301,6 +305,10 @@ export class SqliteStorage implements MonitorStorage {
     `;
 
     const bind: (number | string)[] = [truncation, truncation, cutoffTs];
+    if (end !== undefined) {
+      sql += ` AND ts_start < ?`;
+      bind.push(end);
+    }
 
     if (model) {
       sql += ` AND model_requested = ?`;
@@ -326,6 +334,59 @@ export class SqliteStorage implements MonitorStorage {
         tokens: row[2],
         cost: row[3],
         latency_ms: Math.round(row[4]),
+      });
+    }
+    stmt.free();
+
+    return buckets;
+  }
+
+  tokenTrend(params: TokenTrendParams): TokenTrendBucket[] {
+    if (!this.db) {
+      throw new Error('Storage not initialized. Call init() first.');
+    }
+
+    const { start, end, source } = params;
+    const cutoffTs = start ?? Date.now() - 3 * 24 * 60 * 60 * 1000;
+
+    let sql = `
+      SELECT
+        CAST((ts_start / 86400000) * 86400000 AS INTEGER) as bucket_ts,
+        model_upstream,
+        COUNT(*) as calls,
+        COALESCE(SUM(input_tokens), 0) as input_tokens,
+        COALESCE(SUM(output_tokens), 0) as output_tokens,
+        COALESCE(SUM(cached_prompt_tokens), 0) as cached_prompt_tokens
+      FROM requests
+      WHERE ts_start >= ?
+    `;
+
+    const bind: (number | string)[] = [cutoffTs];
+    if (end !== undefined) {
+      sql += ` AND ts_start < ?`;
+      bind.push(end);
+    }
+
+    if (source) {
+      sql += ` AND source = ?`;
+      bind.push(source);
+    }
+
+    sql += ` GROUP BY bucket_ts, model_upstream ORDER BY bucket_ts ASC, model_upstream ASC`;
+
+    const stmt = this.db.prepare(sql);
+    stmt.bind(bind);
+
+    const buckets: TokenTrendBucket[] = [];
+    while (stmt.step()) {
+      const row = stmt.get() as [number, string, number, number, number, number];
+      buckets.push({
+        ts: row[0],
+        model_upstream: row[1],
+        calls: row[2],
+        input_tokens: row[3],
+        output_tokens: row[4],
+        cached_prompt_tokens: row[5],
       });
     }
     stmt.free();

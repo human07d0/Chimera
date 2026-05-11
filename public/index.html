@@ -408,6 +408,52 @@
             padding: 16px;
             height: 300px;
         }
+
+        .chart-wrapper-sm {
+            padding: 8px 16px 12px;
+            height: 220px;
+            position: relative;
+        }
+
+        .date-input {
+            padding: 4px 8px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface-hover);
+            color: var(--text);
+            font-size: 13px;
+            font-family: var(--font-sans);
+            color-scheme: dark;
+        }
+
+        .model-toggle {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .model-toggle .legend {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-right: 12px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .model-toggle .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .model-toggle .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 2px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
@@ -425,17 +471,14 @@
     <div class="container">
         <!-- Filter Bar -->
         <div class="filter-bar">
+            <label>From:</label>
+            <input type="date" class="date-input" id="startDate">
+            <label>To:</label>
+            <input type="date" class="date-input" id="endDate">
+            <button class="btn btn-primary" onclick="applyDateRange()">Apply</button>
             <label>Model:</label>
             <select id="filterModel">
                 <option value="">All models</option>
-            </select>
-            <label>Time:</label>
-            <select id="filterTime">
-                <option value="1">Last 24h</option>
-                <option value="3" selected>Last 3 days</option>
-                <option value="7">Last 7 days</option>
-                <option value="14">Last 14 days</option>
-                <option value="30">Last 30 days</option>
             </select>
             <span class="filter-meta" id="filterMeta">updated — · 0 calls</span>
         </div>
@@ -499,6 +542,19 @@
                 <div class="value" id="tp-totalOutputTokens">-</div>
             </div>
         </div>
+
+        <!-- Token Bar Charts -->
+        <details class="chart-section" id="tokenChartSection" open>
+            <summary class="chart-toggle">Token Usage by Model</summary>
+            <div class="chart-controls model-toggle" id="modelToggles">
+                <div class="legend">
+                    <span class="legend-item"><span class="legend-dot" style="background:#5a8f7b"></span> Cache Hit</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#b89550"></span> Cache Miss</span>
+                    <span class="legend-item"><span class="legend-dot" style="background:#5c81a8"></span> Output</span>
+                </div>
+            </div>
+            <div id="tokenCharts"></div>
+        </details>
 
         <!-- Time Trend Chart -->
         <details class="chart-section" id="chartSection" open>
@@ -564,7 +620,8 @@
         // --- State ---
         let currentPage = 0;
         let currentModel = '';
-        let currentDays = 3;
+        let currentStart = null;
+        let currentEnd = null;
         let callsLimit = 100;
         let callsDays = 1;
 
@@ -581,6 +638,80 @@
                 colorIndex++;
             }
             return modelColorMap[model];
+        }
+
+        const BASE_MODEL_COLORS = [
+            '#58a6ff', '#3fb950', '#d29922', '#f85149', '#bc8cff',
+            '#79c0ff', '#56d364', '#e3b341', '#ff7b72', '#d2a8ff',
+            '#ff6b35', '#00bcd4', '#ff4081', '#7c4dff', '#69f0ae',
+        ];
+        const baseModelColorMap = {};
+        let baseColorIndex = 0;
+        function getBaseModelColor(model) {
+            if (!baseModelColorMap[model]) {
+                baseModelColorMap[model] = BASE_MODEL_COLORS[baseColorIndex % BASE_MODEL_COLORS.length];
+                baseColorIndex++;
+            }
+            return baseModelColorMap[model];
+        }
+
+        const HIDDEN_MODELS_KEY = 'token_chart_hidden_models';
+        let hiddenModels = new Set();
+
+        function loadHiddenModels() {
+            try {
+                const saved = localStorage.getItem(HIDDEN_MODELS_KEY);
+                if (saved) hiddenModels = new Set(JSON.parse(saved));
+                else hiddenModels = new Set();
+            } catch { hiddenModels = new Set(); }
+        }
+
+        function saveHiddenModels() {
+            localStorage.setItem(HIDDEN_MODELS_KEY, JSON.stringify([...hiddenModels]));
+        }
+
+        loadHiddenModels();
+
+        // --- Date helpers ---
+        function toDateInput(d) {
+            return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+        }
+
+        function initDateInputs() {
+            const today = new Date();
+            const threeDaysAgo = new Date(today);
+            threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+            document.getElementById('startDate').value = toDateInput(threeDaysAgo);
+            document.getElementById('endDate').value = toDateInput(today);
+            const range = getDateRange();
+            if (range) {
+                currentStart = range.start;
+                currentEnd = range.end;
+            }
+        }
+
+        function getDateRange() {
+            const startVal = document.getElementById('startDate').value;
+            const endVal = document.getElementById('endDate').value;
+            if (!startVal || !endVal) return null;
+            const start = new Date(startVal + 'T00:00:00').getTime();
+            const end = new Date(endVal + 'T23:59:59').getTime() + 1;
+            return { start, end, days: Math.ceil((end - start) / 86400000) };
+        }
+
+        function applyDateRange() {
+            const range = getDateRange();
+            if (!range) return;
+            currentStart = range.start;
+            currentEnd = range.end;
+            currentPage = 0;
+
+            loadData();
+            const chartSection = document.getElementById('chartSection');
+            if (chartSection.open) loadTrendChart();
+
+            const tokenSection = document.getElementById('tokenChartSection');
+            if (tokenSection.open) loadTokenCharts();
         }
 
         // --- Filter bar logic ---
@@ -603,13 +734,6 @@
         document.getElementById('filterModel').addEventListener('change', (e) => {
             currentModel = e.target.value;
             currentPage = 0;
-            loadData();
-            const chartSection = document.getElementById('chartSection');
-            if (chartSection.open) loadTrendChart();
-        });
-
-        document.getElementById('filterTime').addEventListener('change', (e) => {
-            currentDays = parseInt(e.target.value, 10);
             loadData();
             const chartSection = document.getElementById('chartSection');
             if (chartSection.open) loadTrendChart();
@@ -645,11 +769,13 @@
 
         async function loadData() {
             const modelParam = currentModel ? `&model=${encodeURIComponent(currentModel)}` : '';
+            const startParam = currentStart !== null ? `&start=${currentStart}` : '';
+            const endParam = currentEnd !== null ? `&end=${currentEnd}` : '';
 
             try {
                 const [mainRes, tpRes] = await Promise.all([
-                    fetch(`./monitor/stats?days=${currentDays}&source=main${modelParam}`),
-                    fetch(`./monitor/stats?days=${currentDays}&source=token-plan${modelParam}`),
+                    fetch(`./monitor/stats?source=main${modelParam}${startParam}${endParam}`),
+                    fetch(`./monitor/stats?source=token-plan${modelParam}${startParam}${endParam}`),
                 ]);
                 const mainData = await mainRes.json();
                 const tpData = await tpRes.json();
@@ -711,7 +837,7 @@
             loadData();
         }
 
-        // --- Chart ---
+        // --- Line Chart ---
         let chartInstance = null;
         let chartLoaded = false;
         let activeMetrics = new Set(['calls', 'tokens', 'cost']);
@@ -757,13 +883,17 @@
             await loadChartJs();
 
             const modelParam = currentModel ? `&model=${encodeURIComponent(currentModel)}` : '';
-            const granularity = deriveGranularity(currentDays);
+            const startParam = currentStart !== null ? `&start=${currentStart}` : '';
+            const endParam = currentEnd !== null ? `&end=${currentEnd}` : '';
+
+            const days = currentStart !== null ? Math.max(1, Math.ceil((currentEnd - currentStart) / 86400000)) : 3;
+            const granularity = deriveGranularity(days);
 
             let allBuckets = [];
             try {
                 const [mainRes, tpRes] = await Promise.all([
-                    fetch(`./monitor/trend?days=${currentDays}&source=main&granularity=${granularity}${modelParam}`),
-                    fetch(`./monitor/trend?days=${currentDays}&source=token-plan&granularity=${granularity}${modelParam}`),
+                    fetch(`./monitor/trend?source=main&granularity=${granularity}${modelParam}${startParam}${endParam}`),
+                    fetch(`./monitor/trend?source=token-plan&granularity=${granularity}${modelParam}${startParam}${endParam}`),
                 ]);
                 const mainData = await mainRes.json();
                 const tpData = await tpRes.json();
@@ -804,7 +934,7 @@
                     label: cfg.label,
                     data: allBuckets.map(b => b[metric]),
                     borderColor: cfg.color,
-                    backgroundColor: cfg.color + '33',
+                    backgroundColor: cfg.color + '80',
                     tension: 0.3,
                     pointRadius: allBuckets.length > 30 ? 0 : 3,
                     yAxisID: cfg.yAxisID,
@@ -853,10 +983,180 @@
             }
         });
 
+        // --- Token Bar Charts ---
+        const TOKEN_COLORS = { cached: '#5a8f7b', miss: '#b89550', output: '#5c81a8' };
+        let tokenChartInstances = {};
+        let cachedAllModels = [];
+
+        function renderModelToggles(allModels) {
+            const container = document.getElementById('modelToggles');
+            const existingLegend = container.querySelector('.legend');
+            container.innerHTML = '';
+            container.appendChild(existingLegend);
+
+            for (const model of allModels) {
+                const btn = document.createElement('button');
+                const isHidden = hiddenModels.has(model);
+                btn.className = 'metric-btn' + (isHidden ? '' : ' active');
+                btn.textContent = model;
+                btn.onclick = () => toggleModelVisibility(model);
+                container.appendChild(btn);
+            }
+        }
+
+        function toggleModelVisibility(model) {
+            if (hiddenModels.has(model)) {
+                hiddenModels.delete(model);
+            } else {
+                hiddenModels.add(model);
+            }
+            saveHiddenModels();
+            const selector = '[data-model="' + model.replace(/"/g, '\\"') + '"]';
+            const wrapper = document.getElementById('tokenCharts').querySelector(selector);
+            if (wrapper) wrapper.style.display = hiddenModels.has(model) ? 'none' : '';
+            renderModelToggles(cachedAllModels);
+        }
+
+        async function fetchTokenTrendData() {
+            const startParam = currentStart !== null ? `&start=${currentStart}` : '';
+            const endParam = currentEnd !== null ? `&end=${currentEnd}` : '';
+            try {
+                const [mainRes, tpRes] = await Promise.all([
+                    fetch(`./monitor/token-trend?source=main${startParam}${endParam}`),
+                    fetch(`./monitor/token-trend?source=token-plan${startParam}${endParam}`),
+                ]);
+                const mainData = await mainRes.json();
+                const tpData = await tpRes.json();
+                const bucketMap = new Map();
+                for (const b of (mainData.data?.buckets || [])) {
+                    bucketMap.set(b.ts + ':' + b.model_upstream, { ...b });
+                }
+                for (const b of (tpData.data?.buckets || [])) {
+                    const key = b.ts + ':' + b.model_upstream;
+                    const existing = bucketMap.get(key);
+                    if (existing) {
+                        existing.calls += b.calls;
+                        existing.input_tokens += b.input_tokens;
+                        existing.output_tokens += b.output_tokens;
+                        existing.cached_prompt_tokens += b.cached_prompt_tokens;
+                    } else {
+                        bucketMap.set(key, { ...b });
+                    }
+                }
+                return Array.from(bucketMap.values());
+            } catch { return []; }
+        }
+
+        async function loadTokenCharts() {
+            await loadChartJs();
+
+            const buckets = await fetchTokenTrendData();
+
+            for (const key in tokenChartInstances) {
+                tokenChartInstances[key].destroy();
+            }
+            tokenChartInstances = {};
+            document.getElementById('tokenCharts').innerHTML = '';
+
+            if (buckets.length === 0) { renderModelToggles([]); return; }
+
+            const allModels = [...new Set(buckets.map(b => b.model_upstream))].sort();
+            const allDays = [...new Set(buckets.map(b => b.ts))].sort();
+            cachedAllModels = allModels;
+
+            const container = document.getElementById('tokenCharts');
+            const dayLabels = allDays.map(d =>
+                new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
+            );
+
+            for (const model of allModels) {
+                const modelBuckets = buckets.filter(b => b.model_upstream === model);
+                const dataMap = new Map(modelBuckets.map(b => [b.ts, b]));
+                const cachedData = allDays.map(d => dataMap.get(d)?.cached_prompt_tokens || 0);
+                const missData = allDays.map(d => (dataMap.get(d)?.input_tokens || 0) - (dataMap.get(d)?.cached_prompt_tokens || 0));
+                const outputData = allDays.map(d => dataMap.get(d)?.output_tokens || 0);
+                const isHidden = hiddenModels.has(model);
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'chart-wrapper-sm';
+                wrapper.dataset.model = model;
+                if (isHidden) wrapper.style.display = 'none';
+
+                const color = getBaseModelColor(model);
+                const title = document.createElement('div');
+                title.style.cssText = 'font-size:13px;font-weight:600;margin-bottom:4px;color:' + color;
+                title.textContent = model;
+                wrapper.appendChild(title);
+
+                const canvas = document.createElement('canvas');
+                wrapper.appendChild(canvas);
+                container.appendChild(wrapper);
+
+                const ctx = canvas.getContext('2d');
+                const chart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: dayLabels,
+                        datasets: [
+                            { label: 'Cache Hit', data: cachedData, backgroundColor: TOKEN_COLORS.cached + '80', borderColor: TOKEN_COLORS.cached, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
+                            { label: 'Cache Miss', data: missData, backgroundColor: TOKEN_COLORS.miss + '80', borderColor: TOKEN_COLORS.miss, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
+                            { label: 'Output', data: outputData, backgroundColor: TOKEN_COLORS.output + '80', borderColor: TOKEN_COLORS.output, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
+                        ],
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: { intersect: false, mode: 'index' },
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: '#161b22',
+                                borderColor: '#30363d',
+                                borderWidth: 1,
+                                callbacks: {
+                                    footer: function(items) {
+                                        const total = items.reduce((s, i) => s + (i.parsed.y || 0), 0);
+                                        return 'Total: ' + total.toLocaleString();
+                                    },
+                                },
+                            },
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                ticks: { color: '#8b949e', font: { size: 10 } },
+                                grid: { display: false },
+                            },
+                            y: {
+                                stacked: true,
+                                ticks: { color: '#8b949e', font: { size: 10 } },
+                                grid: { color: '#30363d50' },
+                            },
+                        },
+                    },
+                });
+                tokenChartInstances[model] = chart;
+            }
+
+            renderModelToggles(allModels);
+        }
+
+        document.getElementById('tokenChartSection').addEventListener('toggle', (e) => {
+            if (e.target.open && Object.keys(tokenChartInstances).length === 0) {
+                loadTokenCharts();
+            }
+        });
+
         // --- Init ---
         fetchModels();
-        loadData();
-        setInterval(loadData, 30000);
+        initDateInputs();
+        setInterval(() => {
+            loadData();
+            const chartSection = document.getElementById('chartSection');
+            if (chartSection.open) loadTrendChart();
+            const tokenSection = document.getElementById('tokenChartSection');
+            if (tokenSection.open) loadTokenCharts();
+        }, 30000);
 
         // Service Worker
         if ('serviceWorker' in navigator) {

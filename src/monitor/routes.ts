@@ -64,10 +64,19 @@ function isPruneAuthorized(req: Request): boolean {
   return providedKey === config.proxyApiKey;
 }
 
+function parseTimestampParam(value: unknown): number | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  const parsed = parseInt(value, 10);
+  if (Number.isNaN(parsed)) return undefined;
+  return parsed;
+}
+
 // 获取趋势数据
 monitorRouter.get("/trend", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
+    const start = parseTimestampParam(req.query.start);
+    const end = parseTimestampParam(req.query.end);
     const model = parseModelParam(req.query.model);
     const source = parseSourceParam(req.query.source);
     const granularity = (typeof req.query.granularity === "string" && (req.query.granularity === "hour" || req.query.granularity === "6h" || req.query.granularity === "day")
@@ -75,7 +84,7 @@ monitorRouter.get("/trend", (req: Request, res: Response) => {
       : "day") as "hour" | "6h" | "day";
 
     const storage = getStorage();
-    const buckets = storage.trend({ days, model, source, granularity });
+    const buckets = storage.trend({ days, start, end, model, source, granularity });
 
     res.json({ success: true, data: { buckets } });
   } catch (_error) {
@@ -90,11 +99,13 @@ monitorRouter.get("/trend", (req: Request, res: Response) => {
 monitorRouter.get("/stats", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
+    const start = parseTimestampParam(req.query.start);
+    const end = parseTimestampParam(req.query.end);
     const model = parseModelParam(req.query.model);
     const source = parseSourceParam(req.query.source);
 
     const storage = getStorage();
-    const stats = storage.stats({ days, model, source });
+    const stats = storage.stats({ days, start, end, model, source });
 
     res.json({
       success: true,
@@ -104,6 +115,25 @@ monitorRouter.get("/stats", (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: "获取统计数据失败",
+    });
+  }
+});
+
+// 获取按天/基础模型分组的 Token 趋势
+monitorRouter.get("/token-trend", (req: Request, res: Response) => {
+  try {
+    const start = parseTimestampParam(req.query.start);
+    const end = parseTimestampParam(req.query.end);
+    const source = parseSourceParam(req.query.source);
+
+    const storage = getStorage();
+    const buckets = storage.tokenTrend({ start, end, source });
+
+    res.json({ success: true, data: { buckets } });
+  } catch (_error) {
+    res.status(500).json({
+      success: false,
+      error: "获取 Token 趋势数据失败",
     });
   }
 });
