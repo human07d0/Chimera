@@ -604,6 +604,8 @@
             currentModel = e.target.value;
             currentPage = 0;
             loadData();
+            const chartSection = document.getElementById('chartSection');
+            if (chartSection.open) loadTrendChart();
         });
 
         document.getElementById('filterTime').addEventListener('change', (e) => {
