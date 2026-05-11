@@ -172,6 +172,11 @@ export async function createApp(): Promise<express.Application> {
   }
 
   // --------------------------------------------------------------------------
+  // 模型路由（无需鉴权，Monitor UI 下拉框需要访问）
+  // --------------------------------------------------------------------------
+  app.use("/v1", modelsRouter);
+
+  // --------------------------------------------------------------------------
   // 鉴权中间件（作用于 /v1/* 与 /anthropic/v1/* 路由）
   // --------------------------------------------------------------------------
   app.use("/v1", authMiddleware);
@@ -186,7 +191,6 @@ export async function createApp(): Promise<express.Application> {
   }
   app.use("/v1", monitorMiddleware);
   app.use("/anthropic/v1", monitorMiddleware);
-  app.use("/v1", modelsRouter);
   app.use("/v1", chatRouter);
   app.use("/anthropic/v1", anthropicRouter);
 
