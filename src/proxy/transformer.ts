@@ -1,9 +1,6 @@
 import { ModelFeatures, buildWebSearchTool } from "../models/presets";
 import { logger } from "../utils/logger";
 
-// --------------------------------------------------------------------------
-// OpenAI 兼容的请求体类型（只声明我们关心的字段）
-// --------------------------------------------------------------------------
 export interface ChatCompletionRequest {
   model: string;
   messages: unknown[];
@@ -19,7 +16,6 @@ export interface ChatCompletionRequest {
   tools?: ToolDefinition[] | null;
   tool_choice?: unknown;
   response_format?: { type: string } | null;
-  // 允许客户端传递其他任意字段，全部透传
   [key: string]: unknown;
 }
 
@@ -28,18 +24,13 @@ interface ToolDefinition {
   [key: string]: unknown;
 }
 
-// --------------------------------------------------------------------------
-// 转换入参：将客户端请求映射为发向上游的请求
-// --------------------------------------------------------------------------
 export function transformRequest(
   clientBody: ChatCompletionRequest,
   features: ModelFeatures,
   upstreamModel: string
 ): Record<string, unknown> {
-  // 1. 复制所有字段（透传），然后有针对性地覆盖
   const upstream: Record<string, unknown> = { ...clientBody };
 
-  // 2. 替换为真实模型 ID
   upstream["model"] = upstreamModel;
 
   // 3. max_tokens 兼容：旧客户端用 max_tokens，小米用 max_completion_tokens
@@ -49,7 +40,6 @@ export function transformRequest(
   // 不再向上游传 max_tokens（小米不认识这个字段，避免歧义）
   delete upstream["max_tokens"];
 
-  // 4. thinking 字段
   upstream["thinking"] = { type: features.thinking ? "enabled" : "disabled" };
 
   // 5. response_format：json 模式时强制设置，否则不覆盖客户端设置
@@ -58,12 +48,8 @@ export function transformRequest(
   }
   // 如果 features.json=false 但客户端自己传了 response_format，保留客户端的值（已在 ...clientBody 中）
 
-  // 6. tools 合并：
-  //    - preset web_search tool（由 search 特性决定）
-  //    - 客户端传来的 function 类型工具（透传）
   const clientTools = normalizeTools(clientBody.tools);
   if (features.search) {
-    // 将 web_search 放在最前面，function 类工具追加在后面
     upstream["tools"] = [buildWebSearchTool(), ...clientTools];
   } else if (clientTools.length > 0) {
     upstream["tools"] = clientTools;
@@ -94,9 +80,6 @@ function normalizeTools(tools: ToolDefinition[] | null | undefined): ToolDefinit
   return tools.filter((t) => t.type === "function");
 }
 
-// --------------------------------------------------------------------------
-// 转换出参（非流式）：替换 model 字段为虚拟模型名
-// --------------------------------------------------------------------------
 export function transformResponse(
   responseBody: Record<string, unknown>,
   virtualModelId: string

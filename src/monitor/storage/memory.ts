@@ -6,7 +6,6 @@ class MemoryStorage implements MonitorStorage {
   private readonly maxRecords = 10_000;
 
   init(): void {
-    // 内存存储无需初始化
   }
 
   append(event: MonitorEvent): void {
@@ -161,7 +160,6 @@ class MemoryStorage implements MonitorStorage {
   }
 
   close(): void {
-    // 内存存储无需关闭资源
   }
 }
 

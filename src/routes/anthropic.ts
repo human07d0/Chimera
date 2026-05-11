@@ -6,7 +6,6 @@ import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { sanitizeForLog } from "../utils/sanitizeForLog";
 import { generateRequestId } from "../utils/requestId";
 
-// Anthropic 请求体类型
 interface AnthropicMessagesRequest {
   model: string;
   messages: unknown[];
@@ -27,9 +26,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
 
   const clientBody = req.body as AnthropicMessagesRequest;
 
-  // ------------------------------------------------------------------
-  // 1. 校验基本参数
-  // ------------------------------------------------------------------
   if (!clientBody || typeof clientBody !== "object") {
     sendAnthropicError(res, 400, "invalid_request", "Request body must be a JSON object");
     return;
@@ -50,9 +46,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
     return;
   }
 
-  // ------------------------------------------------------------------
-  // 2. 校验虚拟模型（用于日志和请求 ID）
-  // ------------------------------------------------------------------
   res.locals.requestId = requestId;
   const virtualModel = findVirtualModel(clientBody.model);
   if (!virtualModel) {
@@ -78,9 +71,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
     messageCount: clientBody.messages.length,
   });
 
-  // ------------------------------------------------------------------
-  // 3. 直接透传到上游 MiMo Anthropic 接口
-  // ------------------------------------------------------------------
   // 注意：小米上游 /anthropic/v1/messages 接口已经兼容 Anthropic 格式
   // 只需要将 model 替换为上游模型 ID，其他字段直接透传
   const upstreamBody = {
@@ -119,9 +109,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
     return;
   }
 
-  // ------------------------------------------------------------------
-  // 4. 处理上游响应
-  // ------------------------------------------------------------------
   if (!upstreamResponse.ok) {
     const errorStatus = upstreamResponse.status;
     let errorBody: unknown;
@@ -143,11 +130,7 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
     return;
   }
 
-  // ------------------------------------------------------------------
-  // 5. 流式 vs 非流式处理
-  // ------------------------------------------------------------------
   if (isStreaming) {
-    // 流式：直接 pipe 上游 SSE 到客户端
     await pipeUpstreamStream(upstreamResponse, res, requestId);
     logger.info("Anthropic streaming request completed", {
       requestId,
@@ -155,7 +138,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
       upstreamModel: virtualModel.upstreamModel,
     });
   } else {
-    // 非流式：直接透传 JSON 响应
     const responseBody = await upstreamResponse.json();
     res.json(responseBody);
 
@@ -167,10 +149,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
   }
 });
 
-/**
- * GET /anthropic/v1/messages (405 Method Not Allowed)
- * Anthropic API 仅支持 POST
- */
 anthropicRouter.get("/messages", (_req: Request, res: Response) => {
   res.status(405).json({
     type: "invalid_request",
@@ -181,19 +159,11 @@ anthropicRouter.get("/messages", (_req: Request, res: Response) => {
   });
 });
 
-// --------------------------------------------------------------------------
-// 工具函数
-// --------------------------------------------------------------------------
-
-/**
- * 直接 pipe 上游 SSE 流到客户端
- */
 async function pipeUpstreamStream(
   upstreamResponse: globalThis.Response,
   res: Response,
   requestId: string
 ): Promise<void> {
-  // 设置 SSE headers
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -252,7 +222,6 @@ function sendAnthropicError(
   type: string,
   message: string
 ): void {
-  // Anthropic 官方错误格式：{ type: "error", error: { type, message } }
   res.status(status).json({
     type: "error",
     error: {
@@ -296,10 +265,6 @@ function getErrorTypeFromStatus(status: number): string {
   return "invalid_request";
 }
 
-/**
- * GET /anthropic/v1/models
- * 返回 Anthropic 格式的虚拟模型列表
- */
 anthropicRouter.get("/models", (_req: Request, res: Response) => {
   const models = VIRTUAL_MODELS.map((m) => ({
     name: m.id,

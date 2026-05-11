@@ -1,16 +1,11 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
 
-/**
- * Ops 鉴权中间件
- * 使用 OPS_PASSWORD 进行认证
- */
 export function opsAuthMiddleware(
   req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  // 未配置 OPS_PASSWORD 时拒绝访问
   if (!config.opsPassword) {
     res.status(503).json({
       success: false,

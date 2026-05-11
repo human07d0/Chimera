@@ -19,7 +19,6 @@ opsRouter.get("/info", (_req: Request, res: Response) => {
   });
 });
 
-// 获取当前配置（只读）- 需要鉴权
 opsRouter.get("/config", opsAuthMiddleware, (_req: Request, res: Response) => {
   const currentConfig = OpsConfigManager.getCurrentConfig();
 
@@ -29,7 +28,6 @@ opsRouter.get("/config", opsAuthMiddleware, (_req: Request, res: Response) => {
   });
 });
 
-// 更新配置 - 需要鉴权
 opsRouter.post("/config", opsAuthMiddleware, (req: Request, res: Response) => {
   const updates = req.body as Record<string, unknown>;
 
@@ -51,7 +49,6 @@ opsRouter.post("/config", opsAuthMiddleware, (req: Request, res: Response) => {
     return;
   }
 
-  // 返回更新后的完整配置
   res.json({
     success: true,
     message: "Configuration updated successfully",
@@ -59,7 +56,6 @@ opsRouter.post("/config", opsAuthMiddleware, (req: Request, res: Response) => {
   });
 });
 
-// 获取可修改的配置项白名单 - 需要鉴权
 opsRouter.get("/config/schema", opsAuthMiddleware, (_req: Request, res: Response) => {
   const schema = {
     logLevel: {
@@ -156,7 +152,6 @@ opsRouter.get("/config/schema", opsAuthMiddleware, (_req: Request, res: Response
   });
 });
 
-// 服务状态 - 需要鉴权
 opsRouter.get("/status", opsAuthMiddleware, (_req: Request, res: Response) => {
   res.json({
     success: true,
@@ -172,13 +167,11 @@ opsRouter.get("/status", opsAuthMiddleware, (_req: Request, res: Response) => {
   });
 });
 
-// 停机（graceful shutdown）- 需要鉴权
 opsRouter.post("/shutdown", opsAuthMiddleware, (req: Request, res: Response) => {
   logger.info("Ops shutdown requested", {
     ip: req.ip,
   });
 
-  // 立即返回响应
   res.json({
     success: true,
     message: "Shutdown initiated",
@@ -190,14 +183,12 @@ opsRouter.post("/shutdown", opsAuthMiddleware, (req: Request, res: Response) => 
   }, 100);
 });
 
-// 重启 - 需要鉴权
 opsRouter.post("/restart", opsAuthMiddleware, (req: Request, res: Response) => {
   logger.info("Ops restart requested", {
     ip: req.ip,
     watcherActive: isWatcherActive(),
   });
 
-  // 立即返回响应
   res.json({
     success: true,
     message: "Restart initiated",

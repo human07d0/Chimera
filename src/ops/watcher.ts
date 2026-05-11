@@ -26,10 +26,6 @@ function getWatcherChildPath(): string {
   throw new Error(`Unable to locate watcher-child.js. Checked: ${candidates.join(", ")}`);
 }
 
-/**
- * 启动 watcher 进程
- * watcher 监控主进程 PID，收到重启信号后重新启动主进程
- */
 export function startWatcher(): void {
   if (watcherProcess) {
     logger.warn("Watcher is already running");
@@ -50,7 +46,6 @@ export function startWatcher(): void {
 
   logger.info(`Watcher child path: ${watcherChildPath}`);
 
-  // 启动 watcher 子进程
   // detached: true 确保主进程退出后 watcher 继续存活（负责启动新主进程）
   // windowsHide: true 避免在 Windows 上弹出额外控制台窗口
   watcherProcess = spawn(
@@ -89,7 +84,6 @@ export function startWatcher(): void {
     watcherProcess = null;
   });
 
-  // 转发 watcher 的 stdout/stderr
   if (watcherProcess.stdout) {
     watcherProcess.stdout.on("data", (data: Buffer) => {
       process.stdout.write(`[watcher] ${data.toString()}`);
@@ -105,9 +99,6 @@ export function startWatcher(): void {
   logger.info("Starting watcher process", { mainPid: mainProcessPid });
 }
 
-/**
- * 停止 watcher 进程
- */
 export function stopWatcher(): void {
   if (watcherProcess) {
     watcherProcess.kill("SIGTERM");
@@ -116,17 +107,10 @@ export function stopWatcher(): void {
   }
 }
 
-/**
- * 检查 watcher 是否运行中
- */
 export function isWatcherActive(): boolean {
   return watcherProcess !== null && !watcherProcess.killed && watcherProcess.connected === true;
 }
 
-/**
- * 通知 watcher 重启主进程。
- * @returns 是否成功发送了重启通知
- */
 export function notifyWatcherRestart(): boolean {
   const currentWatcher = watcherProcess;
 

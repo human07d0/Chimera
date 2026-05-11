@@ -51,9 +51,6 @@ function authMiddleware(req: Request, res: Response, next: NextFunction): void {
 function getUpstreamApiKey(): string {
   return config.tokenPlan.mimoApiKey;
 }
-/**
- * 将客户端请求原样透传到上游，支持流式和非流式响应
- */
 async function proxyPassthrough(
   req: Request,
   res: Response,
@@ -67,18 +64,15 @@ async function proxyPassthrough(
   const upstreamUrl = `${upstreamBaseUrl}${upstreamPath}`;
   const apiKey = getUpstreamApiKey();
 
-  // 构造上游请求头：转发客户端原始 headers，替换鉴权
   const upstreamHeaders: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Request-Id": requestId,
   };
 
-  // 转发客户端的 Authorization 头（使用上游 API Key）
   if (apiKey) {
     upstreamHeaders["api-key"] = apiKey;
   }
 
-  // 转发其他有用的请求头
   const forwardHeaders = ["accept", "accept-encoding", "anthropic-version", "anthropic-beta"];
   for (const h of forwardHeaders) {
     const val = req.headers[h];
@@ -114,7 +108,6 @@ async function proxyPassthrough(
     return;
   }
 
-  // 处理上游错误响应
   if (!upstreamResponse.ok) {
     const errorStatus = upstreamResponse.status;
     let errorBody: unknown;
@@ -133,7 +126,6 @@ async function proxyPassthrough(
     return;
   }
 
-  // 流式响应：直接 pipe
   const contentType = upstreamResponse.headers.get("content-type") || "";
   if (contentType.includes("text/event-stream") || contentType.includes("text/plain")) {
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
@@ -183,7 +175,6 @@ async function proxyPassthrough(
     return;
   }
 
-  // 非流式响应
   const responseBody = await upstreamResponse.json();
   res.setHeader("X-Request-Id", requestId);
   res.json(responseBody);
@@ -195,23 +186,14 @@ async function proxyPassthrough(
 // Express Router（挂载于主应用 /token-plan 路径下）
 // --------------------------------------------------------------------------
 
-/**
- * 创建 token-plan 透传路由器
- *
- * 返回 express.Router，在主应用中以 /token-plan 前缀挂载。
- * 复用主应用的 CORS、JSON 解析、请求日志等基础中间件。
- * 鉴权中间件由本 Router 自行管理（使用 TOKEN_PLAN_PROXY_API_KEY）。
- */
 export function createTokenPlanRouter(options?: { skipAuth?: boolean }): Router {
   const router = Router();
 
-  // 鉴权中间件（作用于所有 token-plan 路由）
   if (!options?.skipAuth) {
     router.use("/v1", authMiddleware);
     router.use("/anthropic", authMiddleware);
   }
 
-  // OpenAI 兼容格式: POST /v1/chat/completions
   router.post("/v1/chat/completions", async (req: Request, res: Response) => {
     const requestId = generateRequestId("tp");
     try {
@@ -229,7 +211,6 @@ export function createTokenPlanRouter(options?: { skipAuth?: boolean }): Router 
     }
   });
 
-  // Anthropic Messages API: POST /anthropic/v1/messages
   router.post("/anthropic/v1/messages", async (req: Request, res: Response) => {
     const requestId = generateRequestId("tp");
     try {
@@ -258,7 +239,6 @@ export function createTokenPlanRouter(options?: { skipAuth?: boolean }): Router 
     });
   });
 
-  // 全局错误处理
   router.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     logger.error("Token-plan unhandled error", {
       name: err.name,

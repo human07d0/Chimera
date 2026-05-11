@@ -5,7 +5,6 @@ import { extractApiKey } from "../utils/auth";
 import { MonitorEvent } from "./storage";
 import { getStorage } from "./storage/factory";
 
-// 创建监控路由 - 添加类型注解以解决编译错误
 export const monitorRouter: Router = Router();
 
 function parseQueryInt(value: unknown, defaultValue: number): number {
@@ -71,7 +70,6 @@ function parseTimestampParam(value: unknown): number | undefined {
   return parsed;
 }
 
-// 获取趋势数据
 monitorRouter.get("/trend", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
@@ -95,7 +93,6 @@ monitorRouter.get("/trend", (req: Request, res: Response) => {
   }
 });
 
-// 获取监控统计数据
 monitorRouter.get("/stats", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
@@ -119,7 +116,6 @@ monitorRouter.get("/stats", (req: Request, res: Response) => {
   }
 });
 
-// 获取按天/基础模型分组的 Token 趋势
 monitorRouter.get("/token-trend", (req: Request, res: Response) => {
   try {
     const start = parseTimestampParam(req.query.start);
@@ -138,7 +134,6 @@ monitorRouter.get("/token-trend", (req: Request, res: Response) => {
   }
 });
 
-// 获取调用详情
 monitorRouter.get("/calls", (req: Request, res: Response) => {
   try {
     const days = parseQueryInt(req.query.days, 3);
@@ -192,7 +187,6 @@ monitorRouter.get("/calls", (req: Request, res: Response) => {
   }
 });
 
-// 手动触发数据清理（用于测试）
 monitorRouter.post("/prune", (req: Request, res: Response) => {
   if (!isPruneAuthorized(req)) {
     logger.warn("Blocked unauthorized monitor prune request", {

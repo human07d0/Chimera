@@ -1,26 +1,17 @@
 import { Response as ExpressResponse } from "express";
 import { logger } from "../utils/logger";
 
-/**
- * 将上游的 SSE 响应流转发给客户端，同时对每个 data chunk 进行转换。
- *
- * 小米的 SSE 格式（与 OpenAI 兼容）：
- *   data: { ...json... }\n\n
- *   data: [DONE]\n\n
- */
 export async function pipeSSEStream(
   upstreamResponse: globalThis.Response,
   clientRes: ExpressResponse,
   virtualModelId: string
 ): Promise<{ inputTokens: number; outputTokens: number; cacheHit: boolean }> {
-  // 设置 SSE 响应头
   clientRes.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   clientRes.setHeader("Cache-Control", "no-cache, no-transform");
   clientRes.setHeader("Connection", "keep-alive");
   clientRes.setHeader("X-Accel-Buffering", "no"); // 禁用 nginx 缓冲
   clientRes.flushHeaders();
 
-  // 用于存储最终的使用信息
   let inputTokens = 0;
   let outputTokens = 0;
   let cacheHit = false;
@@ -35,7 +26,6 @@ export async function pipeSSEStream(
 
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8");
-  // 用于跨 chunk 拼接不完整行
   let buffer = "";
 
   let cancelled = false;
@@ -52,7 +42,6 @@ export async function pipeSSEStream(
 
       buffer += decoder.decode(value, { stream: true });
 
-      // 按换行符分割，处理每一行
       const lines = buffer.split("\n");
       // 最后一个元素可能是不完整的行，留到下次处理
       buffer = lines.pop() ?? "";
@@ -108,7 +97,6 @@ export async function pipeSSEStream(
       }
     }
 
-    // 处理 buffer 中剩余的内容（正常情况下应为空）
     if (buffer.trim()) {
       logger.debug("SSE stream ended with non-empty buffer remainder", {
         remainder: buffer.slice(0, 200),

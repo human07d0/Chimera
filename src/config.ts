@@ -140,11 +140,9 @@ export const config = {
     baseUrl: normalizeBaseUrl(
       optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com"),
     ),
-    /** Anthropic API Base URL */
     anthropicBaseUrl: normalizeBaseUrl(
       optionalEnv("ANTHROPIC_BASE_URL", "https://api.xiaomimimo.com/anthropic"),
     ),
-    /** 启用的真实 MiMo 模型 */
     enabledModels: configuredEnabledModels,
     /** 默认模型（用于健康检查与监控回退值） */
     defaultModel: configuredEnabledModels[0],
@@ -176,7 +174,6 @@ export const config = {
     queueMaxSize: optionalIntEnv("MONITOR_QUEUE_MAX_SIZE", 10_000),
   },
 
-  /** token-plan 透传代理配置 */
   tokenPlan: {
     enabled: optionalBoolEnv("TOKEN_PLAN_ENABLED", false),
     proxyApiKey: process.env["TOKEN_PLAN_PROXY_API_KEY"] || "",

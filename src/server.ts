@@ -22,7 +22,6 @@ export async function createApp(): Promise<express.Application> {
   const app = express();
   const playgroundToken = crypto.randomUUID();
 
-  // 判断是否开发环境
   const isDev = process.env["NODE_ENV"] !== "production";
 
   // --------------------------------------------------------------------------
@@ -39,7 +38,6 @@ export async function createApp(): Promise<express.Application> {
       "Content-Type, Authorization, api-key, x-api-key, x-requested-with, x-playground-token, anthropic-version",
     );
 
-    // 处理预检请求 (OPTIONS)
     if (_req.method === "OPTIONS") {
       res.sendStatus(204);
       return;
@@ -64,9 +62,6 @@ export async function createApp(): Promise<express.Application> {
     app.use(express.static(publicDir));
   }
 
-  // --------------------------------------------------------------------------
-  // 请求日志（仅记录元信息，不记录 body）
-  // --------------------------------------------------------------------------
   app.use((req: Request, _res: Response, next: NextFunction) => {
     logger.debug("Incoming HTTP request", {
       method: req.method,
@@ -77,9 +72,6 @@ export async function createApp(): Promise<express.Application> {
     next();
   });
 
-  // --------------------------------------------------------------------------
-  // 健康检查（不需要鉴权）
-  // --------------------------------------------------------------------------
   app.get("/health", (_req: Request, res: Response) => {
     res.json({
       status: "ok",
@@ -101,7 +93,6 @@ export async function createApp(): Promise<express.Application> {
   if (config.debug.enabled) {
     app.use("/debug", debugRouter);
 
-    // 调试前端 SPA
     const debugPublicDir = resolveStaticDir("debug");
     if (debugPublicDir) {
       app.use("/debug", express.static(debugPublicDir));
@@ -142,7 +133,6 @@ export async function createApp(): Promise<express.Application> {
     const { createViteDevMiddleware } = await import("./ops/vite-dev");
     await createViteDevMiddleware(app);
   } else {
-    // 静态文件 -> API 路由 -> SPA fallback
     const opsPublicDir = resolveStaticDir("ops");
 
     if (opsPublicDir) {
@@ -176,15 +166,9 @@ export async function createApp(): Promise<express.Application> {
   // --------------------------------------------------------------------------
   app.use("/v1", modelsRouter);
 
-  // --------------------------------------------------------------------------
-  // 鉴权中间件（作用于 /v1/* 与 /anthropic/v1/* 路由）
-  // --------------------------------------------------------------------------
   app.use("/v1", authMiddleware);
   app.use("/anthropic/v1", authMiddleware);
 
-  // --------------------------------------------------------------------------
-  // API 路由（添加监控中间件，可选调试中间件）
-  // --------------------------------------------------------------------------
   if (config.debug.enabled) {
     app.use("/v1", debugMiddleware);
     app.use("/anthropic/v1", debugMiddleware);
@@ -209,13 +193,11 @@ export async function createApp(): Promise<express.Application> {
       next();
     });
 
-    // debug 中间件覆盖 token-plan 路由
     if (config.debug.enabled) {
       app.use("/token-plan/v1", debugMiddleware);
       app.use("/token-plan/anthropic/v1", debugMiddleware);
     }
 
-    // 标记 token-plan 来源并挂载监控中间件
     app.use("/token-plan/v1", (_req: Request, res: Response, next: NextFunction) => {
       res.locals.source = "token-plan";
       next();
@@ -231,9 +213,6 @@ export async function createApp(): Promise<express.Application> {
     logger.info("Token-plan router mounted at /token-plan");
   }
 
-  // --------------------------------------------------------------------------
-  // 404 处理
-  // --------------------------------------------------------------------------
   app.use((_req: Request, res: Response) => {
     res.status(404).json({
       error: {
@@ -244,9 +223,6 @@ export async function createApp(): Promise<express.Application> {
     });
   });
 
-  // --------------------------------------------------------------------------
-  // 全局错误处理
-  // --------------------------------------------------------------------------
   app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
     logger.error("Unhandled error", {
       name: err.name,
@@ -290,7 +266,6 @@ function startCleanupTask(): void {
     }
   };
 
-  // 立即执行一次（启动时）
   void cleanup();
 
   if (cleanupInterval) {
@@ -298,7 +273,6 @@ function startCleanupTask(): void {
     cleanupInterval = null;
   }
 
-  // 每天执行一次
   const oneDayMs = 24 * 60 * 60 * 1000;
   cleanupInterval = setInterval(() => {
     void cleanup();
@@ -327,7 +301,6 @@ function resolveStaticDir(dirName: string): string | null {
   ];
 
   for (const candidate of candidates) {
-    // Check for index.html existence (not just directory)
     const indexPath = path.join(candidate, "index.html");
     if (fs.existsSync(indexPath)) {
       return candidate;

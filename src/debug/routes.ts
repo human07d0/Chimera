@@ -32,7 +32,6 @@ function parseStringParam(value: unknown): string | undefined {
   return value.trim();
 }
 
-/** GET /debug/calls — 查询调试记录列表 */
 debugRouter.get("/calls", (req: Request, res: Response) => {
   try {
     const limit = parseQueryInt(req.query.limit, 50);
@@ -71,7 +70,6 @@ debugRouter.get("/calls", (req: Request, res: Response) => {
   }
 });
 
-/** GET /debug/calls/:id — 获取单条调试记录详情（含完整 body） */
 debugRouter.get("/calls/:id", (req: Request, res: Response) => {
   try {
     const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
@@ -96,7 +94,6 @@ debugRouter.get("/calls/:id", (req: Request, res: Response) => {
   }
 });
 
-/** GET /debug/media/:requestId/:mediaId — 返回媒体资源二进制（image/audio/video） */
 debugRouter.get("/media/:requestId/:mediaId", (req: Request, res: Response) => {
   try {
     const requestId = Array.isArray(req.params.requestId) ? req.params.requestId[0] : req.params.requestId;
@@ -139,7 +136,6 @@ debugRouter.get("/media/:requestId/:mediaId", (req: Request, res: Response) => {
   }
 });
 
-/** POST /debug/prune — 清空内存缓冲区 */
 debugRouter.post("/prune", (req: Request, res: Response) => {
   try {
     const count = debugStore.prune();

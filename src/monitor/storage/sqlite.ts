@@ -53,7 +53,6 @@ export class SqliteStorage implements MonitorStorage {
       logger.info(`Created monitor database directory: ${dir}`);
     }
 
-    // 尝试从文件加载现有数据库，否则创建新数据库
     if (existsSync(this.dbPath)) {
       const buffer = readFileSync(this.dbPath);
       this.db = new SqliteStorage.sqlModule.Database(buffer);

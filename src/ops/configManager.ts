@@ -11,9 +11,6 @@ import { debugStore } from "../debug/store";
 export class OpsConfigManager {
   private static writeLock = false;
 
-  /**
-   * 可运行时修改的配置项白名单
-   */
   static readonly WRITABLE_KEYS: ReadonlySet<string> = new Set([
     "LOG_LEVEL",
     "WEB_SEARCH_MAX_KEYWORD",
@@ -61,15 +58,10 @@ export class OpsConfigManager {
     "TOKEN_PLAN_MIMO_API_KEY",
   ]);
 
-  /**
-   * 获取当前运行时配置（仅白名单项 + 敏感项的值）
-   */
   static getCurrentConfig(): Record<string, unknown> {
     return {
-      // 日志级别
       logLevel: config.logLevel,
 
-      // Web Search
       webSearchMaxKeyword: config.webSearch.maxKeyword,
       webSearchForceSearch: config.webSearch.forceSearch,
       webSearchLimit: config.webSearch.limit,
@@ -77,16 +69,13 @@ export class OpsConfigManager {
       webSearchRegion: config.webSearch.userLocation.region,
       webSearchCity: config.webSearch.userLocation.city,
 
-      // Monitor
       monitorRetentionDays: config.monitor.retentionDays,
       monitorFlushIntervalMs: config.monitor.flushIntervalMs,
       monitorFlushBatchSize: config.monitor.flushBatchSize,
       monitorQueueMaxSize: config.monitor.queueMaxSize,
 
-      // Upstream
       upstreamTimeoutMs: config.upstream.timeout,
 
-      // Debug
       debugMaxRecords: config.debug.maxRecords,
       debugMaxBodySize: config.debug.maxBodySize,
       debugMaxMediaBytes: config.debug.maxMediaBytes,
@@ -102,18 +91,12 @@ export class OpsConfigManager {
     };
   }
 
-  /**
-   * 更新运行时配置（仅白名单项）
-   * @param updates 要更新的配置项
-   * @returns 更新后的配置
-   */
   static updateConfig(updates: Record<string, unknown>): { success: boolean; error?: string } {
     const validatedUpdates: Record<string, string> = {};
 
     for (const [key, value] of Object.entries(updates)) {
       const normalizedKey = this.normalizeUpdateKey(key);
 
-      // 检查是否在白名单中
       if (!normalizedKey || !this.WRITABLE_KEYS.has(normalizedKey)) {
         return {
           success: false,
@@ -121,7 +104,6 @@ export class OpsConfigManager {
         };
       }
 
-      // 验证并转换值
       const validated = this.validateAndConvert(normalizedKey, value);
       if (validated.error) {
         return { success: false, error: validated.error };
@@ -129,13 +111,10 @@ export class OpsConfigManager {
       validatedUpdates[normalizedKey] = validated.value!;
     }
 
-    // 应用到运行时配置
     this.applyRuntimeUpdate(validatedUpdates);
 
-    // 持久化到 .env
     const persistResult = this.persistToEnv(validatedUpdates);
     if (!persistResult.success) {
-      // 回滚内存状态
       this.revertRuntimeUpdate(validatedUpdates);
       return persistResult;
     }
@@ -143,9 +122,6 @@ export class OpsConfigManager {
     return { success: true };
   }
 
-  /**
-   * 验证并转换配置值
-   */
   private static validateAndConvert(
     key: string,
     value: unknown
@@ -244,9 +220,6 @@ export class OpsConfigManager {
     return this.KEY_ALIASES[key] || null;
   }
 
-  /**
-   * 应用运行时配置更新
-   */
   private static applyRuntimeUpdate(updates: Record<string, string>): void {
     for (const [key, value] of Object.entries(updates)) {
       switch (key) {
@@ -317,18 +290,12 @@ export class OpsConfigManager {
     logger.info("Runtime config updated", { updates: Object.keys(updates) });
   }
 
-  /**
-   * 回滚运行时配置（写入失败时调用）
-   */
   private static revertRuntimeUpdate(_updates: Record<string, string>): void {
     // 当前实现中，我们直接修改 config 对象
     // 完整回滚需要保存旧值，这里简化处理 - 重新加载环境变量
     logger.warn("Runtime config update failed, manual restart may be needed to restore");
   }
 
-  /**
-   * 持久化配置到 .env 文件
-   */
   private static persistToEnv(
     updates: Record<string, string>
   ): { success: boolean; error?: string } {
@@ -349,15 +316,12 @@ export class OpsConfigManager {
       let envContent = fs.readFileSync(envPath, "utf-8");
 
       for (const [key, value] of Object.entries(updates)) {
-        // 使用正则替换已存在的配置项
         const existingPattern = new RegExp(`^${key}=.*$`, "gm");
         const newLine = `${key}=${value}`;
 
         if (existingPattern.test(envContent)) {
-          // 替换现有值
           envContent = envContent.replace(existingPattern, newLine);
         } else {
-          // 追加新配置项
           envContent += `\n${newLine}`;
         }
       }

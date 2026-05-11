@@ -45,7 +45,6 @@ export async function startServer(): Promise<http.Server> {
       port: config.server.port,
     });
 
-    // Ops 运维界面已启用时启动 watcher
     if (config.opsPassword) {
       startWatcher();
     }

@@ -1,33 +1,18 @@
 import { config } from "../config";
 
-// --------------------------------------------------------------------------
-// 虚拟模型的特性标志
-// --------------------------------------------------------------------------
 export interface ModelFeatures {
-  /** 是否开启深度思考（thinking chain） */
   thinking: boolean;
-  /** 是否开启联网搜索 */
   search: boolean;
-  /** 是否强制 JSON 结构化输出 */
   json: boolean;
 }
 
-// --------------------------------------------------------------------------
-// 虚拟模型定义
-// --------------------------------------------------------------------------
 export interface VirtualModel {
-  /** 对外暴露的虚拟模型 ID */
   id: string;
-  /** 可读的描述 */
   description: string;
-  /** 实际映射的小米模型 ID */
   upstreamModel: string;
   features: ModelFeatures;
-  /** OpenAI /v1/models 接口中的 created 时间戳 */
   created: number;
-  /** Maximum input context length in tokens */
   contextLength: number;
-  /** Maximum output tokens */
   maxOutputTokens: number;
 }
 
@@ -83,7 +68,6 @@ const FEATURE_PRESETS: FeaturePreset[] = [
 // 固定时间戳，让模型列表看起来正常
 const BASE_TS = 1_700_000_000;
 
-// Token limits by upstream model ID
 const TOKEN_LIMITS: Record<string, { contextLength: number; maxOutputTokens: number }> = {
   "mimo-v2.5-pro": { contextLength: 1_000_000, maxOutputTokens: 128_000 },
   "mimo-v2-pro":   { contextLength: 1_000_000, maxOutputTokens: 128_000 },
@@ -119,22 +103,14 @@ function buildVirtualModels(): VirtualModel[] {
 // NOTE: Built once at module load time. Does not reflect runtime config changes.
 export const VIRTUAL_MODELS: VirtualModel[] = buildVirtualModels();
 
-// 快速查找 Map
 export const VIRTUAL_MODEL_MAP = new Map<string, VirtualModel>(
   VIRTUAL_MODELS.map((m) => [m.id, m])
 );
 
-/**
- * 根据虚拟模型 ID 查找模型定义。
- * 找不到则返回 undefined。
- */
 export function findVirtualModel(modelId: string): VirtualModel | undefined {
   return VIRTUAL_MODEL_MAP.get(modelId);
 }
 
-/**
- * 构造 web_search 工具对象，参数来自 config
- */
 export function buildWebSearchTool(): object {
   return {
     type: "web_search",

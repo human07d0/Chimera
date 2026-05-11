@@ -10,17 +10,10 @@ import { logger } from "./utils/logger";
 let serverInstance: http.Server | null = null;
 let isShuttingDown = false;
 
-/**
- * 设置服务器实例，供 shutdown 管理器使用
- */
 export function setServer(server: http.Server): void {
   serverInstance = server;
 }
 
-/**
- * 执行优雅关闭（等待监控队列 flush 完成）
- * @param reason 关闭原因（用于日志）
- */
 export async function gracefulShutdown(
   reason: string = "SIGTERM"
 ): Promise<void> {
@@ -77,7 +70,6 @@ export async function gracefulShutdown(
 }
 
 /**
- * 请求重启（优雅关闭后由主进程自己启动新进程）
  * 不再依赖 watcher 子进程，避免 Windows 上 detached 子进程被终止的问题。
  */
 export function requestRestart(): void {
@@ -93,9 +85,6 @@ export function requestRestart(): void {
   });
 }
 
-/**
- * 请求关闭
- */
 export function requestShutdown(): void {
   if (isShuttingDown) {
     logger.warn("Shutdown requested but shutdown in progress");
@@ -108,9 +97,6 @@ export function requestShutdown(): void {
   });
 }
 
-/**
- * 检查是否正在关闭
- */
 export function isShuttingDownNow(): boolean {
   return isShuttingDown;
 }

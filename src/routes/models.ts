@@ -29,10 +29,6 @@ modelsRouter.get("/models", (_req: Request, res: Response) => {
   });
 });
 
-/**
- * GET /v1/models/:model
- * 返回单个模型信息。
- */
 modelsRouter.get("/models/:modelId", (req: Request, res: Response) => {
   const { modelId } = req.params;
   const model = VIRTUAL_MODELS.find((m) => m.id === modelId);

@@ -58,10 +58,8 @@ export function getStorage(): MonitorStorage {
     return storageInstance;
   }
 
-  // 启动异步初始化，但不等待
   void getStorageAsync();
 
-  // 立即返回内存存储作为临时方案
   return memoryStorage;
 }
 

@@ -94,7 +94,6 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       firstTokenMs = Date.now() - tsStart;
     }
 
-    // 解析 SSE data 行提取 token 用量
     const str = buf.toString("utf-8");
     if (str) {
       const lines = str.split("\n");

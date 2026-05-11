@@ -18,9 +18,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
 
   const clientBody = req.body as ChatCompletionRequest;
 
-  // ------------------------------------------------------------------
-  // 1. 校验基本参数
-  // ------------------------------------------------------------------
   if (!clientBody || typeof clientBody !== "object") {
     sendError(res, 400, "invalid_request_error", "Request body must be a JSON object");
     return;
@@ -36,9 +33,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
     return;
   }
 
-  // ------------------------------------------------------------------
-  // 2. 查找虚拟模型
-  // ------------------------------------------------------------------
   const virtualModel = findVirtualModel(clientBody.model);
   if (!virtualModel) {
     sendError(
@@ -63,9 +57,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
     messageCount: clientBody.messages.length,
   });
 
-  // ------------------------------------------------------------------
-  // 3. 构造上游请求体
-  // ------------------------------------------------------------------
   const upstreamBody = transformRequest(
     clientBody,
     virtualModel.features,
@@ -73,9 +64,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
   );
   res.locals.upstreamModel = virtualModel.upstreamModel;
 
-  // ------------------------------------------------------------------
-  // 4. 调用上游 API
-  // ------------------------------------------------------------------
   const upstreamUrl = `${config.upstream.baseUrl}/v1/chat/completions`;
 
   let upstreamResponse: globalThis.Response;
@@ -111,9 +99,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
     return;
   }
 
-  // ------------------------------------------------------------------
-  // 5. 处理上游错误响应
-  // ------------------------------------------------------------------
   if (!upstreamResponse.ok) {
     const errorStatus = upstreamResponse.status;
     let errorBody: unknown;
@@ -134,9 +119,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
     return;
   }
 
-  // ------------------------------------------------------------------
-  // 6. 流式 vs 非流式处理
-  // ------------------------------------------------------------------
   if (isStreaming) {
     const { inputTokens, outputTokens, cacheHit } = await pipeSSEStream(upstreamResponse, res, virtualModel.id);
     logger.info("Streaming request completed", {
@@ -172,9 +154,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
   }
 });
 
-// --------------------------------------------------------------------------
-// 工具函数
-// --------------------------------------------------------------------------
 
 function sendError(
   res: Response,

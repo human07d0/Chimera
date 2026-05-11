@@ -3,17 +3,12 @@ import { config } from "../config";
 import { debugStore } from "./store";
 import { DebugMediaItem } from "./types";
 
-/**
- * 将 SSE chunk 数组解析并拼接为完整的响应对象 JSON 字符串。
- * 支持 OpenAI 和 Anthropic 两种流式格式。
- */
 export function assembleStreamResponse(sseChunks: string[]): string {
   let format: "openai" | "anthropic" | null = null;
   let id: string | undefined;
   let model: string | undefined;
   let usage: Record<string, unknown> | undefined;
 
-  // OpenAI 累积字段
   let content = "";
   let reasoningContent = "";
   let hasContent = false;
@@ -26,14 +21,12 @@ export function assembleStreamResponse(sseChunks: string[]): string {
   let promptTokensDetails: unknown;
   let completionTokensDetails: unknown;
 
-  // OpenAI tool_calls 累积：按 index 聚合增量 chunk
   const toolCallsMap = new Map<number, {
     id: string;
     type: "function";
     function: { name: string; arguments: string };
   }>();
 
-  // Anthropic 累积字段：按 index 存储所有 content block（保持顺序）
   const anthropicBlocks = new Map<number, Record<string, unknown>>();
   let stopReason: string | undefined;
   let stopSequence: string | undefined;
@@ -48,11 +41,9 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     try {
       parsed = JSON.parse(chunk);
     } catch {
-      // 非 JSON chunk，跳过继续处理
       continue;
     }
 
-    // 检测格式
     if (!format) {
       if (parsed.choices !== undefined) {
         format = "openai";
@@ -62,7 +53,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     }
 
     if (format === "openai") {
-      // 收集元数据
       if (parsed.id && !id) id = parsed.id as string;
       if (parsed.model && !model) model = parsed.model as string;
       if (parsed.created && !created) created = parsed.created as number;
@@ -74,7 +64,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
         if (u.completion_tokens_details !== undefined) completionTokensDetails = u.completion_tokens_details;
       }
 
-      // 提取 delta 内容
       const choices = parsed.choices as Array<Record<string, unknown>> | undefined;
       if (choices?.[0]) {
         if (choices[0].finish_reason) finishReason = choices[0].finish_reason as string;
@@ -90,7 +79,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
             hasReasoning = true;
           }
           if (delta.refusal !== undefined) refusal = delta.refusal as string;
-          // 提取 tool_calls（增量合并）
           const deltaToolCalls = delta.tool_calls as Array<Record<string, unknown>> | undefined;
           if (Array.isArray(deltaToolCalls)) {
             for (const tc of deltaToolCalls) {
@@ -114,7 +102,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     } else if (format === "anthropic") {
       const type = parsed.type as string;
 
-      // message_start 中提取 id、model、type、role
       if (type === "message_start") {
         const msg = parsed.message as Record<string, unknown> | undefined;
         if (msg) {
@@ -125,7 +112,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
         }
       }
 
-      // content_block_start：记录 block 类型和初始数据
       if (type === "content_block_start") {
         const contentBlock = parsed.content_block as Record<string, unknown> | undefined;
         const cbIndex = parsed.index as number;
@@ -157,7 +143,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
         }
       }
 
-      // content_block_delta：增量追加内容
       if (type === "content_block_delta") {
         const delta = parsed.delta as Record<string, unknown> | undefined;
         const cbIndex = parsed.index as number;
@@ -193,7 +178,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
         }
       }
 
-      // message_delta 中提取 stop_reason、stop_sequence 和 usage
       if (type === "message_delta") {
         const delta = parsed.delta as Record<string, unknown> | undefined;
         if (delta?.stop_reason) stopReason = delta.stop_reason as string;
@@ -208,7 +192,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     }
   }
 
-  // 组装结果
   if (format === "openai") {
     const message: Record<string, unknown> = { role: "assistant" };
     if (hasContent) message.content = content;
@@ -226,7 +209,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
       }));
     }
 
-    // 合并 usage 子字段
     if (usage) {
       if (promptTokensDetails !== undefined) usage.prompt_tokens_details = promptTokensDetails;
       if (completionTokensDetails !== undefined) usage.completion_tokens_details = completionTokensDetails;
@@ -255,22 +237,18 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     const sortedIndices = Array.from(anthropicBlocks.keys()).sort((a, b) => a - b);
     const contentBlocks = sortedIndices.map((i) => {
       const block = { ...anthropicBlocks.get(i)! };
-      // tool_use: 将 input 从拼接字符串解析为 JSON object
       if (block.type === "tool_use" && typeof block.input === "string") {
         try {
           block.input = JSON.parse(block.input as string);
         } catch {
-          // 解析失败保留原始字符串
         }
       }
-      // thinking: 附加 signature
       if (block.type === "thinking" && contentSignatures.has(i)) {
         block.signature = contentSignatures.get(i);
       }
       return block;
     });
 
-    // 合并 usage 子字段
     if (usage) {
       if (cacheCreationTokens !== undefined) usage.cache_creation_input_tokens = cacheCreationTokens;
       if (cacheReadTokens !== undefined) usage.cache_read_input_tokens = cacheReadTokens;
@@ -289,7 +267,6 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     return JSON.stringify(result);
   }
 
-  // 无法识别格式，回退为原始拼接
   return "[" + sseChunks.join(",") + "]";
 }
 
@@ -308,11 +285,6 @@ function jsonPath(prefix: string, key: string | number): string {
   return prefix ? `${prefix}.${key}` : key;
 }
 
-/**
- * 遍历 JSON 对象，提取数据 URI 和 Anthropic source 中的 base64 媒体数据，
- * 将其替换为摘要占位符，并返回媒体元数据数组。
- * 若 JSON 解析失败则原样返回。
- */
 export function extractAndSummarizeMedia(
   jsonStr: string,
   location: "request" | "response",
@@ -331,7 +303,6 @@ export function extractAndSummarizeMedia(
   function walk(value: unknown, parent: Record<string, unknown> | unknown[], key: string | number, currentPath: string): void {
     if (value === null || value === undefined) return;
 
-    // 处理 data URI 字符串
     if (typeof value === "string") {
       const match = value.match(DATA_URI_RE);
       if (match) {
@@ -366,7 +337,6 @@ export function extractAndSummarizeMedia(
 
     if (typeof value !== "object") return;
 
-    // 处理 Anthropic source 对象: { type: "base64", media_type: string, data: string }
     if (!Array.isArray(value)) {
       const obj = value as Record<string, unknown>;
       if (obj.type === "base64" && typeof obj.media_type === "string" && typeof obj.data === "string") {
@@ -395,7 +365,6 @@ export function extractAndSummarizeMedia(
       }
     }
 
-    // 递归遍历
     if (Array.isArray(value)) {
       for (let i = 0; i < value.length; i++) {
         walk(value[i], value, i, jsonPath(currentPath, i));
@@ -412,11 +381,6 @@ export function extractAndSummarizeMedia(
   return { body: JSON.stringify(parsed), media };
 }
 
-/**
- * 调试中间件：捕获完整的请求/响应体，存入内存环形缓冲区。
- * 仅作用于 /chat/completions 和 /messages 路径。
- * 需在 express.json() 之后、路由处理之前挂载。
- */
 export function debugMiddleware(req: Request, res: Response, next: NextFunction): void {
   const monitoredPaths = new Set(["/chat/completions", "/messages"]);
   if (!monitoredPaths.has(req.path)) {
@@ -433,7 +397,6 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
 
   let mediaItems: DebugMediaItem[] = [];
 
-  // 捕获请求体
   let requestBodyStr: string;
   try {
     requestBodyStr = JSON.stringify(req.body ?? {});
@@ -441,7 +404,6 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
     requestBodyStr = "{}";
   }
 
-  // 提取请求体中的媒体资源
   const reqResult = extractAndSummarizeMedia(requestBodyStr, "request", { maxMediaBytes });
   requestBodyStr = reqResult.body;
   mediaItems = mediaItems.concat(reqResult.media);
@@ -461,7 +423,6 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   const sseChunks: string[] = [];
   let sseBuffer = "";
 
-  // 非流式：通过 res.json 捕获响应体
   res.json = function (body: any): Response {
     try {
       responseBodyStr = JSON.stringify(body);
@@ -469,7 +430,6 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       responseBodyStr = "[unserializable]";
     }
 
-    // 提取响应体中的媒体资源
     const respResult = extractAndSummarizeMedia(responseBodyStr, "response", { maxMediaBytes });
     responseBodyStr = respResult.body;
     mediaItems = mediaItems.concat(respResult.media);
@@ -490,11 +450,9 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
     return originalJson(body);
   };
 
-  // 流式：收集 SSE data chunks
   res.write = function (chunk: any, encoding?: any, callback?: any): boolean {
     stream = true;
 
-    // 将 Buffer/Uint8Array 转为 string 后再解析 SSE data 行
     let str: string | null = null;
     if (typeof chunk === "string") {
       str = chunk;
@@ -519,13 +477,10 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
     return originalWrite(chunk, encoding, callback);
   };
 
-  // 终结：组装并存储调试事件
   res.end = function (...args: any[]): Response {
     const tsEnd = Date.now();
 
-    // 流式场景：从收集的 chunks 组装响应体
     if (stream) {
-      // 检查是否有错误 chunk
       for (const chunk of sseChunks) {
         try {
           const parsed = JSON.parse(chunk) as Record<string, unknown>;
@@ -536,13 +491,11 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
             break;
           }
         } catch {
-          // ignore invalid JSON
         }
       }
 
       responseBodyStr = assembleStreamResponse(sseChunks);
 
-      // 提取响应体中的媒体资源
       const respResult = extractAndSummarizeMedia(responseBodyStr, "response", { maxMediaBytes });
       responseBodyStr = respResult.body;
       mediaItems = mediaItems.concat(respResult.media);
@@ -552,7 +505,6 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       }
     }
 
-    // 非流式错误：如果 statusCode >= 400 但未提取到 errorType
     if (!stream && res.statusCode >= 400 && !errorType) {
       errorType = `http_${res.statusCode}`;
     }
