@@ -776,6 +776,7 @@
                 const [mainRes, tpRes] = await Promise.all([
                     fetch(`./monitor/stats?source=main${modelParam}${startParam}${endParam}`),
                     fetch(`./monitor/stats?source=token-plan${modelParam}${startParam}${endParam}`),
+                    loadCalls(),
                 ]);
                 const mainData = await mainRes.json();
                 const tpData = await tpRes.json();
@@ -789,8 +790,6 @@
             } catch (error) {
                 console.error('Failed to load stats', error);
             }
-
-            loadCalls();
         }
 
         async function loadCalls() {
@@ -803,7 +802,7 @@
                 const tbody = document.getElementById('callsTable');
 
                 if (data.success && data.data.length > 0) {
-                    const calls = data.data.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    const calls = data.data;
                     tbody.innerHTML = calls.map(c => {
                         const color = getModelColor(c.model);
                         return '<tr><td>' + new Date(c.timestamp).toLocaleString('zh-CN') + '</td>' +
@@ -866,7 +865,7 @@
             if (chartLoaded) return;
             return new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = 'https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js';
+                script.src = './chart.umd.min.js';
                 script.onload = () => { chartLoaded = true; resolve(); };
                 script.onerror = reject;
                 document.head.appendChild(script);
@@ -1047,95 +1046,143 @@
             } catch { return []; }
         }
 
+        function extractModelData(model, allDays, buckets) {
+            const modelBuckets = buckets.filter(b => b.model_upstream === model);
+            const dataMap = new Map(modelBuckets.map(b => [b.ts, b]));
+            return {
+                cachedData: allDays.map(d => dataMap.get(d)?.cached_prompt_tokens || 0),
+                missData: allDays.map(d => (dataMap.get(d)?.input_tokens || 0) - (dataMap.get(d)?.cached_prompt_tokens || 0)),
+                outputData: allDays.map(d => dataMap.get(d)?.output_tokens || 0),
+            };
+        }
+
+        function makeDatasets(cachedData, missData, outputData) {
+            return [
+                { label: 'Cache Hit', data: cachedData, backgroundColor: TOKEN_COLORS.cached + '80', borderColor: TOKEN_COLORS.cached, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
+                { label: 'Cache Miss', data: missData, backgroundColor: TOKEN_COLORS.miss + '80', borderColor: TOKEN_COLORS.miss, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
+                { label: 'Output', data: outputData, backgroundColor: TOKEN_COLORS.output + '80', borderColor: TOKEN_COLORS.output, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
+            ];
+        }
+
+        function makeChartOptions() {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { intersect: false, mode: 'index' },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#161b22',
+                        borderColor: '#30363d',
+                        borderWidth: 1,
+                        callbacks: {
+                            footer: function(items) {
+                                const total = items.reduce((s, i) => s + (i.parsed.y || 0), 0);
+                                return 'Total: ' + total.toLocaleString();
+                            },
+                        },
+                    },
+                },
+                scales: {
+                    x: {
+                        stacked: true,
+                        ticks: { color: '#8b949e', font: { size: 10 } },
+                        grid: { display: false },
+                    },
+                    y: {
+                        stacked: true,
+                        ticks: { color: '#8b949e', font: { size: 10 } },
+                        grid: { color: '#30363d50' },
+                    },
+                },
+            };
+        }
+
+        function createTokenChartWrapper(model) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'chart-wrapper-sm';
+            wrapper.dataset.model = model;
+            if (hiddenModels.has(model)) wrapper.style.display = 'none';
+            const color = getBaseModelColor(model);
+            const title = document.createElement('div');
+            title.style.cssText = 'font-size:13px;font-weight:600;margin-bottom:4px;color:' + color;
+            title.textContent = model;
+            wrapper.appendChild(title);
+            const canvas = document.createElement('canvas');
+            wrapper.appendChild(canvas);
+            return { wrapper, canvas };
+        }
+
+        function createTokenChart(canvas, dayLabels, cachedData, missData, outputData) {
+            const ctx = canvas.getContext('2d');
+            return new Chart(ctx, {
+                type: 'bar',
+                data: { labels: dayLabels, datasets: makeDatasets(cachedData, missData, outputData) },
+                options: makeChartOptions(),
+            });
+        }
+
+        function updateTokenChart(chart, dayLabels, cachedData, missData, outputData) {
+            chart.data.labels = dayLabels;
+            chart.data.datasets = makeDatasets(cachedData, missData, outputData);
+            chart.update();
+        }
+
         async function loadTokenCharts() {
             await loadChartJs();
 
             const buckets = await fetchTokenTrendData();
 
-            for (const key in tokenChartInstances) {
-                tokenChartInstances[key].destroy();
+            if (buckets.length === 0) {
+                for (const key in tokenChartInstances) tokenChartInstances[key].destroy();
+                tokenChartInstances = {};
+                document.getElementById('tokenCharts').innerHTML = '';
+                cachedAllModels = [];
+                renderModelToggles([]);
+                return;
             }
-            tokenChartInstances = {};
-            document.getElementById('tokenCharts').innerHTML = '';
-
-            if (buckets.length === 0) { renderModelToggles([]); return; }
 
             const allModels = [...new Set(buckets.map(b => b.model_upstream))].sort();
             const allDays = [...new Set(buckets.map(b => b.ts))].sort();
             cachedAllModels = allModels;
 
-            const container = document.getElementById('tokenCharts');
             const dayLabels = allDays.map(d =>
                 new Date(d).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
             );
 
+            const newModelSet = new Set(allModels);
+
+            // Destroy charts for removed models
+            for (const model in tokenChartInstances) {
+                if (!newModelSet.has(model)) {
+                    tokenChartInstances[model].destroy();
+                    delete tokenChartInstances[model];
+                    const wrapper = document.getElementById('tokenCharts').querySelector('[data-model="' + model.replace(/"/g, '\\"') + '"]');
+                    if (wrapper) wrapper.remove();
+                }
+            }
+
             for (const model of allModels) {
-                const modelBuckets = buckets.filter(b => b.model_upstream === model);
-                const dataMap = new Map(modelBuckets.map(b => [b.ts, b]));
-                const cachedData = allDays.map(d => dataMap.get(d)?.cached_prompt_tokens || 0);
-                const missData = allDays.map(d => (dataMap.get(d)?.input_tokens || 0) - (dataMap.get(d)?.cached_prompt_tokens || 0));
-                const outputData = allDays.map(d => dataMap.get(d)?.output_tokens || 0);
+                const { cachedData, missData, outputData } = extractModelData(model, allDays, buckets);
                 const isHidden = hiddenModels.has(model);
 
-                const wrapper = document.createElement('div');
-                wrapper.className = 'chart-wrapper-sm';
-                wrapper.dataset.model = model;
-                if (isHidden) wrapper.style.display = 'none';
-
-                const color = getBaseModelColor(model);
-                const title = document.createElement('div');
-                title.style.cssText = 'font-size:13px;font-weight:600;margin-bottom:4px;color:' + color;
-                title.textContent = model;
-                wrapper.appendChild(title);
-
-                const canvas = document.createElement('canvas');
-                wrapper.appendChild(canvas);
-                container.appendChild(wrapper);
-
-                const ctx = canvas.getContext('2d');
-                const chart = new Chart(ctx, {
-                    type: 'bar',
-                    data: {
-                        labels: dayLabels,
-                        datasets: [
-                            { label: 'Cache Hit', data: cachedData, backgroundColor: TOKEN_COLORS.cached + '80', borderColor: TOKEN_COLORS.cached, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
-                            { label: 'Cache Miss', data: missData, backgroundColor: TOKEN_COLORS.miss + '80', borderColor: TOKEN_COLORS.miss, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
-                            { label: 'Output', data: outputData, backgroundColor: TOKEN_COLORS.output + '80', borderColor: TOKEN_COLORS.output, borderWidth: 1, stack: 'tokens', maxBarThickness: 18 },
-                        ],
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: { intersect: false, mode: 'index' },
-                        plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                                backgroundColor: '#161b22',
-                                borderColor: '#30363d',
-                                borderWidth: 1,
-                                callbacks: {
-                                    footer: function(items) {
-                                        const total = items.reduce((s, i) => s + (i.parsed.y || 0), 0);
-                                        return 'Total: ' + total.toLocaleString();
-                                    },
-                                },
-                            },
-                        },
-                        scales: {
-                            x: {
-                                stacked: true,
-                                ticks: { color: '#8b949e', font: { size: 10 } },
-                                grid: { display: false },
-                            },
-                            y: {
-                                stacked: true,
-                                ticks: { color: '#8b949e', font: { size: 10 } },
-                                grid: { color: '#30363d50' },
-                            },
-                        },
-                    },
-                });
-                tokenChartInstances[model] = chart;
+                if (tokenChartInstances[model]) {
+                    updateTokenChart(tokenChartInstances[model], dayLabels, cachedData, missData, outputData);
+                    const wrapper = document.getElementById('tokenCharts').querySelector('[data-model="' + model.replace(/"/g, '\\"') + '"]');
+                    if (wrapper) wrapper.style.display = isHidden ? 'none' : '';
+                } else {
+                    const { wrapper, canvas } = createTokenChartWrapper(model);
+                    const container = document.getElementById('tokenCharts');
+                    let ref = null;
+                    for (let i = allModels.indexOf(model) + 1; i < allModels.length; i++) {
+                        if (tokenChartInstances[allModels[i]]) {
+                            const existing = container.querySelector('[data-model="' + allModels[i].replace(/"/g, '\\"') + '"]');
+                            if (existing) { ref = existing; break; }
+                        }
+                    }
+                    container.insertBefore(wrapper, ref);
+                    tokenChartInstances[model] = createTokenChart(canvas, dayLabels, cachedData, missData, outputData);
+                }
             }
 
             renderModelToggles(allModels);
@@ -1150,11 +1197,14 @@
         // --- Init ---
         fetchModels();
         initDateInputs();
+        loadData();
+        const chartSection = document.getElementById('chartSection');
+        if (chartSection.open) loadTrendChart();
+        const tokenSection = document.getElementById('tokenChartSection');
+        if (tokenSection.open) loadTokenCharts();
         setInterval(() => {
             loadData();
-            const chartSection = document.getElementById('chartSection');
             if (chartSection.open) loadTrendChart();
-            const tokenSection = document.getElementById('tokenChartSection');
             if (tokenSection.open) loadTokenCharts();
         }, 30000);
 

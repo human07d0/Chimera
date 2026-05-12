@@ -1,6 +1,6 @@
 {
   "name": "mimo-proxy",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "OpenAI & Anthropic-compatible proxy for Xiaomi MiMo API with feature preset models",
   "main": "dist/index.js",
   "scripts": {
