@@ -1,15 +1,26 @@
 import { Response as ExpressResponse } from "express";
 import { logger } from "../utils/logger";
 
+export interface PipeSSEOptions {
+  onChunk?: (line: string) => string | null;
+  skipEmptyLines?: boolean;
+  sendErrorChunk?: boolean;
+}
+
 export async function pipeSSEStream(
   upstreamResponse: globalThis.Response,
   clientRes: ExpressResponse,
-  virtualModelId: string
+  virtualModelId: string,
+  options?: PipeSSEOptions
 ): Promise<{ inputTokens: number; outputTokens: number; cacheHit: boolean }> {
+  const skipEmptyLines = options?.skipEmptyLines !== false;
+  const sendErrorChunk = options?.sendErrorChunk !== false;
+  const onChunk = options?.onChunk;
+
   clientRes.setHeader("Content-Type", "text/event-stream; charset=utf-8");
   clientRes.setHeader("Cache-Control", "no-cache, no-transform");
   clientRes.setHeader("Connection", "keep-alive");
-  clientRes.setHeader("X-Accel-Buffering", "no"); // 禁用 nginx 缓冲
+  clientRes.setHeader("X-Accel-Buffering", "no");
   clientRes.flushHeaders();
 
   let inputTokens = 0;
@@ -43,15 +54,19 @@ export async function pipeSSEStream(
       buffer += decoder.decode(value, { stream: true });
 
       const lines = buffer.split("\n");
-      // 最后一个元素可能是不完整的行，留到下次处理
       buffer = lines.pop() ?? "";
 
       for (const line of lines) {
         const trimmed = line.trimEnd();
 
-        // Skip empty lines produced by split on \n\n boundary.
-        // The data handler already writes \n\n as the event terminator.
-        if (trimmed === "") {
+        if (skipEmptyLines && trimmed === "") {
+          continue;
+        }
+
+        if (onChunk) {
+          const result = onChunk(trimmed);
+          if (result === null) continue;
+          clientRes.write(`${result}\n`);
           continue;
         }
 
@@ -109,16 +124,17 @@ export async function pipeSSEStream(
       logger.error("Error while reading upstream SSE stream", {
         error: err instanceof Error ? err.message : String(err),
       });
-      // 流中途报错时，写一个 error chunk 通知客户端（符合 OpenAI 错误格式）
-      const errorChunk = {
-        error: {
-          message: "Upstream stream interrupted",
-          type: "upstream_error",
-          code: "stream_error",
-        },
-      };
-      clientRes.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
-      clientRes.write("data: [DONE]\n\n");
+      if (sendErrorChunk) {
+        const errorChunk = {
+          error: {
+            message: "Upstream stream interrupted",
+            type: "upstream_error",
+            code: "stream_error",
+          },
+        };
+        clientRes.write(`data: ${JSON.stringify(errorChunk)}\n\n`);
+        clientRes.write("data: [DONE]\n\n");
+      }
     }
   } finally {
     clientRes.off("close", onClientClose);

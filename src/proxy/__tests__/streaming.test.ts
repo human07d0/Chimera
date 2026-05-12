@@ -70,4 +70,225 @@ describe("pipeSSEStream", () => {
     expect(dataBlocks.length).toBe(3);
     expect(allWritten).not.toContain("\n\n\n");
   });
+
+  it("rewrites model field in JSON data chunks", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"model":"original","choices":[]}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "virtual-model");
+
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).toContain('"model":"virtual-model"');
+    expect(allWritten).not.toContain('"model":"original"');
+  });
+
+  it("tracks token usage from usage field", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"model":"m","usage":{"prompt_tokens":10,"completion_tokens":20}}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+
+    const result = await pipeSSEStream(upstream, clientRes, "test-model");
+
+    expect(result.inputTokens).toBe(10);
+    expect(result.outputTokens).toBe(20);
+  });
+
+  it("tracks cache_hit from usage field", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"model":"m","usage":{"prompt_tokens":5,"completion_tokens":5,"cache_hit":true}}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+
+    const result = await pipeSSEStream(upstream, clientRes, "test-model");
+
+    expect(result.cacheHit).toBe(true);
+  });
+
+  it("skips empty lines by default", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"model":"m"}\n\n\ndata: {"model":"m2"}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "test-model");
+
+    const allWritten = clientRes._written.join("");
+    const dataBlocks = allWritten.split("data: ").filter(Boolean);
+    expect(dataBlocks.length).toBe(2);
+  });
+
+  it("sends error chunk on stream error when sendErrorChunk is true", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(encoder.encode('data: {"model":"m"}\n\n'));
+        controller.error(new Error("stream broke"));
+      },
+    });
+    const upstream = {
+      body: stream,
+      status: 200,
+      ok: true,
+      headers: new Headers(),
+    } as unknown as globalThis.Response;
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "test-model");
+
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).toContain("upstream_error");
+    expect(allWritten).toContain("data: [DONE]");
+  });
+
+  it("does not send error chunk when sendErrorChunk is false", async () => {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.error(new Error("stream broke"));
+      },
+    });
+    const upstream = {
+      body: stream,
+      status: 200,
+      ok: true,
+      headers: new Headers(),
+    } as unknown as globalThis.Response;
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "test-model", {
+      sendErrorChunk: false,
+    });
+
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).not.toContain("upstream_error");
+  });
+
+  it("writes empty lines when skipEmptyLines is false", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"model":"m"}\n\n\ndata: {"model":"m2"}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "test-model", {
+      skipEmptyLines: false,
+    });
+
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).toContain("\n\n");
+    const writeCalls = clientRes._written;
+    const emptyLineCalls = writeCalls.filter(
+      (w: string) => w.trim() === "" || w === "\n"
+    );
+    expect(emptyLineCalls.length).toBeGreaterThan(0);
+  });
+
+  it("calls onChunk callback for each line", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"model":"m"}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+    const onChunk = vi.fn((line: string) => line);
+
+    await pipeSSEStream(upstream, clientRes, "test-model", {
+      onChunk,
+    });
+
+    expect(onChunk).toHaveBeenCalled();
+    const firstCall = onChunk.mock.calls[0][0];
+    expect(firstCall).toContain("data:");
+  });
+
+  it("skips line when onChunk returns null", async () => {
+    const upstream = createMockUpstreamResponse([
+      'event: message\ndata: {"model":"m"}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+    const onChunk = vi.fn((line: string) => {
+      if (line.startsWith("event:")) return null;
+      return line;
+    });
+
+    await pipeSSEStream(upstream, clientRes, "test-model", {
+      onChunk,
+    });
+
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).not.toContain("event:");
+    expect(allWritten).toContain("data:");
+  });
+
+  it("sets SSE headers with charset=utf-8", async () => {
+    const upstream = createMockUpstreamResponse(["data: [DONE]\n\n"]);
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "test-model");
+
+    expect(clientRes.setHeader).toHaveBeenCalledWith(
+      "Content-Type",
+      "text/event-stream; charset=utf-8"
+    );
+    expect(clientRes.setHeader).toHaveBeenCalledWith(
+      "X-Accel-Buffering",
+      "no"
+    );
+  });
+
+  it("returns zero tokens when no usage in response", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"model":"m","choices":[]}\n\n',
+    ]);
+    const clientRes = createMockClientRes();
+
+    const result = await pipeSSEStream(upstream, clientRes, "test-model");
+
+    expect(result.inputTokens).toBe(0);
+    expect(result.outputTokens).toBe(0);
+    expect(result.cacheHit).toBe(false);
+  });
+
+  it("writes [DONE] and returns zeros when body is null", async () => {
+    const upstream = {
+      body: null,
+      status: 200,
+      ok: true,
+      headers: new Headers(),
+    } as unknown as globalThis.Response;
+    const clientRes = createMockClientRes();
+
+    const result = await pipeSSEStream(upstream, clientRes, "test-model");
+
+    expect(result).toEqual({ inputTokens: 0, outputTokens: 0, cacheHit: false });
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).toContain("data: [DONE]");
+  });
+
+  it("forwards non-data lines as-is", async () => {
+    const upstream = createMockUpstreamResponse([
+      "event: message\ndata: {\"model\":\"m\"}\n\n",
+    ]);
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "test-model");
+
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).toContain("event: message");
+  });
+
+  it("handles chunks split across multiple reads", async () => {
+    const upstream = createMockUpstreamResponse([
+      'data: {"mod',
+      'el":"m"}\n\ndata: [DONE]\n',
+      "\n",
+    ]);
+    const clientRes = createMockClientRes();
+
+    await pipeSSEStream(upstream, clientRes, "test-model");
+
+    const allWritten = clientRes._written.join("");
+    expect(allWritten).toContain('"model":"test-model"');
+    expect(allWritten).toContain("data: [DONE]");
+  });
 });

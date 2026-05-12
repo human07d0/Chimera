@@ -1,6 +1,7 @@
 import { Router, Request, Response } from "express";
 import { config } from "../config";
 import { findVirtualModel, VIRTUAL_MODELS } from "../models/presets";
+import { pipeSSEStream } from "../proxy/streaming";
 import { logger } from "../utils/logger";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { sanitizeForLog } from "../utils/sanitizeForLog";
@@ -131,7 +132,12 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
   }
 
   if (isStreaming) {
-    await pipeUpstreamStream(upstreamResponse, res, requestId);
+    res.setHeader("X-Request-Id", requestId);
+    await pipeSSEStream(upstreamResponse, res, virtualModel.upstreamModel, {
+      skipEmptyLines: false,
+      sendErrorChunk: false,
+      onChunk: (line) => line,
+    });
     logger.info("Anthropic streaming request completed", {
       requestId,
       durationMs: Date.now() - startTime,
@@ -158,63 +164,6 @@ anthropicRouter.get("/messages", (_req: Request, res: Response) => {
     },
   });
 });
-
-async function pipeUpstreamStream(
-  upstreamResponse: globalThis.Response,
-  res: Response,
-  requestId: string
-): Promise<void> {
-  res.setHeader("Content-Type", "text/event-stream");
-  res.setHeader("Cache-Control", "no-cache");
-  res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Request-Id", requestId);
-  res.flushHeaders();
-
-  const reader = upstreamResponse.body?.getReader();
-  if (!reader) {
-    res.end();
-    return;
-  }
-
-  let cancelled = false;
-  const onClientClose = () => {
-    cancelled = true;
-    reader.cancel().catch(() => {});
-  };
-  res.on("close", onClientClose);
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  try {
-    while (!cancelled) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        res.write(line + "\n");
-      }
-    }
-  } catch (err) {
-    if (cancelled) {
-      logger.debug("Stream cancelled (client disconnected)", { requestId });
-    } else {
-      logger.error("Stream pipe error", {
-        requestId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  } finally {
-    res.off("close", onClientClose);
-    reader.releaseLock();
-    if (!res.writableEnded) {
-      res.end();
-    }
-  }
-}
 
 function sendAnthropicError(
   res: Response,
