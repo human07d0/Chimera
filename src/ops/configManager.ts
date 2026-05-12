@@ -29,6 +29,9 @@ export class OpsConfigManager {
     "TOKEN_PLAN_MIMO_API_KEY",
   ]);
 
+  // NOTE: This mapping is intentionally manual. Each field lives at a different nested
+  // path in the config object (e.g. config.webSearch.maxKeyword, config.monitor.flushIntervalMs)
+  // and there is no generic way to derive the accessor from CONFIG_FIELDS alone.
   static getCurrentConfig(): Record<string, unknown> {
     return {
       logLevel: config.logLevel,
@@ -150,6 +153,9 @@ export class OpsConfigManager {
     return this.KEY_ALIASES[key] || null;
   }
 
+  // NOTE: This mapping is intentionally manual. Each field has a different config path
+  // and type-specific parsing logic (e.g. UPSTREAM_TIMEOUT_MS updates both config.upstream
+  // and config.tokenPlan, DEBUG_MAX_RECORDS also calls debugStore.setMaxRecords).
   private static applyRuntimeUpdate(updates: Record<string, string>): void {
     for (const [key, value] of Object.entries(updates)) {
       switch (key) {

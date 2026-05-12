@@ -240,6 +240,11 @@ describe("OpsConfigManager", () => {
     it("should truncate float values for number fields", () => {
       const result = OpsConfigManager.updateConfig({ webSearchMaxKeyword: 3.7 });
       expect(result.success).toBe(true);
+      expect(mockWriteFileSync).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.stringContaining("WEB_SEARCH_MAX_KEYWORD=3"),
+        "utf-8"
+      );
     });
   });
 });

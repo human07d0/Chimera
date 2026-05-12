@@ -216,7 +216,7 @@ describe("configSchema", () => {
 
     it("each entry should have key, type, description", () => {
       const schema = generateSchema();
-      for (const [alias, entry] of Object.entries(schema)) {
+      for (const [, entry] of Object.entries(schema)) {
         expect(entry.key).toBeTruthy();
         expect(entry.type).toBeTruthy();
         expect(entry.description).toBeTruthy();
