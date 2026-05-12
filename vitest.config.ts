@@ -10,7 +10,7 @@ export default defineConfig({
       "src/monitor/**/*.test.ts",
       "src/utils/**/*.test.ts",
       "src/__tests__/**/*.test.ts",
+      "src/ops/**/*.test.ts",
     ],
-    exclude: ["src/ops/**"],
   },
 });

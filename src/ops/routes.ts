@@ -5,6 +5,7 @@ import { isWatcherActive } from "./watcher";
 import { requestShutdown, requestRestart } from "../shutdownManager";
 import { logger } from "../utils/logger";
 import { config } from "../config";
+import { generateSchema } from "./configSchema";
 
 export const opsRouter: Router = Router();
 
@@ -57,94 +58,7 @@ opsRouter.post("/config", opsAuthMiddleware, (req: Request, res: Response) => {
 });
 
 opsRouter.get("/config/schema", opsAuthMiddleware, (_req: Request, res: Response) => {
-  const schema = {
-    logLevel: {
-      key: "LOG_LEVEL",
-      type: "string",
-      enum: ["error", "warn", "info", "debug"],
-      description: "日志级别",
-    },
-    webSearchMaxKeyword: {
-      key: "WEB_SEARCH_MAX_KEYWORD",
-      type: "number",
-      min: 1,
-      description: "联网搜索最大关键词数量",
-    },
-    webSearchForceSearch: {
-      key: "WEB_SEARCH_FORCE_SEARCH",
-      type: "boolean",
-      description: "是否强制开启联网搜索能力",
-    },
-    webSearchLimit: {
-      key: "WEB_SEARCH_LIMIT",
-      type: "number",
-      min: 1,
-      description: "每次搜索返回的网页数量",
-    },
-    webSearchCountry: {
-      key: "WEB_SEARCH_COUNTRY",
-      type: "string",
-      description: "搜索地理位置 - 国家",
-    },
-    webSearchRegion: {
-      key: "WEB_SEARCH_REGION",
-      type: "string",
-      description: "搜索地理位置 - 省份/地区",
-    },
-    webSearchCity: {
-      key: "WEB_SEARCH_CITY",
-      type: "string",
-      description: "搜索地理位置 - 城市",
-    },
-    monitorFlushIntervalMs: {
-      key: "MONITOR_FLUSH_INTERVAL_MS",
-      type: "number",
-      min: 50,
-      description: "监控异步写入队列的刷新间隔（毫秒）",
-    },
-    monitorRetentionDays: {
-      key: "MONITOR_RETENTION_DAYS",
-      type: "number",
-      min: 1,
-      description: "监控数据保留天数",
-    },
-    monitorFlushBatchSize: {
-      key: "MONITOR_FLUSH_BATCH_SIZE",
-      type: "number",
-      min: 1,
-      description: "监控异步写入批量大小",
-    },
-    monitorQueueMaxSize: {
-      key: "MONITOR_QUEUE_MAX_SIZE",
-      type: "number",
-      min: 1,
-      description: "监控异步队列最大长度",
-    },
-    upstreamTimeoutMs: {
-      key: "UPSTREAM_TIMEOUT_MS",
-      type: "number",
-      min: 1000,
-      description: "上游请求超时时间（毫秒），同时应用于主代理和 token-plan",
-    },
-    debugMaxRecords: {
-      key: "DEBUG_MAX_RECORDS",
-      type: "number",
-      min: 1,
-      description: "调试记录最大条数（环形缓冲区容量）",
-    },
-    debugMaxBodySize: {
-      key: "DEBUG_MAX_BODY_SIZE",
-      type: "number",
-      min: 1024,
-      description: "调试记录单条请求/响应体最大字节数",
-    },
-    debugMaxMediaBytes: {
-      key: "DEBUG_MAX_MEDIA_BYTES",
-      type: "number",
-      min: 1024,
-      description: "调试模式媒体资源缓存最大字节数",
-    },
-  };
+  const schema = generateSchema();
 
   res.json({
     success: true,

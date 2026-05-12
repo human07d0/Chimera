@@ -3,6 +3,7 @@ import path from "path";
 import { config } from "../config";
 import { logger } from "../utils/logger";
 import { debugStore } from "../debug/store";
+import { KEY_ALIASES, getFieldDef, CONFIG_FIELDS } from "./configSchema";
 
 /**
  * 运行时配置管理器
@@ -11,41 +12,11 @@ import { debugStore } from "../debug/store";
 export class OpsConfigManager {
   private static writeLock = false;
 
-  static readonly WRITABLE_KEYS: ReadonlySet<string> = new Set([
-    "LOG_LEVEL",
-    "WEB_SEARCH_MAX_KEYWORD",
-    "WEB_SEARCH_FORCE_SEARCH",
-    "WEB_SEARCH_LIMIT",
-    "WEB_SEARCH_COUNTRY",
-    "WEB_SEARCH_REGION",
-    "WEB_SEARCH_CITY",
-    "MONITOR_FLUSH_INTERVAL_MS",
-    "MONITOR_RETENTION_DAYS",
-    "UPSTREAM_TIMEOUT_MS",
-    "MONITOR_FLUSH_BATCH_SIZE",
-    "MONITOR_QUEUE_MAX_SIZE",
-    "DEBUG_MAX_RECORDS",
-    "DEBUG_MAX_BODY_SIZE",
-    "DEBUG_MAX_MEDIA_BYTES",
-  ]);
+  static readonly WRITABLE_KEYS: ReadonlySet<string> = new Set(
+    CONFIG_FIELDS.map((f) => f.envKey)
+  );
 
-  private static readonly KEY_ALIASES: Readonly<Record<string, string>> = {
-    logLevel: "LOG_LEVEL",
-    webSearchMaxKeyword: "WEB_SEARCH_MAX_KEYWORD",
-    webSearchForceSearch: "WEB_SEARCH_FORCE_SEARCH",
-    webSearchLimit: "WEB_SEARCH_LIMIT",
-    webSearchCountry: "WEB_SEARCH_COUNTRY",
-    webSearchRegion: "WEB_SEARCH_REGION",
-    webSearchCity: "WEB_SEARCH_CITY",
-    monitorFlushIntervalMs: "MONITOR_FLUSH_INTERVAL_MS",
-    monitorRetentionDays: "MONITOR_RETENTION_DAYS",
-    upstreamTimeoutMs: "UPSTREAM_TIMEOUT_MS",
-    monitorFlushBatchSize: "MONITOR_FLUSH_BATCH_SIZE",
-    monitorQueueMaxSize: "MONITOR_QUEUE_MAX_SIZE",
-    debugMaxRecords: "DEBUG_MAX_RECORDS",
-    debugMaxBodySize: "DEBUG_MAX_BODY_SIZE",
-    debugMaxMediaBytes: "DEBUG_MAX_MEDIA_BYTES",
-  };
+  private static readonly KEY_ALIASES: Readonly<Record<string, string>> = KEY_ALIASES;
 
   /**
    * 敏感配置项（只读，不写入 .env）
@@ -126,89 +97,48 @@ export class OpsConfigManager {
     key: string,
     value: unknown
   ): { value?: string; error?: string } {
-    switch (key) {
-      case "LOG_LEVEL":
-        if (typeof value !== "string" || !["error", "warn", "info", "debug"].includes(value)) {
-          return { error: "LOG_LEVEL must be one of: error, warn, info, debug" };
-        }
-        return { value };
+    const fieldDef = getFieldDef(key);
+    if (!fieldDef) {
+      return { error: `Unknown configuration key: ${key}` };
+    }
 
-      case "WEB_SEARCH_MAX_KEYWORD":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
-          return { error: "WEB_SEARCH_MAX_KEYWORD must be a positive number" };
+    switch (fieldDef.type) {
+      case "string":
+        if (typeof value !== "string") {
+          return { error: `${key} must be a string` };
         }
-        return { value: String(Math.trunc(value)) };
-
-      case "WEB_SEARCH_FORCE_SEARCH":
-        if (typeof value !== "boolean") {
-          return { error: "WEB_SEARCH_FORCE_SEARCH must be a boolean" };
+        if (fieldDef.enum) {
+          if (!fieldDef.enum.includes(value)) {
+            return { error: `${key} must be one of: ${fieldDef.enum.join(", ")}` };
+          }
+          return { value };
         }
-        return { value: String(value) };
-
-      case "WEB_SEARCH_LIMIT":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
-          return { error: "WEB_SEARCH_LIMIT must be a positive number" };
-        }
-        return { value: String(Math.trunc(value)) };
-
-      case "WEB_SEARCH_COUNTRY":
-      case "WEB_SEARCH_REGION":
-      case "WEB_SEARCH_CITY":
-        if (typeof value !== "string" || value.trim() === "") {
+        if (value.trim() === "") {
           return { error: `${key} must be a non-empty string` };
         }
         return { value: value.trim() };
 
-      case "MONITOR_FLUSH_INTERVAL_MS":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 50) {
-          return { error: "MONITOR_FLUSH_INTERVAL_MS must be a number >= 50" };
+      case "number": {
+        if (typeof value !== "number" || !Number.isFinite(value) || (fieldDef.min !== undefined && value < fieldDef.min)) {
+          if (fieldDef.min === 1) {
+            return { error: `${key} must be a positive number` };
+          }
+          if (fieldDef.min !== undefined) {
+            return { error: `${key} must be a number >= ${fieldDef.min}` };
+          }
+          return { error: `${key} must be a number` };
         }
         return { value: String(Math.trunc(value)) };
+      }
 
-      case "MONITOR_RETENTION_DAYS":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
-          return { error: "MONITOR_RETENTION_DAYS must be a positive number" };
+      case "boolean":
+        if (typeof value !== "boolean") {
+          return { error: `${key} must be a boolean` };
         }
-        return { value: String(Math.trunc(value)) };
-
-      case "UPSTREAM_TIMEOUT_MS":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1000) {
-          return { error: "UPSTREAM_TIMEOUT_MS must be a number >= 1000" };
-        }
-        return { value: String(Math.trunc(value)) };
-
-      case "MONITOR_FLUSH_BATCH_SIZE":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
-          return { error: "MONITOR_FLUSH_BATCH_SIZE must be a positive number" };
-        }
-        return { value: String(Math.trunc(value)) };
-
-      case "MONITOR_QUEUE_MAX_SIZE":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
-          return { error: "MONITOR_QUEUE_MAX_SIZE must be a positive number" };
-        }
-        return { value: String(Math.trunc(value)) };
-
-      case "DEBUG_MAX_RECORDS":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1) {
-          return { error: "DEBUG_MAX_RECORDS must be a positive number" };
-        }
-        return { value: String(Math.trunc(value)) };
-
-      case "DEBUG_MAX_BODY_SIZE":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1024) {
-          return { error: "DEBUG_MAX_BODY_SIZE must be a number >= 1024" };
-        }
-        return { value: String(Math.trunc(value)) };
-
-      case "DEBUG_MAX_MEDIA_BYTES":
-        if (typeof value !== "number" || !Number.isFinite(value) || value < 1024) {
-          return { error: "DEBUG_MAX_MEDIA_BYTES must be a number >= 1024" };
-        }
-        return { value: String(Math.trunc(value)) };
+        return { value: String(value) };
 
       default:
-        return { error: `Unknown configuration key: ${key}` };
+        return { error: `Unsupported type for key: ${key}` };
     }
   }
 
