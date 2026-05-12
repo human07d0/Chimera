@@ -105,7 +105,17 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
     try {
       errorBody = await upstreamResponse.json();
     } catch {
-      errorBody = { message: await upstreamResponse.text().catch(() => "Unknown error") };
+      // JSON parse failure is logged below by the existing logger.warn("Upstream returned error", ...)
+      errorBody = {
+        message: await upstreamResponse.text().catch((textErr) => {
+          logger.warn("Failed to read upstream error body as text", {
+            requestId,
+            status: errorStatus,
+            textReadError: textErr instanceof Error ? textErr.message : String(textErr),
+          });
+          return "Unknown error";
+        }),
+      };
     }
 
     logger.warn("Upstream returned error", {

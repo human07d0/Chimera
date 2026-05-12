@@ -56,7 +56,9 @@ class Store {
     this.setState({ token, loggedIn: true });
     try {
       sessionStorage.setItem("ops_token", token);
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to persist OPS token to sessionStorage", err);
+    }
   }
 
   loadToken(): string | null {
@@ -66,7 +68,8 @@ class Store {
         this.setState({ token, loggedIn: true });
       }
       return token;
-    } catch {
+    } catch (err) {
+      console.warn("Failed to read OPS token from sessionStorage", err);
       return null;
     }
   }
@@ -75,7 +78,9 @@ class Store {
     this.setState({ token: null, loggedIn: false });
     try {
       sessionStorage.removeItem("ops_token");
-    } catch {}
+    } catch (err) {
+      console.warn("Failed to remove OPS token from sessionStorage", err);
+    }
   }
 }
 

@@ -85,6 +85,7 @@ class OpsApi {
 
       return data as ApiResponse<T>;
     } catch (error) {
+      console.warn("OPS API request failed", error);
       return {
         success: false,
         error: error instanceof Error ? error.message : "Network error",

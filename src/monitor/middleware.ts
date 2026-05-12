@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
+import { logger } from "../utils/logger";
 import { storageWorker } from "./storage/worker";
 import { calculateCost } from "./pricing";
 
@@ -117,7 +118,9 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
             }
           }
         } catch {
-          // ignore invalid chunk json
+          logger.debug("Monitor: skipping unparseable SSE chunk during token counting", {
+            chunk: dataContent.slice(0, 120),
+          });
         }
       }
     }

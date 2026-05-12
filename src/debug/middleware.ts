@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { config } from "../config";
+import { logger } from "../utils/logger";
 import { debugStore } from "./store";
 import { DebugMediaItem } from "./types";
 
@@ -41,6 +42,7 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     try {
       parsed = JSON.parse(chunk);
     } catch {
+      logger.debug("debug: skipping unparseable SSE chunk", { chunk: chunk.slice(0, 120) });
       continue;
     }
 
@@ -240,7 +242,10 @@ export function assembleStreamResponse(sseChunks: string[]): string {
       if (block.type === "tool_use" && typeof block.input === "string") {
         try {
           block.input = JSON.parse(block.input as string);
-        } catch {
+        } catch (err) {
+          logger.warn("debug: failed to parse tool_use input JSON, keeping raw string", {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
       if (block.type === "thinking" && contentSignatures.has(i)) {
@@ -294,6 +299,10 @@ export function extractAndSummarizeMedia(
   try {
     parsed = JSON.parse(jsonStr);
   } catch {
+    logger.warn("debug: body is not valid JSON, skipping media extraction", {
+      location,
+      preview: jsonStr.slice(0, 120),
+    });
     return { body: jsonStr, media: [] };
   }
 
@@ -400,7 +409,10 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   let requestBodyStr: string;
   try {
     requestBodyStr = JSON.stringify(req.body ?? {});
-  } catch {
+  } catch (err) {
+    logger.warn("debug: failed to serialize request body", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     requestBodyStr = "{}";
   }
 
@@ -426,7 +438,10 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   res.json = function (body: any): Response {
     try {
       responseBodyStr = JSON.stringify(body);
-    } catch {
+    } catch (err) {
+      logger.warn("debug: failed to serialize response body", {
+        error: err instanceof Error ? err.message : String(err),
+      });
       responseBodyStr = "[unserializable]";
     }
 
@@ -442,7 +457,10 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       errorType = (body.error.type as string) || `http_${res.statusCode}`;
       try {
         errorBodyStr = JSON.stringify(body.error);
-      } catch {
+      } catch (err) {
+        logger.warn("debug: failed to serialize error body", {
+          error: err instanceof Error ? err.message : String(err),
+        });
         errorBodyStr = null;
       }
     }
@@ -491,6 +509,9 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
             break;
           }
         } catch {
+          logger.debug("debug: skipping unparseable SSE chunk during error scan", {
+            chunk: chunk.slice(0, 120),
+          });
         }
       }
 

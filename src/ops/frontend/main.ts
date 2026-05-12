@@ -64,6 +64,7 @@ async function init(): Promise<void> {
       }
     }
   } catch (error) {
+    console.error("OPS application initialization failed", error);
     app.innerHTML = `
       <div class="loading-screen">
         <p style="color: var(--danger); margin-bottom: 16px;">初始化失败: ${error instanceof Error ? error.message : "未知错误"}</p>

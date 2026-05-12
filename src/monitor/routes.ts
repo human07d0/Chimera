@@ -71,13 +71,16 @@ function parseTimestampParam(value: unknown): number | undefined {
 }
 
 monitorRouter.get("/trend", (req: Request, res: Response) => {
+  let days = 3, start: number | undefined, end: number | undefined;
+  let model: string | undefined, source: "main" | "token-plan" | undefined;
+  let granularity: "hour" | "6h" | "day" = "day";
   try {
-    const days = parseQueryInt(req.query.days, 3);
-    const start = parseTimestampParam(req.query.start);
-    const end = parseTimestampParam(req.query.end);
-    const model = parseModelParam(req.query.model);
-    const source = parseSourceParam(req.query.source);
-    const granularity = (typeof req.query.granularity === "string" && (req.query.granularity === "hour" || req.query.granularity === "6h" || req.query.granularity === "day")
+    days = parseQueryInt(req.query.days, 3);
+    start = parseTimestampParam(req.query.start);
+    end = parseTimestampParam(req.query.end);
+    model = parseModelParam(req.query.model);
+    source = parseSourceParam(req.query.source);
+    granularity = (typeof req.query.granularity === "string" && (req.query.granularity === "hour" || req.query.granularity === "6h" || req.query.granularity === "day")
       ? req.query.granularity
       : "day") as "hour" | "6h" | "day";
 
@@ -85,7 +88,11 @@ monitorRouter.get("/trend", (req: Request, res: Response) => {
     const buckets = storage.trend({ days, start, end, model, source, granularity });
 
     res.json({ success: true, data: { buckets } });
-  } catch (_error) {
+  } catch (err) {
+    logger.error("Monitor trend query failed", {
+      error: err instanceof Error ? err.message : String(err),
+      days, start, end, model, source, granularity,
+    });
     res.status(500).json({
       success: false,
       error: "获取趋势数据失败",
@@ -94,12 +101,14 @@ monitorRouter.get("/trend", (req: Request, res: Response) => {
 });
 
 monitorRouter.get("/stats", (req: Request, res: Response) => {
+  let days = 3, start: number | undefined, end: number | undefined;
+  let model: string | undefined, source: "main" | "token-plan" | undefined;
   try {
-    const days = parseQueryInt(req.query.days, 3);
-    const start = parseTimestampParam(req.query.start);
-    const end = parseTimestampParam(req.query.end);
-    const model = parseModelParam(req.query.model);
-    const source = parseSourceParam(req.query.source);
+    days = parseQueryInt(req.query.days, 3);
+    start = parseTimestampParam(req.query.start);
+    end = parseTimestampParam(req.query.end);
+    model = parseModelParam(req.query.model);
+    source = parseSourceParam(req.query.source);
 
     const storage = getStorage();
     const stats = storage.stats({ days, start, end, model, source });
@@ -108,7 +117,11 @@ monitorRouter.get("/stats", (req: Request, res: Response) => {
       success: true,
       data: stats,
     });
-  } catch (_error) {
+  } catch (err) {
+    logger.error("Monitor stats query failed", {
+      error: err instanceof Error ? err.message : String(err),
+      days, start, end, model, source,
+    });
     res.status(500).json({
       success: false,
       error: "获取统计数据失败",
@@ -117,16 +130,22 @@ monitorRouter.get("/stats", (req: Request, res: Response) => {
 });
 
 monitorRouter.get("/token-trend", (req: Request, res: Response) => {
+  let start: number | undefined, end: number | undefined;
+  let source: "main" | "token-plan" | undefined;
   try {
-    const start = parseTimestampParam(req.query.start);
-    const end = parseTimestampParam(req.query.end);
-    const source = parseSourceParam(req.query.source);
+    start = parseTimestampParam(req.query.start);
+    end = parseTimestampParam(req.query.end);
+    source = parseSourceParam(req.query.source);
 
     const storage = getStorage();
     const buckets = storage.tokenTrend({ start, end, source });
 
     res.json({ success: true, data: { buckets } });
-  } catch (_error) {
+  } catch (err) {
+    logger.error("Monitor token-trend query failed", {
+      error: err instanceof Error ? err.message : String(err),
+      start, end, source,
+    });
     res.status(500).json({
       success: false,
       error: "获取 Token 趋势数据失败",
@@ -135,11 +154,13 @@ monitorRouter.get("/token-trend", (req: Request, res: Response) => {
 });
 
 monitorRouter.get("/calls", (req: Request, res: Response) => {
+  let days = 3, limit = 100, offset = 0;
+  let model: string | undefined;
   try {
-    const days = parseQueryInt(req.query.days, 3);
-    const limit = parseQueryInt(req.query.limit, 100);
-    const offset = parseQueryInt(req.query.offset, 0);
-    const model = parseModelParam(req.query.model);
+    days = parseQueryInt(req.query.days, 3);
+    limit = parseQueryInt(req.query.limit, 100);
+    offset = parseQueryInt(req.query.offset, 0);
+    model = parseModelParam(req.query.model);
 
     const storage = getStorage();
     const events = storage.query({ days, limit, offset, model });
@@ -179,7 +200,11 @@ monitorRouter.get("/calls", (req: Request, res: Response) => {
       success: true,
       data: calls,
     });
-  } catch (_error) {
+  } catch (err) {
+    logger.error("Monitor calls query failed", {
+      error: err instanceof Error ? err.message : String(err),
+      days, limit, offset, model,
+    });
     res.status(500).json({
       success: false,
       error: "获取调用详情失败",
@@ -200,8 +225,9 @@ monitorRouter.post("/prune", (req: Request, res: Response) => {
     return;
   }
 
+  let days = 30;
   try {
-    const days = parseBodyInt((req.body as { days?: unknown } | undefined)?.days, 30);
+    days = parseBodyInt((req.body as { days?: unknown } | undefined)?.days, 30);
 
     const storage = getStorage();
     const deletedCount = storage.prune(days);
@@ -210,7 +236,11 @@ monitorRouter.post("/prune", (req: Request, res: Response) => {
       success: true,
       data: { deletedCount },
     });
-  } catch (_error) {
+  } catch (err) {
+    logger.error("Monitor prune failed", {
+      error: err instanceof Error ? err.message : String(err),
+      days,
+    });
     res.status(500).json({
       success: false,
       error: "清理数据失败",

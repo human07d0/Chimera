@@ -42,7 +42,11 @@ export async function pipeSSEStream(
   let cancelled = false;
   const onClientClose = () => {
     cancelled = true;
-    reader.cancel().catch(() => {});
+    reader.cancel().catch((err) => {
+      logger.debug("Failed to cancel stream reader (client disconnected)", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
   };
   clientRes.on("close", onClientClose);
 

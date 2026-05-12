@@ -4,6 +4,7 @@ import { config } from "../config";
 import { logger } from "../utils/logger";
 import { extractApiKey } from "../utils/auth";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { sanitizeForLog } from "../utils/sanitizeForLog";
 import { generateRequestId } from "../utils/requestId";
 
 // --------------------------------------------------------------------------
@@ -114,12 +115,23 @@ async function proxyPassthrough(
     try {
       errorBody = await upstreamResponse.json();
     } catch {
-      errorBody = { message: await upstreamResponse.text().catch(() => "Unknown error") };
+      // JSON parse failure is logged below by the existing logger.warn("Upstream returned error", ...)
+      errorBody = {
+        message: await upstreamResponse.text().catch((textErr) => {
+          logger.warn("Failed to read upstream error body as text", {
+            requestId,
+            status: errorStatus,
+            textReadError: textErr instanceof Error ? textErr.message : String(textErr),
+          });
+          return "Unknown error";
+        }),
+      };
     }
 
     logger.warn("Token-plan upstream returned error", {
       requestId,
       status: errorStatus,
+      body: sanitizeForLog(errorBody),
     });
 
     res.status(errorStatus).json(errorBody);
@@ -144,7 +156,12 @@ async function proxyPassthrough(
     let cancelled = false;
     const onClientClose = () => {
       cancelled = true;
-      reader.cancel().catch(() => {});
+      reader.cancel().catch((err) => {
+        logger.debug("Failed to cancel token-plan stream reader (client disconnected)", {
+          requestId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     };
     res.on("close", onClientClose);
 
