@@ -1,7 +1,7 @@
+// src/routes/chat.ts
 import { Router, Request, Response } from "express";
-import { config } from "../config";
-import { findVirtualModel } from "../models/presets";
-import { transformRequest, transformResponse, ChatCompletionRequest } from "../proxy/transformer";
+import { modelRegistry } from "../providers/registry";
+import { applyDefaults } from "../proxy/applyDefaults";
 import { pipeSSEStream } from "../proxy/streaming";
 import { logger } from "../utils/logger";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
@@ -16,85 +16,100 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
 
   const startTime = Date.now();
 
-  const clientBody = req.body as ChatCompletionRequest;
+  const clientBody = req.body as Record<string, unknown>;
 
   if (!clientBody || typeof clientBody !== "object") {
-    sendError(res, 400, "invalid_request_error", "Request body must be a JSON object");
+    sendChatError(res, 400, "invalid_request_error", "Request body must be a JSON object");
     return;
   }
 
-  if (!clientBody.model) {
-    sendError(res, 400, "invalid_request_error", "Missing required parameter: model");
+  if (!clientBody["model"]) {
+    sendChatError(res, 400, "invalid_request_error", "Missing required parameter: model");
     return;
   }
 
-  if (!Array.isArray(clientBody.messages) || clientBody.messages.length === 0) {
-    sendError(res, 400, "invalid_request_error", "Missing or empty required parameter: messages");
+  if (!Array.isArray(clientBody["messages"]) || (clientBody["messages"] as unknown[]).length === 0) {
+    sendChatError(res, 400, "invalid_request_error", "Missing or empty required parameter: messages");
     return;
   }
 
-  const virtualModel = findVirtualModel(clientBody.model);
-  if (!virtualModel) {
-    sendError(
+  const endpointPrefix = extractEndpointPrefix(req);
+
+  const resolved = modelRegistry.lookup(clientBody["model"] as string, endpointPrefix);
+  if (!resolved) {
+    sendChatError(
       res,
       404,
       "invalid_request_error",
-      `The model '${clientBody.model}' does not exist. ` +
+      `The model '${clientBody["model"]}' does not exist. ` +
         `Available models can be retrieved via GET /v1/models.`,
-      "model_not_found"
+      "model_not_found",
     );
     return;
   }
 
-  const isStreaming = clientBody.stream === true;
+  const url = resolved.handler.getOpenAIUrl(resolved.providerConfig.base_url);
+  if (!url) {
+    sendChatError(
+      res,
+      404,
+      "invalid_request_error",
+      `The model '${clientBody["model"]}' does not support OpenAI chat completions.`,
+      "model_not_found",
+    );
+    return;
+  }
+
+  const isStreaming = clientBody["stream"] === true;
 
   logger.info("Incoming request", {
     requestId,
-    model: clientBody.model,
-    upstreamModel: virtualModel.upstreamModel,
-    features: virtualModel.features,
+    model: clientBody["model"],
+    upstreamModel: resolved.modelConfig.upstream,
+    provider: resolved.providerConfig.name,
     stream: isStreaming,
-    messageCount: clientBody.messages.length,
+    messageCount: (clientBody["messages"] as unknown[]).length,
   });
 
-  const upstreamBody = transformRequest(
-    clientBody,
-    virtualModel.features,
-    virtualModel.upstreamModel
-  );
-  res.locals.upstreamModel = virtualModel.upstreamModel;
+  res.locals.virtualModelId = resolved.modelConfig.id;
+  res.locals.providerName = resolved.providerConfig.name;
+  res.locals.upstreamModel = resolved.modelConfig.upstream;
 
-  const upstreamUrl = `${config.upstream.baseUrl}/v1/chat/completions`;
+  // Pipeline: clone → swap model → apply defaults → transform
+  const originalClientBody = { ...clientBody };
+  const body = { ...clientBody };
+  body["model"] = resolved.modelConfig.upstream;
+
+  applyDefaults(body, resolved.modelConfig.default, originalClientBody);
+  resolved.handler.transformRequest(body, resolved.modelConfig, originalClientBody, resolved.providerConfig);
+
+  const authHeaders: Record<string, string> = {
+    [resolved.providerConfig.auth_header]:
+      resolved.providerConfig.auth_prefix + resolved.providerConfig.api_key,
+    "Content-Type": "application/json",
+    "X-Request-Id": requestId,
+  };
 
   let upstreamResponse: globalThis.Response;
   try {
     upstreamResponse = await fetchWithTimeout(
-      upstreamUrl,
+      url,
       {
         method: "POST",
-        headers: {
-          "api-key": config.mimoApiKey,
-          "Content-Type": "application/json",
-          // 转发一些有用的追踪头
-          "X-Request-Id": requestId,
-        },
-        body: JSON.stringify(upstreamBody),
+        headers: authHeaders,
+        body: JSON.stringify(body),
       },
-      config.upstream.timeout
+      resolved.providerConfig.timeout,
     );
   } catch (fetchErr) {
-    const message =
-      fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+    const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
     const isTimeout = message.includes("timed out") || message.includes("timeout");
     logger.error("Upstream fetch failed", { requestId, error: message });
-    sendError(
+    sendChatError(
       res,
       502,
-      "upstream_error",
-      isTimeout
-        ? "Request to upstream API timed out"
-        : `Failed to reach upstream API: ${message}`,
-      isTimeout ? "timeout" : "connection_error"
+      isTimeout ? "rate_limit_error" : "upstream_error",
+      isTimeout ? "Request to upstream API timed out" : `Failed to reach upstream API: ${message}`,
     );
     return;
   }
@@ -105,7 +120,6 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
     try {
       errorBody = await upstreamResponse.json();
     } catch {
-      // JSON parse failure is logged below by the existing logger.warn("Upstream returned error", ...)
       errorBody = {
         message: await upstreamResponse.text().catch((textErr) => {
           logger.warn("Failed to read upstream error body as text", {
@@ -124,62 +138,89 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
       body: sanitizeForLog(errorBody),
     });
 
-    // 原样透传上游错误（已是 OpenAI 兼容格式）
-    res.status(errorStatus).json(errorBody);
+    const chatError = convertUpstreamError(errorBody, errorStatus);
+    res.status(errorStatus).json(chatError);
     return;
   }
 
   if (isStreaming) {
-    const { inputTokens, outputTokens, cacheHit } = await pipeSSEStream(upstreamResponse, res, virtualModel.id);
+    res.setHeader("X-Request-Id", requestId);
+
+    await pipeSSEStream(upstreamResponse, res, resolved.modelConfig.id, {
+      skipEmptyLines: false,
+      sendErrorChunk: false,
+    });
+
     logger.info("Streaming request completed", {
       requestId,
       durationMs: Date.now() - startTime,
-      upstreamModel: virtualModel.upstreamModel,
-      inputTokens,
-      outputTokens,
-      cacheHit,
+      upstreamModel: resolved.modelConfig.upstream,
     });
   } else {
-    let responseBody: Record<string, unknown>;
-    try {
-      responseBody = (await upstreamResponse.json()) as Record<string, unknown>;
-    } catch (parseErr) {
-      logger.error("Failed to parse upstream JSON response", {
-        requestId,
-        error: parseErr instanceof Error ? parseErr.message : String(parseErr),
-      });
-      sendError(res, 502, "upstream_error", "Upstream returned invalid JSON");
-      return;
-    }
-
-    const transformed = transformResponse(responseBody, virtualModel.id);
-    res.json(transformed);
+    const responseBody = (await upstreamResponse.json()) as Record<string, unknown>;
+    responseBody["model"] = resolved.modelConfig.id;
+    res.json(responseBody);
 
     logger.info("Non-streaming request completed", {
       requestId,
       durationMs: Date.now() - startTime,
-      upstreamModel: virtualModel.upstreamModel,
-      usage: responseBody["usage"] ?? null,
+      upstreamModel: resolved.modelConfig.upstream,
     });
   }
 });
 
+function extractEndpointPrefix(req: Request): string {
+  const baseUrl = req.baseUrl;
+  const match = baseUrl.match(/^(.*?)\/v1$/);
+  return match ? match[1] : "";
+}
 
-function sendError(
+function sendChatError(
   res: Response,
   status: number,
   type: string,
   message: string,
-  code?: string
+  code?: string,
 ): void {
   res.status(status).json({
     error: {
       message,
       type,
-      ...(code ? { code } : {}),
+      code: code ?? null,
     },
   });
 }
 
+function convertUpstreamError(
+  errorBody: unknown,
+  status: number,
+): { error: { message: string; type: string; code: string | null } } {
+  if (typeof errorBody !== "object" || errorBody === null) {
+    return {
+      error: {
+        message: `Upstream error (${status})`,
+        type: "upstream_error",
+        code: null,
+      },
+    };
+  }
 
+  const err = errorBody as Record<string, unknown>;
+  const upstreamError = err["error"] as Record<string, unknown> | undefined;
 
+  return {
+    error: {
+      message: (upstreamError?.["message"] as string) || (err["message"] as string) || `Upstream error (${status})`,
+      type: (upstreamError?.["type"] as string) || getErrorTypeFromStatus(status),
+      code: (upstreamError?.["code"] as string) ?? null,
+    },
+  };
+}
+
+function getErrorTypeFromStatus(status: number): string {
+  if (status === 401) return "authentication_error";
+  if (status === 403) return "permission_error";
+  if (status === 429) return "rate_limit_error";
+  if (status >= 500) return "upstream_error";
+  return "invalid_request";
+}
