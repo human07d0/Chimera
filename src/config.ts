@@ -1,21 +1,10 @@
 import "dotenv/config";
 
-export const SUPPORTED_UPSTREAM_MODELS = [
-  "mimo-v2-flash",
-  "mimo-v2-pro",
-  "mimo-v2-omni",
-  "mimo-v2.5",
-  "mimo-v2.5-pro",
-] as const;
-type SupportedUpstreamModel = (typeof SUPPORTED_UPSTREAM_MODELS)[number];
-
-// NOTE: Uses console.warn because logger.ts imports config.ts (circular dependency).
-// Prefix intentionally differs from logger format ([timestamp] [LEVEL]).
 function warnConfig(message: string): void {
   console.warn(`[config] ${message}`);
 }
 
-function normalizeBaseUrl(url: string): string {
+export function normalizeBaseUrl(url: string): string {
   let normalized = url.replace(/\/+$/, "");
   normalized = normalized.replace(/\/v1$/i, "");
   return normalized;
@@ -73,92 +62,14 @@ function warnInvalidIntEnv(name: string, defaultValue: number): void {
   }
 }
 
-function optionalModelListEnv(
-  name: string,
-  defaultValue: readonly SupportedUpstreamModel[],
-): SupportedUpstreamModel[] {
-  const raw = process.env[name];
-  if (!raw || raw.trim() === "") {
-    return [...defaultValue];
-  }
-
-  const requested = raw
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  const enabled: SupportedUpstreamModel[] = [];
-
-  for (const model of requested) {
-    if (!SUPPORTED_UPSTREAM_MODELS.includes(model as SupportedUpstreamModel)) {
-      warnConfig(
-        `Invalid ${name} item: '${model}'. Supported values: ${SUPPORTED_UPSTREAM_MODELS.join(", ")}`,
-      );
-      continue;
-    }
-
-    const typedModel = model as SupportedUpstreamModel;
-    if (!enabled.includes(typedModel)) {
-      enabled.push(typedModel);
-    }
-  }
-
-  if (enabled.length === 0) {
-    warnConfig(
-      `${name} has no valid model values, falling back to defaults: ${defaultValue.join(", ")}`,
-    );
-    return [...defaultValue];
-  }
-
-  return enabled;
-}
-
-const defaultEnabledModels: readonly SupportedUpstreamModel[] =
-  SUPPORTED_UPSTREAM_MODELS;
-const configuredEnabledModels = optionalModelListEnv(
-  "MIMO_ENABLED_MODELS",
-  defaultEnabledModels,
-);
-
 export const config = {
-  /** 小米 MiMo API Key（主代理必填，仅使用 token-plan 时可留空） */
-  mimoApiKey: process.env["MIMO_API_KEY"] || "",
-
-  /** 代理服务自身鉴权 Key，为空则不启用 */
   proxyApiKey: process.env["PROXY_API_KEY"] || "",
 
-  /** Ops 运维界面密码，为空则不启用运维界面 */
   opsPassword: process.env["OPS_PASSWORD"] || "",
 
   server: {
     port: optionalIntEnv("PORT", 3000),
     host: optionalEnv("HOST", "0.0.0.0"),
-    maxBodySize: optionalEnv("MAX_BODY_SIZE", "10mb"),
-  },
-
-  upstream: {
-    baseUrl: normalizeBaseUrl(
-      optionalEnv("MIMO_BASE_URL", "https://api.xiaomimimo.com"),
-    ),
-    anthropicBaseUrl: normalizeBaseUrl(
-      optionalEnv("ANTHROPIC_BASE_URL", "https://api.xiaomimimo.com/anthropic"),
-    ),
-    enabledModels: configuredEnabledModels,
-    /** 默认模型（用于健康检查与监控回退值） */
-    defaultModel: configuredEnabledModels[0],
-    timeout: optionalIntEnv("UPSTREAM_TIMEOUT_MS", 120_000),
-  },
-
-  webSearch: {
-    maxKeyword: optionalIntEnv("WEB_SEARCH_MAX_KEYWORD", 3),
-    forceSearch: optionalBoolEnv("WEB_SEARCH_FORCE_SEARCH", true),
-    limit: optionalIntEnv("WEB_SEARCH_LIMIT", 3),
-    userLocation: {
-      type: "approximate" as const,
-      country: optionalEnv("WEB_SEARCH_COUNTRY", "China"),
-      region: optionalEnv("WEB_SEARCH_REGION", "Beijing"),
-      city: optionalEnv("WEB_SEARCH_CITY", "Beijing"),
-    },
   },
 
   monitor: {
@@ -172,25 +83,6 @@ export const config = {
     flushIntervalMs: optionalIntEnv("MONITOR_FLUSH_INTERVAL_MS", 200),
     flushBatchSize: optionalIntEnv("MONITOR_FLUSH_BATCH_SIZE", 100),
     queueMaxSize: optionalIntEnv("MONITOR_QUEUE_MAX_SIZE", 10_000),
-  },
-
-  tokenPlan: {
-    enabled: optionalBoolEnv("TOKEN_PLAN_ENABLED", false),
-    proxyApiKey: process.env["TOKEN_PLAN_PROXY_API_KEY"] || "",
-    mimoApiKey: process.env["TOKEN_PLAN_MIMO_API_KEY"] || "",
-    baseUrl: normalizeBaseUrl(
-      optionalEnv(
-        "TOKEN_PLAN_BASE_URL",
-        "https://token-plan-cn.xiaomimimo.com",
-      ),
-    ),
-    anthropicBaseUrl: normalizeBaseUrl(
-      optionalEnv(
-        "TOKEN_PLAN_ANTHROPIC_BASE_URL",
-        "https://token-plan-cn.xiaomimimo.com/anthropic",
-      ),
-    ),
-    timeout: optionalIntEnv("UPSTREAM_TIMEOUT_MS", 120_000),
   },
 
   logLevel: optionalEnv("LOG_LEVEL", "info") as
