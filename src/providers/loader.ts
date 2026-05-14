@@ -127,6 +127,8 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
   const providers: ProviderConfig[] = [];
   const modelIdMap = new Map<string, Set<string>>();
 
+  const handlerMap = new Map<string, ProviderHandler>([...builtinHandlers, ...customHandlers]);
+
   for (const file of files) {
     const filePath = path.join(resolvedDir, file);
     let rawYaml: unknown;
@@ -191,7 +193,6 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
       });
     }
 
-    const handlerMap = new Map<string, ProviderHandler>([...builtinHandlers, ...customHandlers]);
     const handler = handlerMap.get(raw.type);
 
     let baseUrl = raw.base_url ?? "";

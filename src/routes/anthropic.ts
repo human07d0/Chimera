@@ -19,12 +19,17 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
   const clientBody = req.body as Record<string, unknown>;
 
   if (!clientBody || typeof clientBody !== "object") {
-    sendAnthropicError(res, 400, "invalid_request_error", "Request body must be a JSON object");
+    sendAnthropicError(res, 400, "invalid_request", "Request body must be a JSON object");
     return;
   }
 
   if (!clientBody["model"]) {
-    sendAnthropicError(res, 400, "invalid_request_error", "Missing required parameter: model");
+    sendAnthropicError(res, 400, "invalid_request", "Missing required parameter: model");
+    return;
+  }
+
+  if (!Array.isArray(clientBody["messages"]) || (clientBody["messages"] as unknown[]).length === 0) {
+    sendAnthropicError(res, 400, "invalid_request", "Missing or empty required parameter: messages");
     return;
   }
 
@@ -35,7 +40,7 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
     sendAnthropicError(
       res,
       404,
-      "invalid_request_error",
+      "model_not_found",
       `The model '${clientBody["model"]}' does not exist.`,
     );
     return;
@@ -47,7 +52,7 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
     sendAnthropicError(
       res,
       404,
-      "invalid_request_error",
+      "invalid_request",
       `The model '${clientBody["model"]}' does not support Anthropic messages API.`,
     );
     return;
