@@ -52,11 +52,6 @@ export const mimoHandler: ProviderHandler = {
       }
     }
 
-    if (Array.isArray(body["tools"]) && (body["tools"] as unknown[]).length === 0) {
-      delete body["tools"];
-      delete body["tool_choice"];
-    }
-
     if (!body["tools"]) {
       delete body["tool_choice"];
     }
