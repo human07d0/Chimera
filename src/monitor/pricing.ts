@@ -41,6 +41,27 @@ export const PRICING: Record<string, ModelPricing> = {
   },
 };
 
+export function registerProviderPricing(
+  providers: Array<{ models: Array<{ id: string; pricing?: { input: number; cached_input?: number; output: number } }> }>,
+): void {
+  for (const provider of providers) {
+    for (const model of provider.models) {
+      if (model.pricing) {
+        PRICING[model.id] = {
+          tiers: [
+            {
+              threshold: Infinity,
+              inputPrice: model.pricing.input,
+              cachedPrice: model.pricing.cached_input ?? 0,
+              outputPrice: model.pricing.output,
+            },
+          ],
+        };
+      }
+    }
+  }
+}
+
 export function getTier(tokens: number, tiers: PriceTier[]): PriceTier {
   if (tiers.length === 0) {
     throw new Error("Empty tiers");

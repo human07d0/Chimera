@@ -38,6 +38,23 @@ vi.mock("../../config", () => ({
   },
 }));
 
+vi.mock("../../providers/registry", () => ({
+  modelRegistry: {
+    init: vi.fn(),
+    getProviders: vi.fn().mockReturnValue([]),
+    getAllModels: vi.fn().mockReturnValue([]),
+    getEndpoints: vi.fn().mockReturnValue([""]),
+    lookup: vi.fn().mockReturnValue(null),
+  },
+}));
+
+vi.mock("../../monitor/pricing", () => ({
+  registerProviderPricing: vi.fn(),
+  PRICING: {},
+  getTier: vi.fn(),
+  calculateCost: vi.fn().mockReturnValue(0),
+}));
+
 // Mock logger
 vi.mock("../../utils/logger", () => ({
   logger: {

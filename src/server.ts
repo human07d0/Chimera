@@ -9,16 +9,19 @@ import { getStorage } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
-import { VIRTUAL_MODELS } from "./models/presets";
+import { modelRegistry } from "./providers/registry";
+import { registerProviderPricing } from "./monitor/pricing";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 import { extractApiKey } from "./utils/auth";
 import { debugMiddleware, debugRouter } from "./debug";
-import { createTokenPlanRouter } from "./token-plan/server";
 
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 export async function createApp(): Promise<express.Application> {
+  modelRegistry.init();
+  registerProviderPricing(modelRegistry.getProviders());
+
   const app = express();
   const playgroundToken = crypto.randomUUID();
 
@@ -73,11 +76,13 @@ export async function createApp(): Promise<express.Application> {
   });
 
   app.get("/health", (_req: Request, res: Response) => {
+    const providers = modelRegistry.getProviders();
+    const totalModels = providers.reduce((sum, p) => sum + p.models.length, 0);
     res.json({
       status: "ok",
       timestamp: new Date().toISOString(),
-      upstreamModels: config.upstream.enabledModels,
-      defaultUpstreamModel: config.upstream.defaultModel,
+      providers: providers.map((p) => p.name),
+      totalModels,
       auth: config.proxyApiKey ? "enabled" : "disabled",
     });
   });
@@ -111,8 +116,9 @@ export async function createApp(): Promise<express.Application> {
       const indexPath = path.join(playgroundDir, "index.html");
       let html = fs.readFileSync(indexPath, "utf-8");
 
+      const allModels = modelRegistry.getAllModels("");
       const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify({
-        models: VIRTUAL_MODELS.map(m => m.id),
+        models: allModels.map((m) => m.model.id),
         playgroundToken,
         featureSuffixes: { thinking: "-thinking", search: "-search", json: "-json" },
       })}</script>`;
@@ -156,61 +162,32 @@ export async function createApp(): Promise<express.Application> {
   });
   app.use("/playground/api/v1", monitorMiddleware, modelsRouter, chatRouter);
   app.use("/playground/api/anthropic/v1", monitorMiddleware, anthropicRouter);
-  if (config.tokenPlan.enabled) {
-    const tpRouter = createTokenPlanRouter({ skipAuth: true });
-    app.use("/playground/api/token-plan", tpRouter);
-  }
 
   // --------------------------------------------------------------------------
-  // 模型路由（无需鉴权，Monitor UI 下拉框需要访问）
+  // 挂载路由（根据 registry 中的 endpoint 动态挂载）
   // --------------------------------------------------------------------------
-  app.use("/v1", modelsRouter);
+  const endpoints = modelRegistry.getEndpoints();
 
-  app.use("/v1", authMiddleware);
-  app.use("/anthropic/v1", authMiddleware);
+  for (const endpoint of endpoints) {
+    const prefix = endpoint || "";
 
-  if (config.debug.enabled) {
-    app.use("/v1", debugMiddleware);
-    app.use("/anthropic/v1", debugMiddleware);
-  }
-  app.use("/v1", monitorMiddleware);
-  app.use("/anthropic/v1", monitorMiddleware);
-  app.use("/v1", chatRouter);
-  app.use("/anthropic/v1", anthropicRouter);
+    app.use(`${prefix}/v1`, modelsRouter);
 
-  // --------------------------------------------------------------------------
-  // Token-Plan 透传代理（条件挂载）
-  // --------------------------------------------------------------------------
-  if (config.tokenPlan.enabled) {
-    const tokenPlanRouter = createTokenPlanRouter();
-
-    // token-plan 需要额外的 CORS 头（anthropic-version、anthropic-beta）
-    app.use("/token-plan", (_req: Request, res: Response, next: NextFunction) => {
-      res.header(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization, api-key, x-api-key, x-requested-with, anthropic-version, anthropic-beta"
-      );
-      next();
-    });
+    app.use(`${prefix}/v1`, authMiddleware);
+    app.use(`${prefix}/anthropic/v1`, authMiddleware);
 
     if (config.debug.enabled) {
-      app.use("/token-plan/v1", debugMiddleware);
-      app.use("/token-plan/anthropic/v1", debugMiddleware);
+      app.use(`${prefix}/v1`, debugMiddleware);
+      app.use(`${prefix}/anthropic/v1`, debugMiddleware);
     }
 
-    app.use("/token-plan/v1", (_req: Request, res: Response, next: NextFunction) => {
-      res.locals.source = "token-plan";
-      next();
-    });
-    app.use("/token-plan/v1", monitorMiddleware);
-    app.use("/token-plan/anthropic/v1", (_req: Request, res: Response, next: NextFunction) => {
-      res.locals.source = "token-plan";
-      next();
-    });
-    app.use("/token-plan/anthropic/v1", monitorMiddleware);
+    app.use(`${prefix}/v1`, monitorMiddleware);
+    app.use(`${prefix}/anthropic/v1`, monitorMiddleware);
 
-    app.use("/token-plan", tokenPlanRouter);
-    logger.info("Token-plan router mounted at /token-plan");
+    app.use(`${prefix}/v1`, chatRouter);
+    app.use(`${prefix}/anthropic/v1`, anthropicRouter);
+
+    logger.info(`Routes mounted at ${prefix}/v1 and ${prefix}/anthropic/v1`);
   }
 
   app.use((_req: Request, res: Response) => {
