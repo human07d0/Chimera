@@ -1,0 +1,134 @@
+# config/builtin_provider/mimo-token-plan.yaml
+version: 1
+type: mimo
+name: xiaomi-mimo-token-plan
+api_key: ${TOKEN_PLAN_MIMO_API_KEY}
+auth_header: api-key
+auth_prefix: ""
+base_url: https://token-plan-cn.xiaomimimo.com
+endpoint: /token-plan
+
+capabilities:
+  thinking: true
+  web_search: true
+  json_output: true
+
+web_search:
+  max_keyword: 3
+  force_search: false
+  limit: 5
+  user_location:
+    country: CN
+    region: ""
+    city: ""
+
+models:
+  - id: mimo-v2-flash-tp
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+
+  - id: mimo-v2-pro-tp
+    upstream: mimo-v2-pro
+    context_length: 1000000
+    max_output_tokens: 128000
+
+  - id: mimo-v2-omni-tp
+    upstream: mimo-v2-omni
+    context_length: 256000
+    max_output_tokens: 128000
+
+  - id: mimo-v2.5-tp
+    upstream: mimo-v2.5
+    context_length: 1000000
+    max_output_tokens: 128000
+
+  - id: mimo-v2.5-pro-tp
+    upstream: mimo-v2.5-pro
+    context_length: 1000000
+    max_output_tokens: 128000
+
+  - id: mimo-v2-flash-tp-thinking
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: enabled
+
+  - id: mimo-v2-pro-tp-thinking
+    upstream: mimo-v2-pro
+    context_length: 1000000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+
+  - id: mimo-v2-omni-tp-thinking
+    upstream: mimo-v2-omni
+    context_length: 256000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+
+  - id: mimo-v2.5-tp-thinking
+    upstream: mimo-v2.5
+    context_length: 1000000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+
+  - id: mimo-v2.5-pro-tp-thinking
+    upstream: mimo-v2.5-pro
+    context_length: 1000000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+
+  - id: mimo-v2-flash-tp-thinking-search
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: enabled
+      web_search: true
+
+  - id: mimo-v2-pro-tp-thinking-search
+    upstream: mimo-v2-pro
+    context_length: 1000000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+      web_search: true
+
+  - id: mimo-v2-omni-tp-thinking-search
+    upstream: mimo-v2-omni
+    context_length: 256000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+      web_search: true
+
+  - id: mimo-v2.5-tp-thinking-search
+    upstream: mimo-v2.5
+    context_length: 1000000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+      web_search: true
+
+  - id: mimo-v2.5-pro-tp-thinking-search
+    upstream: mimo-v2.5-pro
+    context_length: 1000000
+    max_output_tokens: 128000
+    default:
+      thinking:
+        type: enabled
+      web_search: true
