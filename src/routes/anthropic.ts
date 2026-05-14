@@ -1,101 +1,111 @@
+// src/routes/anthropic.ts
 import { Router, Request, Response } from "express";
-import { config } from "../config";
-import { findVirtualModel, VIRTUAL_MODELS } from "../models/presets";
+import { modelRegistry } from "../providers/registry";
+import { applyDefaults } from "../proxy/applyDefaults";
 import { pipeSSEStream } from "../proxy/streaming";
 import { logger } from "../utils/logger";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { sanitizeForLog } from "../utils/sanitizeForLog";
 import { generateRequestId } from "../utils/requestId";
 
-interface AnthropicMessagesRequest {
-  model: string;
-  messages: unknown[];
-  stream?: boolean;
-  max_tokens?: number;
-  [key: string]: unknown;
-}
-
 export const anthropicRouter: import("express").Router = Router();
 
-/**
- * POST /anthropic/v1/messages
- * Anthropic Messages API 兼容接口 - 直接透传到上游
- */
 anthropicRouter.post("/messages", async (req: Request, res: Response) => {
   const requestId = generateRequestId();
+  res.locals.requestId = requestId;
+
   const startTime = Date.now();
 
-  const clientBody = req.body as AnthropicMessagesRequest;
+  const clientBody = req.body as Record<string, unknown>;
 
   if (!clientBody || typeof clientBody !== "object") {
-    sendAnthropicError(res, 400, "invalid_request", "Request body must be a JSON object");
+    sendAnthropicError(res, 400, "invalid_request_error", "Request body must be a JSON object");
     return;
   }
 
-  if (!clientBody.model) {
-    sendAnthropicError(res, 400, "invalid_request", "Missing required parameter: model");
+  if (!clientBody["model"]) {
+    sendAnthropicError(res, 400, "invalid_request_error", "Missing required parameter: model");
     return;
   }
 
-  if (!Array.isArray(clientBody.messages) || clientBody.messages.length === 0) {
-    sendAnthropicError(res, 400, "invalid_request", "Missing or empty required parameter: messages");
-    return;
-  }
+  const endpointPrefix = extractEndpointPrefix(req);
 
-  if (!clientBody.max_tokens || clientBody.max_tokens < 1) {
-    sendAnthropicError(res, 400, "invalid_request", "max_tokens is required and must be positive");
-    return;
-  }
-
-  res.locals.requestId = requestId;
-  const virtualModel = findVirtualModel(clientBody.model);
-  if (!virtualModel) {
+  const resolved = modelRegistry.lookup(clientBody["model"] as string, endpointPrefix);
+  if (!resolved) {
     sendAnthropicError(
       res,
       404,
-      "model_not_found",
-      `The model '${clientBody.model}' does not exist. ` +
-        `Available models can be retrieved via GET /v1/models.`
+      "invalid_request_error",
+      `The model '${clientBody["model"]}' does not exist.`,
     );
     return;
   }
 
-  const isStreaming = clientBody.stream === true;
-  res.locals.upstreamModel = virtualModel.upstreamModel;
+  const anthropicBase = resolved.providerConfig.anthropic_url ?? resolved.providerConfig.base_url;
+  const url = resolved.handler.getAnthropicUrl(anthropicBase);
+  if (!url) {
+    sendAnthropicError(
+      res,
+      404,
+      "invalid_request_error",
+      `The model '${clientBody["model"]}' does not support Anthropic messages API.`,
+    );
+    return;
+  }
 
-  logger.info("Anthropic incoming request (passthrough)", {
+  const isStreaming = clientBody["stream"] === true;
+
+  logger.info("Incoming Anthropic request", {
     requestId,
-    model: clientBody.model,
-    upstreamModel: virtualModel.upstreamModel,
-    features: virtualModel.features,
+    model: clientBody["model"],
+    upstreamModel: resolved.modelConfig.upstream,
+    provider: resolved.providerConfig.name,
     stream: isStreaming,
-    messageCount: clientBody.messages.length,
   });
 
-  // 注意：小米上游 /anthropic/v1/messages 接口已经兼容 Anthropic 格式
-  // 只需要将 model 替换为上游模型 ID，其他字段直接透传
-  const upstreamBody = {
-    ...clientBody,
-    model: virtualModel.upstreamModel,
+  res.locals.virtualModelId = resolved.modelConfig.id;
+  res.locals.providerName = resolved.providerConfig.name;
+  res.locals.upstreamModel = resolved.modelConfig.upstream;
+
+  // Pipeline: clone → swap model → apply defaults → transform
+  const originalClientBody = { ...clientBody };
+  const body = { ...clientBody };
+  body["model"] = resolved.modelConfig.upstream;
+
+  applyDefaults(body, resolved.modelConfig.default, originalClientBody);
+  resolved.handler.transformRequest(body, resolved.modelConfig, originalClientBody, resolved.providerConfig);
+
+  const authHeaders: Record<string, string> = {
+    [resolved.providerConfig.auth_header]:
+      resolved.providerConfig.auth_prefix + resolved.providerConfig.api_key,
+    "Content-Type": "application/json",
+    "X-Request-Id": requestId,
   };
 
-  const upstreamUrl = `${config.upstream.anthropicBaseUrl}/v1/messages`;
+  // Forward Anthropic-specific headers
+  const anthropicVersion = req.headers["anthropic-version"];
+  if (anthropicVersion) {
+    authHeaders["anthropic-version"] = Array.isArray(anthropicVersion)
+      ? anthropicVersion.join(", ")
+      : anthropicVersion;
+  }
+  const anthropicBeta = req.headers["anthropic-beta"];
+  if (anthropicBeta) {
+    authHeaders["anthropic-beta"] = Array.isArray(anthropicBeta)
+      ? anthropicBeta.join(", ")
+      : anthropicBeta;
+  }
 
   let upstreamResponse: globalThis.Response;
   try {
     upstreamResponse = await fetchWithTimeout(
-      upstreamUrl,
+      url,
       {
         method: "POST",
-        headers: {
-          "api-key": config.mimoApiKey,
-          "x-api-key": config.mimoApiKey,
-          "Content-Type": "application/json",
-          "X-Request-Id": requestId,
-        },
-        body: JSON.stringify(upstreamBody),
+        headers: authHeaders,
+        body: JSON.stringify(body),
       },
-      config.upstream.timeout
+      resolved.providerConfig.timeout,
     );
   } catch (fetchErr) {
     const message = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
@@ -105,7 +115,7 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
       res,
       502,
       isTimeout ? "rate_limit_error" : "upstream_error",
-      isTimeout ? "Request to upstream API timed out" : `Failed to reach upstream API: ${message}`
+      isTimeout ? "Request to upstream API timed out" : `Failed to reach upstream API: ${message}`,
     );
     return;
   }
@@ -116,7 +126,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
     try {
       errorBody = await upstreamResponse.json();
     } catch {
-      // JSON parse failure is logged below by the existing logger.warn("Upstream returned error", ...)
       errorBody = {
         message: await upstreamResponse.text().catch((textErr) => {
           logger.warn("Failed to read upstream error body as text", {
@@ -135,7 +144,6 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
       body: sanitizeForLog(errorBody),
     });
 
-    // 转换为 Anthropic 错误格式
     const anthropicError = convertUpstreamError(errorBody, errorStatus);
     res.status(errorStatus).json(anthropicError);
     return;
@@ -143,24 +151,58 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
 
   if (isStreaming) {
     res.setHeader("X-Request-Id", requestId);
-    await pipeSSEStream(upstreamResponse, res, virtualModel.upstreamModel, {
+
+    const usageRef: { inputTokens?: number; outputTokens?: number } = {};
+
+    await pipeSSEStream(upstreamResponse, res, resolved.modelConfig.id, {
       skipEmptyLines: false,
       sendErrorChunk: false,
-      onChunk: (line) => line,
+      onChunk: (line) => {
+        if (line.startsWith("data: ")) {
+          const dataContent = line.slice("data: ".length);
+          try {
+            const parsed = JSON.parse(dataContent) as Record<string, unknown>;
+            if (parsed["type"] === "message_start") {
+              const message = parsed["message"] as Record<string, unknown> | undefined;
+              if (message) {
+                message["model"] = resolved.modelConfig.id;
+              }
+            }
+            if (parsed["type"] === "message_delta") {
+              const usage = parsed["usage"] as Record<string, unknown> | undefined;
+              if (usage) {
+                if (typeof usage["input_tokens"] === "number") {
+                  usageRef.inputTokens = usage["input_tokens"];
+                }
+                if (typeof usage["output_tokens"] === "number") {
+                  usageRef.outputTokens = usage["output_tokens"];
+                }
+              }
+            }
+            return `data: ${JSON.stringify(parsed)}`;
+          } catch {
+            return line;
+          }
+        }
+        return line;
+      },
+      usageRef,
     });
+
     logger.info("Anthropic streaming request completed", {
       requestId,
       durationMs: Date.now() - startTime,
-      upstreamModel: virtualModel.upstreamModel,
+      upstreamModel: resolved.modelConfig.upstream,
     });
   } else {
-    const responseBody = await upstreamResponse.json();
+    const responseBody = (await upstreamResponse.json()) as Record<string, unknown>;
+    responseBody["model"] = resolved.modelConfig.id;
     res.json(responseBody);
 
     logger.info("Anthropic non-streaming request completed", {
       requestId,
       durationMs: Date.now() - startTime,
-      upstreamModel: virtualModel.upstreamModel,
+      upstreamModel: resolved.modelConfig.upstream,
     });
   }
 });
@@ -175,11 +217,17 @@ anthropicRouter.get("/messages", (_req: Request, res: Response) => {
   });
 });
 
+function extractEndpointPrefix(req: Request): string {
+  const baseUrl = req.baseUrl;
+  const match = baseUrl.match(/^(.*?)\/(?:v1|anthropic\/v1)$/);
+  return match ? match[1] : "";
+}
+
 function sendAnthropicError(
   res: Response,
   status: number,
   type: string,
-  message: string
+  message: string,
 ): void {
   res.status(status).json({
     type: "error",
@@ -192,7 +240,7 @@ function sendAnthropicError(
 
 function convertUpstreamError(
   errorBody: unknown,
-  status: number
+  status: number,
 ): { type: string; error: { type: string; message: string } } {
   if (typeof errorBody !== "object" || errorBody === null) {
     return {
@@ -223,20 +271,3 @@ function getErrorTypeFromStatus(status: number): string {
   if (status >= 500) return "upstream_error";
   return "invalid_request";
 }
-
-anthropicRouter.get("/models", (_req: Request, res: Response) => {
-  const models = VIRTUAL_MODELS.map((m) => ({
-    name: m.id,
-    display_name: m.description,
-    description: m.description,
-    input_token_limit: m.contextLength,
-    output_token_limit: m.maxOutputTokens,
-    thinking: {
-      type: m.features.thinking ? "enabled" : "disabled",
-    },
-    search: m.features.search,
-    json: m.features.json,
-  }));
-
-  res.json({ models });
-});
