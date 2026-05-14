@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from "express";
-import { config } from "../config";
 import { logger } from "../utils/logger";
 import { storageWorker } from "./storage/worker";
 import { calculateCost } from "./pricing";
@@ -142,7 +141,9 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       `monitor-${tsStart.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
     const upstreamModel =
-      (res.locals.upstreamModel as string | undefined) || config.upstream.defaultModel;
+      (res.locals.upstreamModel as string | undefined) || "unknown";
+    const providerName =
+      (res.locals.providerName as string | undefined) || "unknown";
     const cost = calculateCost(upstreamModel, inputTokens, cachedPromptTokens, outputTokens);
 
     storageWorker.append({
@@ -155,7 +156,8 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       status_code: res.statusCode,
       model_requested: modelRequested,
       model_upstream:
-        (res.locals.upstreamModel as string | undefined) || config.upstream.defaultModel,
+        (res.locals.upstreamModel as string | undefined) || "unknown",
+      provider_name: providerName,
       stream,
       chunks,
       bytes_out: bytesOut,
