@@ -7,7 +7,8 @@ export interface ProviderHandler {
   transformRequest(
     body: Record<string, unknown>,
     model: ModelConfig,
-    originalClientBody: Record<string, unknown>
+    originalClientBody: Record<string, unknown>,
+    providerConfig: ProviderConfig,
   ): Record<string, unknown>;
 }
 
@@ -32,8 +33,8 @@ export interface ModelConfig {
   upstream: string;
   context_length: number;
   max_output_tokens: number;
-  description: string;
-  created: number;
+  description?: string;
+  created?: number;
   default?: Record<string, unknown>;
   capabilities?: Record<string, unknown>;
   pricing?: {

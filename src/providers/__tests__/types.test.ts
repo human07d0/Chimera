@@ -12,11 +12,11 @@ describe("provider types", () => {
     expectTypeOf<ModelConfig>().toHaveProperty("upstream");
     expectTypeOf<ModelConfig>().toHaveProperty("context_length");
     expectTypeOf<ModelConfig>().toHaveProperty("max_output_tokens");
-    expectTypeOf<ModelConfig>().toHaveProperty("description");
-    expectTypeOf<ModelConfig>().toHaveProperty("created");
   });
 
   it("ModelConfig has optional fields", () => {
+    expectTypeOf<ModelConfig["description"]>().toEqualTypeOf<string | undefined>();
+    expectTypeOf<ModelConfig["created"]>().toEqualTypeOf<number | undefined>();
     expectTypeOf<ModelConfig["default"]>().toEqualTypeOf<
       Record<string, unknown> | undefined
     >();
