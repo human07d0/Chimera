@@ -536,7 +536,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       `debug-${tsStart.toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
     const upstreamModel =
-      (res.locals.upstreamModel as string | undefined) || config.upstream.defaultModel;
+      (res.locals.upstreamModel as string | undefined) || "";
 
     debugStore.append({
       request_id: requestId,

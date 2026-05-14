@@ -55,7 +55,7 @@ export async function createApp(): Promise<express.Application> {
     next();
   });
 
-  app.use(express.json({ limit: config.server.maxBodySize }));
+  app.use(express.json({ limit: "100mb" }));
 
   // --------------------------------------------------------------------------
   // 静态文件服务 (PWA)

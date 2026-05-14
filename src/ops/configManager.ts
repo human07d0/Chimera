@@ -36,31 +36,30 @@ export class OpsConfigManager {
     return {
       logLevel: config.logLevel,
 
-      webSearchMaxKeyword: config.webSearch.maxKeyword,
-      webSearchForceSearch: config.webSearch.forceSearch,
-      webSearchLimit: config.webSearch.limit,
-      webSearchCountry: config.webSearch.userLocation.country,
-      webSearchRegion: config.webSearch.userLocation.region,
-      webSearchCity: config.webSearch.userLocation.city,
+      webSearchMaxKeyword: 3,
+      webSearchForceSearch: false,
+      webSearchLimit: 5,
+      webSearchCountry: "CN",
+      webSearchRegion: "",
+      webSearchCity: "",
 
       monitorRetentionDays: config.monitor.retentionDays,
       monitorFlushIntervalMs: config.monitor.flushIntervalMs,
       monitorFlushBatchSize: config.monitor.flushBatchSize,
       monitorQueueMaxSize: config.monitor.queueMaxSize,
 
-      upstreamTimeoutMs: config.upstream.timeout,
+      upstreamTimeoutMs: 120000,
 
       debugMaxRecords: config.debug.maxRecords,
       debugMaxBodySize: config.debug.maxBodySize,
       debugMaxMediaBytes: config.debug.maxMediaBytes,
 
-      // 敏感字段（仅显示是否已配置，不暴露实际值）
       sensitive: {
-        hasMimoApiKey: !!config.mimoApiKey,
+        hasMimoApiKey: !!(process.env["MIMO_API_KEY"] || ""),
         hasProxyApiKey: !!config.proxyApiKey,
         hasOpsPassword: !!config.opsPassword,
-        hasTokenPlanProxyApiKey: !!config.tokenPlan.proxyApiKey,
-        hasTokenPlanMimoApiKey: !!config.tokenPlan.mimoApiKey,
+        hasTokenPlanProxyApiKey: !!(process.env["TOKEN_PLAN_PROXY_API_KEY"] || ""),
+        hasTokenPlanMimoApiKey: !!(process.env["TOKEN_PLAN_MIMO_API_KEY"] || ""),
       },
     };
   }
@@ -163,41 +162,12 @@ export class OpsConfigManager {
           (config as Record<string, unknown>).logLevel = value as typeof config.logLevel;
           break;
 
-        case "WEB_SEARCH_MAX_KEYWORD":
-          config.webSearch.maxKeyword = parseInt(value, 10);
-          break;
-
-        case "WEB_SEARCH_FORCE_SEARCH":
-          config.webSearch.forceSearch = value === "true";
-          break;
-
-        case "WEB_SEARCH_LIMIT":
-          config.webSearch.limit = parseInt(value, 10);
-          break;
-
-        case "WEB_SEARCH_COUNTRY":
-          config.webSearch.userLocation.country = value;
-          break;
-
-        case "WEB_SEARCH_REGION":
-          config.webSearch.userLocation.region = value;
-          break;
-
-        case "WEB_SEARCH_CITY":
-          config.webSearch.userLocation.city = value;
-          break;
-
         case "MONITOR_FLUSH_INTERVAL_MS":
           config.monitor.flushIntervalMs = parseInt(value, 10);
           break;
 
         case "MONITOR_RETENTION_DAYS":
           config.monitor.retentionDays = parseInt(value, 10);
-          break;
-
-        case "UPSTREAM_TIMEOUT_MS":
-          config.upstream.timeout = parseInt(value, 10);
-          config.tokenPlan.timeout = parseInt(value, 10);
           break;
 
         case "MONITOR_FLUSH_BATCH_SIZE":

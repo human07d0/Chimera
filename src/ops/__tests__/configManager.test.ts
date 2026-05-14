@@ -128,7 +128,7 @@ describe("OpsConfigManager", () => {
       const config = OpsConfigManager.getCurrentConfig();
       expect(config.logLevel).toBe("info");
       expect(config.webSearchMaxKeyword).toBe(3);
-      expect(config.webSearchForceSearch).toBe(true);
+      expect(config.webSearchForceSearch).toBe(false);
       expect(config.monitorRetentionDays).toBe(30);
       expect(config.upstreamTimeoutMs).toBe(120_000);
       expect(config.debugMaxRecords).toBe(500);
