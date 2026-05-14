@@ -1,8 +1,8 @@
 {
-  "name": "Mimo Proxy",
-  "short_name": "Mimo Proxy",
+  "name": "Chimera",
+  "short_name": "Chimera",
   "description": "OpenAI-compatible proxy for Xiaomi MiMo API",
-  "id": "mimo-proxy-monitor",
+  "id": "chimera-monitor",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#1a1a2e",

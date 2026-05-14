@@ -1,7 +1,11 @@
 {
-  "name": "mimo-proxy",
+  "name": "chimeraproxy",
   "version": "1.5.2",
-  "description": "OpenAI & Anthropic-compatible proxy for Xiaomi MiMo API with feature preset models",
+  "description": "Multi-provider LLM proxy with OpenAI & Anthropic compatibility",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Yevpatoria/Chimera.git"
+  },
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --exec ts-node src/index.ts",
@@ -26,7 +30,9 @@
   "dependencies": {
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
-    "sql.js": "^1.10.3"
+    "sql.js": "^1.10.3",
+    "yaml": "^2.9.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
@@ -36,11 +42,11 @@
     "lightningcss": "^1.32.0",
     "nodemon": "^3.1.7",
     "postcss": "^8.5.14",
+    "simple-git-hooks": "^2.11.1",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3",
     "vite": "^6.2.0",
-    "vitest": "^3.1.4",
-    "simple-git-hooks": "^2.11.1"
+    "vitest": "^3.1.4"
   },
   "engines": {
     "node": ">=24.0.0"

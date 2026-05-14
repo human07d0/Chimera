@@ -3,6 +3,7 @@ import { logger } from "../utils/logger";
 
 export interface PipeSSEOptions {
   onChunk?: (line: string) => string | null;
+  usageRef?: { inputTokens?: number; outputTokens?: number; cacheHit?: boolean };
   skipEmptyLines?: boolean;
   sendErrorChunk?: boolean;
 }
@@ -144,6 +145,13 @@ export async function pipeSSEStream(
     clientRes.off("close", onClientClose);
     reader.releaseLock();
     clientRes.end();
+  }
+
+  const usageRef = options?.usageRef;
+  if (usageRef) {
+    if (usageRef.inputTokens !== undefined) inputTokens = usageRef.inputTokens;
+    if (usageRef.outputTokens !== undefined) outputTokens = usageRef.outputTokens;
+    if (usageRef.cacheHit !== undefined) cacheHit = usageRef.cacheHit;
   }
 
   return { inputTokens, outputTokens, cacheHit };

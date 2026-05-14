@@ -232,7 +232,7 @@ async function testModel(proxyUrl, modelId, testType = 'non-stream') {
 
 async function runTests() {
   console.log('='.repeat(60));
-  console.log('MiMo Proxy - Virtual Models Test Suite');
+  console.log('Chimera - Virtual Models Test Suite');
   console.log('='.repeat(60));
   console.log(`Model: ${BASE_MODEL}`);
   console.log(`Combinations: ${FEATURE_COMBINATIONS.length}`);

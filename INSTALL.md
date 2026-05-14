@@ -1,4 +1,4 @@
-# MiMo Proxy 安装手册
+# Chimera 安装手册
 
 ## 快速安装（Bun）
 
@@ -9,9 +9,9 @@
 curl -fsSL https://bun.sh/install | bash
 
 # 2. 下载并解压
-mkdir -p ~/mimo-proxy && cd ~/mimo-proxy
-curl -L -o mimo-proxy-bun.zip https://github.com/Yevpatoria/mimo-proxy/releases/latest/download/mimo-proxy-bun.zip
-unzip mimo-proxy-bun.zip && rm mimo-proxy-bun.zip
+mkdir -p ~/chimera && cd ~/chimera
+curl -L -o chimera-bun.zip https://github.com/Yevpatoria/Chimera/releases/latest/download/chimera-bun.zip
+unzip chimera-bun.zip && rm chimera-bun.zip
 
 # 3. 配置并启动
 cp .env.example .env
@@ -26,10 +26,10 @@ bun run index.js
 irm bun.sh/install | iex
 
 # 2. 下载并解压
-mkdir $env:USERPROFILE\mimo-proxy; cd $env:USERPROFILE\mimo-proxy
-Invoke-WebRequest -Uri "https://github.com/Yevpatoria/mimo-proxy/releases/latest/download/mimo-proxy-bun.zip" -OutFile mimo-proxy-bun.zip
-Expand-Archive mimo-proxy-bun.zip -Force
-Remove-Item mimo-proxy-bun.zip
+mkdir $env:USERPROFILE\chimera; cd $env:USERPROFILE\chimera
+Invoke-WebRequest -Uri "https://github.com/Yevpatoria/Chimera/releases/latest/download/chimera-bun.zip" -OutFile chimera-bun.zip
+Expand-Archive chimera-bun.zip -Force
+Remove-Item chimera-bun.zip
 
 # 3. 配置并启动
 copy .env.example .env
@@ -47,9 +47,9 @@ pkg update && pkg install curl unzip
 curl -fsSL https://bun.sh/install | bash
 
 # 3. 下载并解压
-mkdir -p ~/mimo-proxy && cd ~/mimo-proxy
-curl -L -o mimo-proxy-bun.zip https://github.com/Yevpatoria/mimo-proxy/releases/latest/download/mimo-proxy-bun.zip
-unzip mimo-proxy-bun.zip && rm mimo-proxy-bun.zip
+mkdir -p ~/chimera && cd ~/chimera
+curl -L -o chimera-bun.zip https://github.com/Yevpatoria/Chimera/releases/latest/download/chimera-bun.zip
+unzip chimera-bun.zip && rm chimera-bun.zip
 
 # 4. 配置并启动
 cp .env.example .env
@@ -73,8 +73,8 @@ bun run index.js
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/Yevpatoria/mimo-proxy.git
-cd mimo-proxy
+git clone https://github.com/Yevpatoria/Chimera.git
+cd Chimera
 
 # 2. 安装依赖
 pnpm install
@@ -99,18 +99,18 @@ node dist-bun/index.js
 ### Linux (systemd)
 
 ```bash
-sudo nano /etc/systemd/system/mimo-proxy.service
+sudo nano /etc/systemd/system/chimera.service
 ```
 
 写入：
 ```ini
 [Unit]
-Description=MiMo Proxy
+Description=Chimera
 
 [Service]
 Type=simple
 User=<用户名>
-WorkingDirectory=/path/to/mimo-proxy
+WorkingDirectory=/path/to/chimera
 ExecStart=/root/.bun/bin/bun run index.js
 Restart=always
 
@@ -120,7 +120,7 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now mimo-proxy
+sudo systemctl enable --now chimera
 ```
 
 ### Linux (tmux)
@@ -135,8 +135,8 @@ bun run index.js
 
 下载 nssm，以管理员运行：
 ```cmd
-nssm install mimo-proxy "C:\Users\<用户>\.bun\bin\bun.exe" "run index.js"
-nssm start mimo-proxy
+nssm install chimera "C:\Users\<用户>\.bun\bin\bun.exe" "run index.js"
+nssm start chimera
 ```
 
 ---
@@ -145,9 +145,9 @@ nssm start mimo-proxy
 
 ```bash
 # Bun 安装
-cd ~/mimo-proxy
-curl -L -o mimo-proxy-bun.zip https://github.com/Yevpatoria/mimo-proxy/releases/latest/download/mimo-proxy-bun.zip
-unzip -o mimo-proxy-bun.zip && rm mimo-proxy-bun.zip
+cd ~/chimera
+curl -L -o chimera-bun.zip https://github.com/Yevpatoria/Chimera/releases/latest/download/chimera-bun.zip
+unzip -o chimera-bun.zip && rm chimera-bun.zip
 
 # 源码
 git pull && pnpm install && pnpm run build
@@ -159,6 +159,6 @@ git pull && pnpm install && pnpm run build
 
 ```bash
 # Bun/源码
-pkill mimo-proxy  # 或停止 systemd 服务
-rm -rf ~/mimo-proxy
+pkill chimera  # 或停止 systemd 服务
+rm -rf ~/chimera
 ```

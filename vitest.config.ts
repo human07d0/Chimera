@@ -11,6 +11,7 @@ export default defineConfig({
       "src/utils/**/*.test.ts",
       "src/__tests__/**/*.test.ts",
       "src/ops/**/*.test.ts",
+      "src/providers/**/*.test.ts",
     ],
   },
 });

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mimo-proxy-v3';
+const CACHE_NAME = 'chimera-v1';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

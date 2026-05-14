@@ -109,7 +109,7 @@ async function renderDashboard(): Promise<void> {
 
   app.innerHTML = `
     <header class="header">
-      <h1>Mimo Proxy <span style="color: var(--text-secondary); font-weight: 400; font-size: 14px; margin-left: 8px;">Ops</span></h1>
+      <h1>Chimera <span style="color: var(--text-secondary); font-weight: 400; font-size: 14px; margin-left: 8px;">Ops</span></h1>
       <div class="header-actions">
         <a class="nav-link" href="../">Monitor</a>
         <a class="nav-link" href="../debug/">Debug</a>

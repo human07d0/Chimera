@@ -1,4 +1,4 @@
-# MiMo Proxy
+# Chimera
 
 小米 MiMo 的 OpenAI/Anthropic 兼容代理，通过虚拟模型 ID 自动注入深度思考、联网搜索、JSON 结构化输出能力。
 
@@ -18,7 +18,7 @@
 
 ```bash
 # 安装
-git clone <repo> && cd mimo-proxy
+git clone https://github.com/Yevpatoria/Chimera.git && cd Chimera
 pnpm install
 
 # 配置

@@ -1,4 +1,4 @@
-# MiMo Proxy 开发指南
+# Chimera 开发指南
 
 > 架构与模块说明见 [ARCHITECTURE.md](./ARCHITECTURE.md)，编码规范与约定见 [AGENTS.md](./AGENTS.md)。
 
@@ -38,7 +38,7 @@ pnpm run dev           # http://localhost:3000
 
 ## 多模态数据注意事项
 
-MiMo Proxy 作为透传代理，多模态数据（图片、音频等）在主要数据通路上原样透传。开发和测试时需注意以下事项。
+Chimera 作为透传代理，多模态数据（图片、音频等）在主要数据通路上原样透传。开发和测试时需注意以下事项。
 
 ### Body Size 限制
 
