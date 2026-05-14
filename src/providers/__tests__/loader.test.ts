@@ -130,8 +130,8 @@ describe("loadProviders", () => {
     expect(p.endpoint).toBe("");
     expect(p.capabilities).toEqual({});
     expect(p.web_search).toBeNull();
-    expect(p.base_url).toBe("");
-    expect(p.anthropic_url).toBeNull();
+    expect(p.base_url).toBe("https://api.xiaomimimo.com");
+    expect(p.anthropic_url).toBe("https://api.xiaomimimo.com/anthropic");
   });
 
   it("generates description from id when absent", () => {
@@ -557,6 +557,7 @@ models:
 version: 1
 type: openai
 api_key: k2
+base_url: https://api.openai.com
 auth_header: Authorization
 models:
   - id: m2
@@ -576,10 +577,12 @@ models:
     for (const type of ["mimo", "deepseek", "openai", "anthropic"]) {
       fs.rmSync(tmpDir, { recursive: true, force: true });
       fs.mkdirSync(tmpDir, { recursive: true });
+      const needsBaseUrl = type === "openai" || type === "anthropic";
       const yaml = `
 version: 1
 type: ${type}
 api_key: k
+${needsBaseUrl ? "base_url: https://api.example.com" : ""}
 auth_header: Authorization
 models:
   - id: m1
@@ -650,12 +653,31 @@ models:
     });
   });
 
-  it("loads anthropic_url when present", () => {
+  it("forces anthropic_url to null for custom types", () => {
     const yaml = `
 version: 1
 type: anthropic
 api_key: k
+base_url: https://api.example.com
 auth_header: x-api-key
+anthropic_url: https://example.com/anthropic
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir);
+    expect(providers[0]!.anthropic_url).toBeNull();
+  });
+
+  it("uses anthropic_url from YAML for built-in types", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
 anthropic_url: https://example.com/anthropic
 models:
   - id: m1

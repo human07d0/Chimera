@@ -3,7 +3,12 @@ import * as path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { logger } from "../utils/logger";
+import { builtinHandlers } from "./builtin";
+import { customHandlers } from "./custom";
+import type { ProviderHandler } from "./types";
 import type { ProviderConfig, ModelConfig } from "./types";
+
+const CUSTOM_TYPES = new Set(["openai", "anthropic"]);
 
 const VALID_TYPES = ["mimo", "deepseek", "openai", "anthropic"] as const;
 
@@ -186,13 +191,29 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
       });
     }
 
+    const handlerMap = new Map<string, ProviderHandler>([...builtinHandlers, ...customHandlers]);
+    const handler = handlerMap.get(raw.type);
+
+    let baseUrl = raw.base_url ?? "";
+    if (!baseUrl && handler) {
+      const defaultUrl = handler.getDefaultBaseUrl();
+      if (defaultUrl) baseUrl = defaultUrl;
+    }
+
+    if (baseUrl && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+      baseUrl = "https://" + baseUrl;
+    }
+
+    const isCustom = CUSTOM_TYPES.has(raw.type);
+    const anthropicUrl = isCustom ? null : (raw.anthropic_url ?? handler?.getDefaultAnthropicUrl() ?? null);
+
     providers.push({
       version: raw.version,
       type: raw.type,
       name,
       api_key: raw.api_key,
-      base_url: raw.base_url ?? "",
-      anthropic_url: raw.anthropic_url ?? null,
+      base_url: baseUrl,
+      anthropic_url: anthropicUrl,
       auth_header: raw.auth_header,
       auth_prefix: raw.auth_prefix,
       timeout: raw.timeout,
@@ -203,5 +224,16 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
     });
   }
 
-  return providers;
+  for (const provider of providers) {
+    if (CUSTOM_TYPES.has(provider.type) && !provider.base_url) {
+      throw new Error(
+        `Custom provider '${provider.name}' (type: ${provider.type}) requires a non-empty base_url`,
+      );
+    }
+    if (provider.models.length === 0) {
+      logger.warn(`Provider '${provider.name}' has no models — skipping`, { type: provider.type });
+    }
+  }
+
+  return providers.filter((p) => p.models.length > 0);
 }
