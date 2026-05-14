@@ -14,6 +14,7 @@ type RequestRow = [
   number,  // status_code
   string,  // model_requested
   string,  // model_upstream
+  string,  // provider_name
   number,  // stream
   number,  // chunks
   number,  // bytes_out
@@ -89,6 +90,7 @@ export class SqliteStorage implements MonitorStorage {
         status_code INTEGER NOT NULL,
         model_requested TEXT NOT NULL,
         model_upstream TEXT NOT NULL,
+        provider_name TEXT NOT NULL DEFAULT 'unknown',
         stream INTEGER NOT NULL,
         chunks INTEGER NOT NULL,
         bytes_out INTEGER NOT NULL,
@@ -105,6 +107,11 @@ export class SqliteStorage implements MonitorStorage {
     // 向后兼容：为已有数据库添加 source 列
     try {
       this.db.run(`ALTER TABLE requests ADD COLUMN source TEXT NOT NULL DEFAULT 'main'`);
+    } catch {
+      // 列已存在，忽略
+    }
+    try {
+      this.db.run(`ALTER TABLE requests ADD COLUMN provider_name TEXT NOT NULL DEFAULT 'unknown'`);
     } catch {
       // 列已存在，忽略
     }
@@ -144,11 +151,11 @@ export class SqliteStorage implements MonitorStorage {
         INSERT INTO requests (
           request_id, ts_start, ts_end, latency_ms,
           path, method, status_code,
-          model_requested, model_upstream,
+          model_requested, model_upstream, provider_name,
           stream, chunks, bytes_out, first_token_ms,
           input_tokens, output_tokens, cached_prompt_tokens, cost,
           error_type, source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       stmt.bind([
@@ -161,6 +168,7 @@ export class SqliteStorage implements MonitorStorage {
         event.status_code,
         event.model_requested,
         event.model_upstream,
+        event.provider_name,
         event.stream ? 1 : 0,
         event.chunks,
         event.bytes_out,
@@ -438,16 +446,17 @@ export class SqliteStorage implements MonitorStorage {
       status_code: row[6],
       model_requested: row[7],
       model_upstream: row[8],
-      stream: row[9] === 1,
-      chunks: row[10],
-      bytes_out: row[11],
-      first_token_ms: row[12],
-      input_tokens: row[13],
-      output_tokens: row[14],
-      cached_prompt_tokens: row[15],
-      cost: row[16],
-      error_type: row[17],
-      source: row[18] === "token-plan" ? "token-plan" : "main",
+      provider_name: row[9],
+      stream: row[10] === 1,
+      chunks: row[11],
+      bytes_out: row[12],
+      first_token_ms: row[13],
+      input_tokens: row[14],
+      output_tokens: row[15],
+      cached_prompt_tokens: row[16],
+      cost: row[17],
+      error_type: row[18],
+      source: row[19] === "token-plan" ? "token-plan" : "main",
     };
   }
 }

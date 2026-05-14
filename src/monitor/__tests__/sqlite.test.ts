@@ -17,6 +17,7 @@ function makeEvent(overrides: Partial<MonitorEvent> = {}): MonitorEvent {
     status_code: 200,
     model_requested: "mimo-v2-flash",
     model_upstream: "mimo-v2-flash",
+    provider_name: "unknown",
     stream: false,
     chunks: 0,
     bytes_out: 0,

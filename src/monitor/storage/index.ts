@@ -9,6 +9,7 @@ export interface MonitorEvent {
   status_code: number;
   model_requested: string;
   model_upstream: string;
+  provider_name: string;
   stream: boolean;
   chunks: number;
   bytes_out: number;
