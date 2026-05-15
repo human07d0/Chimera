@@ -1,3 +1,9 @@
+export interface FlatPricing {
+  input: number;
+  cached_input?: number;
+  output: number;
+}
+
 export interface PriceTier {
   threshold: number;
   inputPrice: number;
@@ -7,6 +13,12 @@ export interface PriceTier {
 
 export interface ModelPricing {
   tiers: PriceTier[];
+}
+
+export const flatPricingMap = new Map<string, FlatPricing>();
+
+export function registerFlatPricing(modelId: string, pricing: FlatPricing): void {
+  flatPricingMap.set(modelId, pricing);
 }
 
 export const PRICING: Record<string, ModelPricing> = {
@@ -42,21 +54,13 @@ export const PRICING: Record<string, ModelPricing> = {
 };
 
 export function registerProviderPricing(
-  providers: Array<{ models: Array<{ id: string; pricing?: { input: number; cached_input?: number; output: number } }> }>,
+  providers: Array<{ models: Array<{ id: string; upstream: string; pricing?: FlatPricing }> }>,
 ): void {
   for (const provider of providers) {
     for (const model of provider.models) {
       if (model.pricing) {
-        PRICING[model.id] = {
-          tiers: [
-            {
-              threshold: Infinity,
-              inputPrice: model.pricing.input,
-              cachedPrice: model.pricing.cached_input ?? 0,
-              outputPrice: model.pricing.output,
-            },
-          ],
-        };
+        flatPricingMap.set(model.id, model.pricing);
+        flatPricingMap.set(model.upstream, model.pricing);
       }
     }
   }
@@ -78,6 +82,15 @@ export function calculateCost(
   cachedPromptTokens: number,
   completionTokens: number,
 ): number {
+  const flat = flatPricingMap.get(modelId);
+  if (flat) {
+    const paidPromptTokens = Math.max(promptTokens - cachedPromptTokens, 0);
+    const cachedCost = (cachedPromptTokens / 1_000_000) * (flat.cached_input ?? 0);
+    const promptCost = (paidPromptTokens / 1_000_000) * flat.input;
+    const completionCost = (completionTokens / 1_000_000) * flat.output;
+    return cachedCost + promptCost + completionCost;
+  }
+
   const pricing = PRICING[modelId] || PRICING["mimo-v2-flash"];
   const tier = getTier(promptTokens + completionTokens, pricing.tiers);
 
