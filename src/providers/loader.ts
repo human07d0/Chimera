@@ -106,7 +106,7 @@ function normalizeCapabilities(
 }
 
 export function loadProviders(configDir?: string): ProviderConfig[] {
-  const dir = configDir ?? process.env["CONFIG_DIR"] ?? "./config/provider/";
+  const dir = configDir ?? "./config/provider/";
   const resolvedDir = path.resolve(dir);
 
   if (!fs.existsSync(resolvedDir)) {

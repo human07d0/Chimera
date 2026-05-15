@@ -17,6 +17,7 @@ describe("ProviderRegistry", () => {
   beforeEach(() => {
     registry = new ProviderRegistry();
     (registry as any).handlers.set("test", mockHandler);
+    (registry as any).initialized = true;
   });
 
   it("lookup returns null for unknown endpoint", () => {

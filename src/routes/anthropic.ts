@@ -157,14 +157,14 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
   if (isStreaming) {
     res.setHeader("X-Request-Id", requestId);
 
-    const usageRef: { inputTokens?: number; outputTokens?: number } = {};
+    const usageRef: { inputTokens?: number; outputTokens?: number; cacheHit?: boolean } = {};
 
     await pipeSSEStream(upstreamResponse, res, resolved.modelConfig.id, {
       skipEmptyLines: false,
       sendErrorChunk: false,
       onChunk: (line) => {
-        if (line.startsWith("data: ")) {
-          const dataContent = line.slice("data: ".length);
+        if (line.startsWith("data:")) {
+          const dataContent = line.slice("data:".length).trimStart();
           try {
             const parsed = JSON.parse(dataContent) as Record<string, unknown>;
             if (parsed["type"] === "message_start") {
@@ -181,6 +181,9 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
                 }
                 if (typeof usage["output_tokens"] === "number") {
                   usageRef.outputTokens = usage["output_tokens"];
+                }
+                if (typeof usage["cache_read_input_tokens"] === "number" && usage["cache_read_input_tokens"] > 0) {
+                  usageRef.cacheHit = true;
                 }
               }
             }

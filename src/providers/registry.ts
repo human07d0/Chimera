@@ -8,6 +8,7 @@ export class ProviderRegistry {
   private handlers: Map<string, ProviderHandler>;
   private providers: ProviderConfig[] = [];
   private index: Map<string, Map<string, ResolvedModel>> = new Map();
+  private initialized = false;
 
   constructor() {
     this.handlers = new Map([...builtinHandlers, ...customHandlers]);
@@ -16,6 +17,7 @@ export class ProviderRegistry {
   init(configDir?: string): void {
     this.providers = loadProviders(configDir);
     this.buildIndex();
+    this.initialized = true;
 
     const totalModels = this.providers.reduce((sum, p) => sum + p.models.length, 0);
     logger.info("Provider registry initialized", {
@@ -56,6 +58,9 @@ export class ProviderRegistry {
   }
 
   lookup(modelId: string, endpointPrefix: string): ResolvedModel | null {
+    if (!this.initialized) {
+      throw new Error("Registry has not been initialized. Call init() before lookup().");
+    }
     const endpoint = endpointPrefix || "";
     const endpointModels = this.index.get(endpoint);
     if (!endpointModels) return null;

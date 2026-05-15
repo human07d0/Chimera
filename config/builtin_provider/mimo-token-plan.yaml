@@ -7,6 +7,7 @@ auth_header: api-key
 auth_prefix: ""
 base_url: https://token-plan-cn.xiaomimimo.com
 endpoint: /token-plan
+anthropic_url: https://token-plan-cn.xiaomimimo.com/anthropic
 
 capabilities:
   thinking: true

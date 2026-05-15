@@ -19,7 +19,7 @@ import { debugMiddleware, debugRouter } from "./debug";
 let cleanupInterval: NodeJS.Timeout | null = null;
 
 export async function createApp(): Promise<express.Application> {
-  modelRegistry.init();
+  modelRegistry.init(config.configDir);
   registerProviderPricing(modelRegistry.getProviders());
 
   const app = express();

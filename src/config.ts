@@ -4,12 +4,6 @@ function warnConfig(message: string): void {
   console.warn(`[config] ${message}`);
 }
 
-export function normalizeBaseUrl(url: string): string {
-  let normalized = url.replace(/\/+$/, "");
-  normalized = normalized.replace(/\/v1$/i, "");
-  return normalized;
-}
-
 export function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
@@ -63,6 +57,8 @@ function warnInvalidIntEnv(name: string, defaultValue: number): void {
 }
 
 export const config = {
+  configDir: optionalEnv("CONFIG_DIR", "./config/provider/"),
+
   proxyApiKey: process.env["PROXY_API_KEY"] || "",
 
   opsPassword: process.env["OPS_PASSWORD"] || "",

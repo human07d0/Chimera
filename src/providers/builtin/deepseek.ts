@@ -36,6 +36,12 @@ export const deepseekHandler: ProviderHandler = {
     if (Array.isArray(body["tools"])) {
       const tools = body["tools"] as Record<string, unknown>[];
       const filtered = tools.filter((t) => t.type === "function");
+      if (filtered.length < tools.length) {
+        logger.warn("Non-standard tools filtered out", {
+          model: body["model"],
+          dropped: tools.length - filtered.length,
+        });
+      }
       if (filtered.length > 0) {
         body["tools"] = filtered;
       } else {
