@@ -22,7 +22,7 @@
 | Runtime | Node.js 24 LTS / Bun 1.x |
 | Language | TypeScript 5（strict mode, CommonJS output） |
 | HTTP | Express 5 + CORS |
-| Config | YAML（`js-yaml`）+ zod 验证 + dotenv |
+| Config | YAML（`yaml`）+ zod 验证 + dotenv |
 | Storage | memory / SQLite（`sql.js`） |
 | Dev/Build | ts-node、nodemon、tsc、pnpm 10、Bun |
 
