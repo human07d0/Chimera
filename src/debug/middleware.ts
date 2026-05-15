@@ -398,7 +398,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   }
 
   const tsStart = Date.now();
-  const modelRequested = (req.body?.model as string) || "unknown";
+  const modelRequestedEarly = (req.body?.model as string) || "unknown";
   const method = req.method;
   const reqPath = req.originalUrl || req.path;
   const maxBodySize = config.debug.maxBodySize;
@@ -538,6 +538,12 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
     const upstreamModel =
       (res.locals.upstreamModel as string | undefined) || "";
 
+    const virtualModelId =
+      (res.locals.virtualModelId as string | undefined) || modelRequestedEarly;
+
+    const providerName =
+      (res.locals.providerName as string | undefined) || "unknown";
+
     debugStore.append({
       request_id: requestId,
       ts_start: tsStart,
@@ -545,8 +551,9 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
       path: reqPath,
       method,
       status_code: res.statusCode,
-      model_requested: modelRequested,
+      model_requested: virtualModelId,
       model_upstream: upstreamModel,
+      provider_name: providerName,
       stream,
       request_body: requestBodyStr,
       response_body: responseBodyStr,

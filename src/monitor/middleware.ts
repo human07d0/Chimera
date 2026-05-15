@@ -29,8 +29,11 @@ function extractUsage(payload: unknown): {
   };
 }
 
-function validateSource(_value: unknown): "main" {
-  return "main";
+function validateSource(value: unknown): string {
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+  return "unknown";
 }
 
 export function monitorMiddleware(req: Request, res: Response, next: NextFunction): void {
@@ -165,7 +168,7 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       cached_prompt_tokens: cachedPromptTokens,
       cost,
       error_type: errorType,
-      source: validateSource(res.locals.source),
+      source: validateSource(res.locals.providerName),
     });
 
     return originalEnd(...args);

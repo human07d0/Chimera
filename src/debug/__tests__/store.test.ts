@@ -12,6 +12,7 @@ function makeEvent(overrides: Partial<DebugEvent> = {}): DebugEvent {
     status_code: 200,
     model_requested: "mimo-v2-flash",
     model_upstream: "mimo-v2-flash",
+    provider_name: "mimo",
     stream: false,
     request_body: '{"model":"mimo-v2-flash","messages":[{"role":"user","content":"hello"}]}',
     response_body: '{"choices":[{"message":{"content":"hi"}}]}',

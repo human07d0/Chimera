@@ -14,23 +14,9 @@ vi.mock("fs", () => ({
 
 vi.mock("../../config", () => ({
   config: {
-    mimoApiKey: "",
     proxyApiKey: "",
     opsPassword: "test",
-    server: { port: 3000, host: "0.0.0.0", maxBodySize: "10mb" },
-    upstream: {
-      baseUrl: "https://api.xiaomimimo.com",
-      anthropicBaseUrl: "https://api.xiaomimimo.com/anthropic",
-      enabledModels: ["mimo-v2-flash"],
-      defaultModel: "mimo-v2-flash",
-      timeout: 120_000,
-    },
-    webSearch: {
-      maxKeyword: 3,
-      forceSearch: true,
-      limit: 3,
-      userLocation: { type: "approximate", country: "China", region: "Beijing", city: "Beijing" },
-    },
+    server: { port: 3000, host: "0.0.0.0" },
     monitor: {
       storage: "memory",
       sqlitePath: "./data/monitor.db",
@@ -38,14 +24,6 @@ vi.mock("../../config", () => ({
       flushIntervalMs: 200,
       flushBatchSize: 100,
       queueMaxSize: 10_000,
-    },
-    tokenPlan: {
-      enabled: false,
-      proxyApiKey: "",
-      mimoApiKey: "",
-      baseUrl: "",
-      anthropicBaseUrl: "",
-      timeout: 120_000,
     },
     logLevel: "info",
     debug: {
@@ -95,22 +73,15 @@ describe("OpsConfigManager", () => {
   });
 
   describe("WRITABLE_KEYS", () => {
-    it("should have 15 writable keys", () => {
-      expect(OpsConfigManager.WRITABLE_KEYS.size).toBe(15);
+    it("should have 8 writable keys", () => {
+      expect(OpsConfigManager.WRITABLE_KEYS.size).toBe(8);
     });
 
     it("should include all expected keys", () => {
       const expected = [
         "LOG_LEVEL",
-        "WEB_SEARCH_MAX_KEYWORD",
-        "WEB_SEARCH_FORCE_SEARCH",
-        "WEB_SEARCH_LIMIT",
-        "WEB_SEARCH_COUNTRY",
-        "WEB_SEARCH_REGION",
-        "WEB_SEARCH_CITY",
         "MONITOR_FLUSH_INTERVAL_MS",
         "MONITOR_RETENTION_DAYS",
-        "UPSTREAM_TIMEOUT_MS",
         "MONITOR_FLUSH_BATCH_SIZE",
         "MONITOR_QUEUE_MAX_SIZE",
         "DEBUG_MAX_RECORDS",
@@ -125,14 +96,11 @@ describe("OpsConfigManager", () => {
 
   describe("getCurrentConfig", () => {
     it("should return config with all expected fields", () => {
-      const config = OpsConfigManager.getCurrentConfig();
-      expect(config.logLevel).toBe("info");
-      expect(config.webSearchMaxKeyword).toBe(3);
-      expect(config.webSearchForceSearch).toBe(false);
-      expect(config.monitorRetentionDays).toBe(30);
-      expect(config.upstreamTimeoutMs).toBe(120_000);
-      expect(config.debugMaxRecords).toBe(500);
-      expect(config.sensitive).toBeDefined();
+      const cfg = OpsConfigManager.getCurrentConfig();
+      expect(cfg.logLevel).toBe("info");
+      expect(cfg.monitorRetentionDays).toBe(30);
+      expect(cfg.debugMaxRecords).toBe(500);
+      expect(cfg.sensitive).toBeDefined();
     });
   });
 
@@ -154,34 +122,6 @@ describe("OpsConfigManager", () => {
       expect(result.error).toContain("LOG_LEVEL must be one of");
     });
 
-    it("should accept valid WEB_SEARCH_MAX_KEYWORD", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchMaxKeyword: 5 });
-      expect(result.success).toBe(true);
-    });
-
-    it("should reject WEB_SEARCH_MAX_KEYWORD < 1", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchMaxKeyword: 0 });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("WEB_SEARCH_MAX_KEYWORD must be a positive number");
-    });
-
-    it("should reject non-number WEB_SEARCH_MAX_KEYWORD", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchMaxKeyword: "abc" });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("WEB_SEARCH_MAX_KEYWORD must be a positive number");
-    });
-
-    it("should accept valid boolean for WEB_SEARCH_FORCE_SEARCH", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchForceSearch: false });
-      expect(result.success).toBe(true);
-    });
-
-    it("should reject non-boolean for WEB_SEARCH_FORCE_SEARCH", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchForceSearch: "yes" });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("WEB_SEARCH_FORCE_SEARCH must be a boolean");
-    });
-
     it("should accept valid MONITOR_FLUSH_INTERVAL_MS (>= 50)", () => {
       const result = OpsConfigManager.updateConfig({ monitorFlushIntervalMs: 100 });
       expect(result.success).toBe(true);
@@ -191,17 +131,6 @@ describe("OpsConfigManager", () => {
       const result = OpsConfigManager.updateConfig({ monitorFlushIntervalMs: 10 });
       expect(result.success).toBe(false);
       expect(result.error).toContain("MONITOR_FLUSH_INTERVAL_MS must be a number >= 50");
-    });
-
-    it("should accept valid UPSTREAM_TIMEOUT_MS (>= 1000)", () => {
-      const result = OpsConfigManager.updateConfig({ upstreamTimeoutMs: 5000 });
-      expect(result.success).toBe(true);
-    });
-
-    it("should reject UPSTREAM_TIMEOUT_MS < 1000", () => {
-      const result = OpsConfigManager.updateConfig({ upstreamTimeoutMs: 500 });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("UPSTREAM_TIMEOUT_MS must be a number >= 1000");
     });
 
     it("should accept valid DEBUG_MAX_BODY_SIZE (>= 1024)", () => {
@@ -226,23 +155,12 @@ describe("OpsConfigManager", () => {
       expect(result.error).toContain("DEBUG_MAX_MEDIA_BYTES must be a number >= 1024");
     });
 
-    it("should accept non-empty string for WEB_SEARCH_COUNTRY", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchCountry: "US" });
-      expect(result.success).toBe(true);
-    });
-
-    it("should reject empty string for WEB_SEARCH_COUNTRY", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchCountry: "" });
-      expect(result.success).toBe(false);
-      expect(result.error).toContain("WEB_SEARCH_COUNTRY must be a non-empty string");
-    });
-
     it("should truncate float values for number fields", () => {
-      const result = OpsConfigManager.updateConfig({ webSearchMaxKeyword: 3.7 });
+      const result = OpsConfigManager.updateConfig({ monitorFlushIntervalMs: 150.7 });
       expect(result.success).toBe(true);
       expect(mockWriteFileSync).toHaveBeenCalledWith(
         expect.anything(),
-        expect.stringContaining("WEB_SEARCH_MAX_KEYWORD=3"),
+        expect.stringContaining("MONITOR_FLUSH_INTERVAL_MS=150"),
         "utf-8"
       );
     });

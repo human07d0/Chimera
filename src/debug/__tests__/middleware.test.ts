@@ -33,7 +33,7 @@ function createMockRes(): Response & { _events: string[] } {
   const res = {
     _events: [] as string[],
     statusCode: 200,
-    locals: { requestId: "test-req-1", upstreamModel: "mimo-v2-flash" },
+    locals: { requestId: "test-req-1", upstreamModel: "mimo-v2-flash", virtualModelId: "mimo-v2-flash", providerName: "mimo" },
     json: vi.fn().mockReturnThis(),
     write: vi.fn().mockReturnValue(true),
     end: vi.fn().mockReturnThis(),

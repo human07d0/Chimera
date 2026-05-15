@@ -7,6 +7,9 @@
 
 const http = require('http');
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
 
 // Configuration
 const MOCK_UPSTREAM_PORT = 18081;
@@ -140,7 +143,7 @@ function startMockUpstream(port) {
   });
 }
 
-function startProxy(port) {
+function startProxy(port, configDir) {
   const child = spawn(process.execPath, ['dist/index.js'], {
     env: {
       ...process.env,
@@ -149,8 +152,7 @@ function startProxy(port) {
       LOG_LEVEL: 'error',
       MIMO_API_KEY: 'dummy-key',
       PROXY_API_KEY: 'proxy-test-key',
-      MIMO_BASE_URL: `http://127.0.0.1:${MOCK_UPSTREAM_PORT}`,
-      MIMO_ENABLED_MODELS: BASE_MODEL,
+      CONFIG_DIR: configDir,
       MONITOR_STORAGE: 'memory',
       MONITOR_FLUSH_INTERVAL_MS: '100',
       MONITOR_FLUSH_BATCH_SIZE: '1',
@@ -238,6 +240,100 @@ async function runTests() {
   console.log(`Combinations: ${FEATURE_COMBINATIONS.length}`);
   console.log();
 
+  // Create temporary provider config
+  const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'chimera-test-'));
+  const configFile = path.join(configDir, 'mimo.yaml');
+  const yamlContent = `version: 1
+type: mimo
+name: test-mimo
+api_key: dummy-key
+base_url: http://127.0.0.1:${MOCK_UPSTREAM_PORT}
+auth_header: api-key
+auth_prefix: ""
+capabilities:
+  thinking: true
+  web_search: true
+  json_output: true
+web_search:
+  max_keyword: 3
+  force_search: false
+  limit: 5
+  user_location:
+    country: CN
+    region: ""
+    city: ""
+models:
+  - id: mimo-v2-flash
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: disabled
+  - id: mimo-v2-flash-thinking
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: enabled
+  - id: mimo-v2-flash-search
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: disabled
+      web_search: true
+  - id: mimo-v2-flash-json
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: disabled
+      response_format:
+        type: json_object
+  - id: mimo-v2-flash-thinking-search
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: enabled
+      web_search: true
+  - id: mimo-v2-flash-thinking-json
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: enabled
+      response_format:
+        type: json_object
+  - id: mimo-v2-flash-search-json
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: disabled
+      web_search: true
+      response_format:
+        type: json_object
+  - id: mimo-v2-flash-thinking-search-json
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: enabled
+      web_search: true
+      response_format:
+        type: json_object
+`;
+  fs.writeFileSync(configFile, yamlContent);
+
   // Start mock upstream server
   console.log(`Starting mock upstream on port ${MOCK_UPSTREAM_PORT}...`);
   const { server: mockServer, receivedRequests } = await startMockUpstream(MOCK_UPSTREAM_PORT);
@@ -252,7 +348,7 @@ async function runTests() {
   try {
     // Start proxy
     console.log(`Starting proxy on port ${PROXY_PORT}...`);
-    proxy = startProxy(PROXY_PORT);
+    proxy = startProxy(PROXY_PORT, configDir);
     await waitForHttp(`http://127.0.0.1:${PROXY_PORT}/health`, 10000);
     console.log('Proxy started.\n');
 
@@ -464,6 +560,7 @@ async function runTests() {
   } finally {
     if (proxy) await stopProxy(proxy);
     await new Promise((resolve) => mockServer.close(resolve));
+    try { fs.rmSync(configDir, { recursive: true, force: true }); } catch {}
   }
 
   return exitCode;

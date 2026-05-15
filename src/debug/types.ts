@@ -18,6 +18,7 @@ export interface DebugEvent {
   status_code: number;
   model_requested: string;
   model_upstream: string;
+  provider_name: string;
   stream: boolean;
   /** 完整请求体（JSON 序列化后的字符串，base64 媒体已替换为摘要占位符） */
   request_body: string;

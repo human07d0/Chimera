@@ -19,7 +19,7 @@ export interface MonitorEvent {
   cached_prompt_tokens: number;
   cost: number;
   error_type: string | null;
-  source: "main" | "token-plan";
+  source: string;
 }
 
 export interface QueryParams {
@@ -34,7 +34,7 @@ export interface StatsParams {
   start?: number;
   end?: number;
   model?: string;
-  source?: "main" | "token-plan";
+  source?: string;
 }
 
 export interface StatsResult {
@@ -51,7 +51,7 @@ export interface TrendParams {
   start?: number;
   end?: number;
   model?: string;
-  source?: "main" | "token-plan";
+  source?: string;
   granularity: "hour" | "6h" | "day";
 }
 
@@ -75,7 +75,7 @@ export interface TokenTrendBucket {
 export interface TokenTrendParams {
   start?: number;
   end?: number;
-  source?: "main" | "token-plan";
+  source?: string;
 }
 
 export interface MonitorStorage {

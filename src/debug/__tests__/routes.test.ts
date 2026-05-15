@@ -7,18 +7,9 @@ import { DebugEvent, DebugMediaItem } from "../types";
 // Mock config
 vi.mock("../../config", () => ({
   config: {
-    mimoApiKey: "",
     proxyApiKey: "",
     opsPassword: "",
-    server: { port: 3000, host: "0.0.0.0", maxBodySize: "10mb" },
-    upstream: {
-      baseUrl: "https://api.xiaomimimo.com",
-      anthropicBaseUrl: "https://api.xiaomimimo.com/anthropic",
-      enabledModels: ["mimo-v2-flash"],
-      defaultModel: "mimo-v2-flash",
-      timeout: 120_000,
-    },
-    webSearch: { maxKeyword: 3, forceSearch: true, limit: 3, userLocation: { type: "approximate", country: "China", region: "Beijing", city: "Beijing" } },
+    server: { port: 3000, host: "0.0.0.0" },
     monitor: {
       storage: "memory",
       sqlitePath: "./data/monitor.db",
@@ -27,7 +18,6 @@ vi.mock("../../config", () => ({
       flushBatchSize: 100,
       queueMaxSize: 10_000,
     },
-    tokenPlan: { enabled: false, proxyApiKey: "", mimoApiKey: "", baseUrl: "", anthropicBaseUrl: "", timeout: 120_000 },
     logLevel: "info",
     debug: {
       enabled: true,
@@ -75,6 +65,7 @@ function makeEvent(overrides: Partial<DebugEvent> = {}): DebugEvent {
     status_code: 200,
     model_requested: "mimo-v2-flash",
     model_upstream: "mimo-v2-flash",
+    provider_name: "mimo",
     stream: false,
     request_body: '{"model":"mimo-v2-flash","messages":[{"role":"user","content":"hello"}]}',
     response_body: '{"choices":[{"message":{"content":"hi"}}]}',

@@ -24,7 +24,7 @@ type RequestRow = [
   number,  // cached_prompt_tokens
   number,  // cost
   string | null,  // error_type
-  string   // source ("main" | "token-plan")
+  string   // source
 ];
 
 export class SqliteStorage implements MonitorStorage {
@@ -456,7 +456,7 @@ export class SqliteStorage implements MonitorStorage {
       cached_prompt_tokens: row[16],
       cost: row[17],
       error_type: row[18],
-      source: row[19] === "token-plan" ? "token-plan" : "main",
+      source: row[19],
     };
   }
 }

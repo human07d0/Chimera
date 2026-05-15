@@ -91,7 +91,7 @@ function startMockUpstream(port) {
   });
 }
 
-function startProxy(port, monitorStorage, sqlitePath) {
+function startProxy(port, monitorStorage, sqlitePath, configDir) {
   const child = spawn(process.execPath, ['dist/index.js'], {
     env: {
       ...process.env,
@@ -100,7 +100,7 @@ function startProxy(port, monitorStorage, sqlitePath) {
       LOG_LEVEL: 'error',
       MIMO_API_KEY: 'dummy-key',
       PROXY_API_KEY: 'proxy-test-key',
-      MIMO_BASE_URL: 'http://127.0.0.1:18080',
+      CONFIG_DIR: configDir,
       MONITOR_STORAGE: monitorStorage,
       MONITOR_SQLITE_PATH: sqlitePath || './data/test-monitor.db',
       MONITOR_FLUSH_INTERVAL_MS: '100',
@@ -156,13 +156,42 @@ async function run() {
     fs.unlinkSync(sqlitePath);
   }
 
+  // Create temporary provider config
+  const configDir = fs.mkdtempSync(path.join(require('os').tmpdir(), 'chimera-monitor-'));
+  const configFile = path.join(configDir, 'mimo.yaml');
+  const yamlContent = `version: 1
+type: mimo
+name: test-mimo
+api_key: dummy-key
+base_url: http://127.0.0.1:18080
+auth_header: api-key
+auth_prefix: ""
+capabilities:
+  thinking: true
+  web_search: true
+  json_output: true
+models:
+  - id: mimo-v2-flash
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+  - id: mimo-v2-flash-thinking
+    upstream: mimo-v2-flash
+    context_length: 256000
+    max_output_tokens: 64000
+    default:
+      thinking:
+        type: enabled
+`;
+  fs.writeFileSync(configFile, yamlContent);
+
   console.log('Starting mock upstream...');
   const mockServer = await startMockUpstream(18080);
 
   try {
     console.log('\n[1/2] Memory mode smoke test');
     const proxyPort1 = 19090;
-    const proxy1 = startProxy(proxyPort1, 'memory', sqlitePath);
+    const proxy1 = startProxy(proxyPort1, 'memory', sqlitePath, configDir);
     try {
       await waitForHttp(`http://127.0.0.1:${proxyPort1}/health`);
 
@@ -221,7 +250,7 @@ async function run() {
 
     console.log('\n[2/2] SQLite persistence test');
     const proxyPort2 = 19091;
-    const proxy2 = startProxy(proxyPort2, 'sqlite', sqlitePath);
+    const proxy2 = startProxy(proxyPort2, 'sqlite', sqlitePath, configDir);
     try {
       await waitForHttp(`http://127.0.0.1:${proxyPort2}/health`);
 
@@ -246,7 +275,7 @@ async function run() {
       await stopProxy(proxy2);
     }
 
-    const proxy3 = startProxy(proxyPort2, 'sqlite', sqlitePath);
+    const proxy3 = startProxy(proxyPort2, 'sqlite', sqlitePath, configDir);
     try {
       await waitForHttp(`http://127.0.0.1:${proxyPort2}/health`);
       await sleep(200);
@@ -261,6 +290,7 @@ async function run() {
     console.log('\nAll monitor checks passed.');
   } finally {
     await new Promise((resolve) => mockServer.close(resolve));
+    try { fs.rmSync(configDir, { recursive: true, force: true }); } catch {}
   }
 }
 

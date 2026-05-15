@@ -25,30 +25,19 @@ export class OpsConfigManager {
     "MIMO_API_KEY",
     "PROXY_API_KEY",
     "OPS_PASSWORD",
-    "TOKEN_PLAN_PROXY_API_KEY",
-    "TOKEN_PLAN_MIMO_API_KEY",
   ]);
 
   // NOTE: This mapping is intentionally manual. Each field lives at a different nested
-  // path in the config object (e.g. config.webSearch.maxKeyword, config.monitor.flushIntervalMs)
+  // path in the config object (e.g. config.monitor.flushIntervalMs)
   // and there is no generic way to derive the accessor from CONFIG_FIELDS alone.
   static getCurrentConfig(): Record<string, unknown> {
     return {
       logLevel: config.logLevel,
 
-      webSearchMaxKeyword: 3,
-      webSearchForceSearch: false,
-      webSearchLimit: 5,
-      webSearchCountry: "CN",
-      webSearchRegion: "",
-      webSearchCity: "",
-
       monitorRetentionDays: config.monitor.retentionDays,
       monitorFlushIntervalMs: config.monitor.flushIntervalMs,
       monitorFlushBatchSize: config.monitor.flushBatchSize,
       monitorQueueMaxSize: config.monitor.queueMaxSize,
-
-      upstreamTimeoutMs: 120000,
 
       debugMaxRecords: config.debug.maxRecords,
       debugMaxBodySize: config.debug.maxBodySize,
@@ -58,8 +47,6 @@ export class OpsConfigManager {
         hasMimoApiKey: !!(process.env["MIMO_API_KEY"] || ""),
         hasProxyApiKey: !!config.proxyApiKey,
         hasOpsPassword: !!config.opsPassword,
-        hasTokenPlanProxyApiKey: !!(process.env["TOKEN_PLAN_PROXY_API_KEY"] || ""),
-        hasTokenPlanMimoApiKey: !!(process.env["TOKEN_PLAN_MIMO_API_KEY"] || ""),
       },
     };
   }
@@ -153,8 +140,7 @@ export class OpsConfigManager {
   }
 
   // NOTE: This mapping is intentionally manual. Each field has a different config path
-  // and type-specific parsing logic (e.g. UPSTREAM_TIMEOUT_MS updates both config.upstream
-  // and config.tokenPlan, DEBUG_MAX_RECORDS also calls debugStore.setMaxRecords).
+  // and type-specific parsing logic (e.g. DEBUG_MAX_RECORDS also calls debugStore.setMaxRecords).
   private static applyRuntimeUpdate(updates: Record<string, string>): void {
     for (const [key, value] of Object.entries(updates)) {
       switch (key) {

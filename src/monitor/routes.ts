@@ -42,10 +42,9 @@ function parseModelParam(value: unknown): string | undefined {
   return model;
 }
 
-function parseSourceParam(value: unknown): "main" | "token-plan" | undefined {
-  if (typeof value !== "string") return undefined;
-  if (value === "main" || value === "token-plan") return value;
-  return undefined;
+function parseSourceParam(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.trim() === "") return undefined;
+  return value.trim();
 }
 
 function isPruneAuthorized(req: Request): boolean {
@@ -72,7 +71,7 @@ function parseTimestampParam(value: unknown): number | undefined {
 
 monitorRouter.get("/trend", (req: Request, res: Response) => {
   let days = 3, start: number | undefined, end: number | undefined;
-  let model: string | undefined, source: "main" | "token-plan" | undefined;
+  let model: string | undefined, source: string | undefined;
   let granularity: "hour" | "6h" | "day" = "day";
   try {
     days = parseQueryInt(req.query.days, 3);
@@ -102,7 +101,7 @@ monitorRouter.get("/trend", (req: Request, res: Response) => {
 
 monitorRouter.get("/stats", (req: Request, res: Response) => {
   let days = 3, start: number | undefined, end: number | undefined;
-  let model: string | undefined, source: "main" | "token-plan" | undefined;
+  let model: string | undefined, source: string | undefined;
   try {
     days = parseQueryInt(req.query.days, 3);
     start = parseTimestampParam(req.query.start);
@@ -131,7 +130,7 @@ monitorRouter.get("/stats", (req: Request, res: Response) => {
 
 monitorRouter.get("/token-trend", (req: Request, res: Response) => {
   let start: number | undefined, end: number | undefined;
-  let source: "main" | "token-plan" | undefined;
+  let source: string | undefined;
   try {
     start = parseTimestampParam(req.query.start);
     end = parseTimestampParam(req.query.end);
