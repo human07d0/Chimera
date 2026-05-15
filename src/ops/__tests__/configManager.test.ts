@@ -56,7 +56,7 @@ describe("OpsConfigManager", () => {
   beforeEach(async () => {
     mockExistsSync.mockReturnValue(true);
     mockReadFileSync.mockReturnValue("LOG_LEVEL=info\n");
-    mockWriteFileSync.mockClear();
+    mockWriteFileSync.mockReset();
 
     vi.stubGlobal("process", {
       ...process,
@@ -176,6 +176,89 @@ describe("OpsConfigManager", () => {
         expect.stringContaining("MONITOR_FLUSH_INTERVAL_MS=150"),
         "utf-8"
       );
+    });
+
+    it("should revert in-memory config when persist fails", () => {
+      const origValue = OpsConfigManager.getCurrentConfig().monitorFlushIntervalMs;
+
+      mockWriteFileSync.mockImplementation(() => {
+        throw new Error("Disk full");
+      });
+
+      const result = OpsConfigManager.updateConfig({ monitorFlushIntervalMs: 500 });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Disk full");
+
+      const cfg = OpsConfigManager.getCurrentConfig();
+      expect(cfg.monitorFlushIntervalMs).toBe(origValue);
+    });
+
+    it("should revert multiple fields when persist fails", () => {
+      const origFlush = OpsConfigManager.getCurrentConfig().monitorFlushIntervalMs;
+      const origRetention = OpsConfigManager.getCurrentConfig().monitorRetentionDays;
+
+      mockWriteFileSync.mockImplementation(() => {
+        throw new Error("Permission denied");
+      });
+
+      const result = OpsConfigManager.updateConfig({
+        monitorFlushIntervalMs: 500,
+        monitorRetentionDays: 7,
+      });
+      expect(result.success).toBe(false);
+
+      const cfg = OpsConfigManager.getCurrentConfig();
+      expect(cfg.monitorFlushIntervalMs).toBe(origFlush);
+      expect(cfg.monitorRetentionDays).toBe(origRetention);
+    });
+
+    it("should call debugStore.setMaxRecords on revert when DEBUG_MAX_RECORDS was changed", async () => {
+      const { debugStore } = await import("../../debug/store");
+      const origRecords = OpsConfigManager.getCurrentConfig().debugMaxRecords;
+
+      mockWriteFileSync.mockImplementation(() => {
+        throw new Error("Write failed");
+      });
+
+      OpsConfigManager.updateConfig({ debugMaxRecords: 100 });
+      expect(debugStore.setMaxRecords).toHaveBeenCalledWith(100);
+      expect(debugStore.setMaxRecords).toHaveBeenCalledWith(origRecords);
+    });
+
+    it("should revert config when persist fails (exercises same revert path as applyRuntimeUpdate throws)", () => {
+      const origLogLevel = OpsConfigManager.getCurrentConfig().logLevel;
+
+      mockWriteFileSync.mockImplementation(() => {
+        throw new Error("Write failed");
+      });
+
+      const result = OpsConfigManager.updateConfig({ logLevel: "debug" });
+      expect(result.success).toBe(false);
+
+      const cfg = OpsConfigManager.getCurrentConfig();
+      expect(cfg.logLevel).toBe(origLogLevel);
+    });
+
+    it("should revert config when applyRuntimeUpdate throws", async () => {
+      const { debugStore } = await import("../../debug/store");
+      const origMaxRecords = OpsConfigManager.getCurrentConfig().debugMaxRecords;
+
+      // Make setMaxRecords throw on first call (during applyRuntimeUpdate)
+      let callCount = 0;
+      (debugStore.setMaxRecords as ReturnType<typeof vi.fn>).mockImplementation((val: number) => {
+        callCount++;
+        if (callCount === 1) {
+          throw new Error("apply failed");
+        }
+      });
+
+      const result = OpsConfigManager.updateConfig({ debugMaxRecords: 100 });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("Runtime update failed");
+      expect(result.error).toContain("apply failed");
+
+      const cfg = OpsConfigManager.getCurrentConfig();
+      expect(cfg.debugMaxRecords).toBe(origMaxRecords);
     });
   });
 });

@@ -22,6 +22,7 @@ export interface OpsStatus {
     heapTotal: number;
     external: number;
     rss: number;
+    arrayBuffers: number;
   };
   watcherActive: boolean;
   nodeVersion: string;

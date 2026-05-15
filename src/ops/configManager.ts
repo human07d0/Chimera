@@ -76,7 +76,14 @@ export class OpsConfigManager {
     }
 
     const snapshot = this.snapshotCurrentValues(validatedUpdates);
-    this.applyRuntimeUpdate(validatedUpdates);
+    try {
+      this.applyRuntimeUpdate(validatedUpdates);
+    } catch (err) {
+      this.revertRuntimeUpdate(snapshot);
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error("Runtime config update failed, reverted", { error: message });
+      return { success: false, error: `Runtime update failed: ${message}` };
+    }
 
     const persistResult = this.persistToEnv(validatedUpdates);
     if (!persistResult.success) {
