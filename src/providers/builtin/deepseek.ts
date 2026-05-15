@@ -25,7 +25,7 @@ export const deepseekHandler: ProviderHandler = {
     _model: ModelConfig,
     originalClientBody: Record<string, unknown>,
     _providerConfig: ProviderConfig,
-  ): Record<string, unknown> {
+  ): void {
     if ("max_tokens" in body) {
       if (!("max_completion_tokens" in originalClientBody)) {
         body["max_completion_tokens"] = body["max_tokens"];
@@ -51,7 +51,5 @@ export const deepseekHandler: ProviderHandler = {
     logger.debug("DeepSeek transformRequest", {
       model: body["model"],
     });
-
-    return body;
   },
 };

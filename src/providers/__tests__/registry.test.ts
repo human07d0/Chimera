@@ -8,7 +8,7 @@ const mockHandler: ProviderHandler = {
   getAnthropicUrl: () => null,
   getDefaultBaseUrl: () => "https://test.example.com",
   getDefaultAnthropicUrl: () => null,
-  transformRequest: (body, _model, _original, _provider) => body,
+  transformRequest: (_body, _model, _original, _provider) => {},
 };
 
 describe("ProviderRegistry", () => {

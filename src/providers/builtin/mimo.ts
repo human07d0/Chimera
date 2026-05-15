@@ -25,7 +25,7 @@ export const mimoHandler: ProviderHandler = {
     model: ModelConfig,
     originalClientBody: Record<string, unknown>,
     providerConfig: ProviderConfig,
-  ): Record<string, unknown> {
+  ): void {
     if ("max_tokens" in body) {
       if (!("max_completion_tokens" in originalClientBody)) {
         body["max_completion_tokens"] = body["max_tokens"];
@@ -62,8 +62,6 @@ export const mimoHandler: ProviderHandler = {
       hasWebSearch: webSearchValue !== undefined && webSearchValue !== false,
       toolCount: Array.isArray(body["tools"]) ? (body["tools"] as unknown[]).length : 0,
     });
-
-    return body;
   },
 };
 

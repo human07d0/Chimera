@@ -29,8 +29,7 @@ function extractUsage(payload: unknown): {
   };
 }
 
-function validateSource(value: unknown): "main" | "token-plan" {
-  if (value === "token-plan") return "token-plan";
+function validateSource(_value: unknown): "main" {
   return "main";
 }
 

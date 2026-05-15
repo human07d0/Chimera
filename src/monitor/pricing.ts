@@ -91,7 +91,8 @@ export function calculateCost(
     return cachedCost + promptCost + completionCost;
   }
 
-  const pricing = PRICING[modelId] || PRICING["mimo-v2-flash"];
+  const pricing = PRICING[modelId];
+  if (!pricing) return 0;
   const tier = getTier(promptTokens + completionTokens, pricing.tiers);
 
   const paidPromptTokens = Math.max(promptTokens - cachedPromptTokens, 0);

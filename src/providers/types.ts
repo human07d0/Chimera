@@ -9,7 +9,7 @@ export interface ProviderHandler {
     model: ModelConfig,
     originalClientBody: Record<string, unknown>,
     providerConfig: ProviderConfig,
-  ): Record<string, unknown>;
+  ): void;
 }
 
 export interface ProviderConfig {

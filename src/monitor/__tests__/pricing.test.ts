@@ -73,9 +73,9 @@ describe("calculateCost", () => {
     expect(cost).toBeCloseTo(4.2 + 4.2, 6);
   });
 
-  it("falls back to mimo-v2-flash for unknown model", () => {
+  it("returns 0 for unknown model", () => {
     const cost = calculateCost("unknown-model", 1_000_000, 0, 1_000_000);
-    expect(cost).toBeCloseTo(0.7 + 2.1, 6);
+    expect(cost).toBe(0);
   });
 
   it("returns 0 for zero tokens", () => {

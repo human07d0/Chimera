@@ -24,7 +24,7 @@ export const anthropicHandler: ProviderHandler = {
     _model: ModelConfig,
     _originalClientBody: Record<string, unknown>,
     _providerConfig: ProviderConfig,
-  ): Record<string, unknown> {
-    return body;
+  ): void {
+    // Pure passthrough — no structural adaptation
   },
 };

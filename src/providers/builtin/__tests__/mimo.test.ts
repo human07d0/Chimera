@@ -58,59 +58,59 @@ describe("mimoHandler", () => {
 
   describe("transformRequest", () => {
     it("renames max_tokens to max_completion_tokens when client sent max_tokens", () => {
-      const body = { model: "mimo-v2.5-pro", max_tokens: 1000 };
+      const body: Record<string, unknown> = { model: "mimo-v2.5-pro", max_tokens: 1000 };
       const original = { model: "mimo-v2.5-pro", max_tokens: 1000 };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["max_completion_tokens"]).toBe(1000);
-      expect(result["max_tokens"]).toBeUndefined();
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["max_completion_tokens"]).toBe(1000);
+      expect(body["max_tokens"]).toBeUndefined();
     });
 
     it("does not overwrite max_completion_tokens when client sent both", () => {
-      const body = { model: "mimo-v2.5-pro", max_tokens: 1000, max_completion_tokens: 2000 };
+      const body: Record<string, unknown> = { model: "mimo-v2.5-pro", max_tokens: 1000, max_completion_tokens: 2000 };
       const original = { model: "mimo-v2.5-pro", max_tokens: 1000, max_completion_tokens: 2000 };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["max_completion_tokens"]).toBe(2000);
-      expect(result["max_tokens"]).toBeUndefined();
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["max_completion_tokens"]).toBe(2000);
+      expect(body["max_tokens"]).toBeUndefined();
     });
 
     it("preserves default max_completion_tokens when client did not send max_tokens", () => {
-      const body = { model: "mimo-v2.5-pro", max_completion_tokens: 4096 };
+      const body: Record<string, unknown> = { model: "mimo-v2.5-pro", max_completion_tokens: 4096 };
       const original = { model: "mimo-v2.5-pro" };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["max_completion_tokens"]).toBe(4096);
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["max_completion_tokens"]).toBe(4096);
     });
 
     it("converts web_search: true to tool object with provider defaults", () => {
-      const body = { model: "mimo-v2.5-pro", web_search: true };
+      const body: Record<string, unknown> = { model: "mimo-v2.5-pro", web_search: true };
       const original = { model: "mimo-v2.5-pro" };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["web_search"]).toBeUndefined();
-      expect(result["tools"]).toEqual([{ type: "web_search", max_keyword: 3, force_search: false, limit: 5 }]);
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["web_search"]).toBeUndefined();
+      expect(body["tools"]).toEqual([{ type: "web_search", max_keyword: 3, force_search: false, limit: 5 }]);
     });
 
     it("converts web_search object to tool with merged params", () => {
-      const body = { model: "mimo-v2.5-pro", web_search: { max_keyword: 5 } };
+      const body: Record<string, unknown> = { model: "mimo-v2.5-pro", web_search: { max_keyword: 5 } };
       const original = { model: "mimo-v2.5-pro" };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["tools"]).toEqual([{ type: "web_search", max_keyword: 5, force_search: false, limit: 5 }]);
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["tools"]).toEqual([{ type: "web_search", max_keyword: 5, force_search: false, limit: 5 }]);
     });
 
     it("merges web_search tool with existing function tools", () => {
-      const body = {
+      const body: Record<string, unknown> = {
         model: "mimo-v2.5-pro",
         web_search: true,
         tools: [{ type: "function", function: { name: "my_func" } }],
       };
       const original = { model: "mimo-v2.5-pro" };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["tools"]).toEqual([
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["tools"]).toEqual([
         { type: "web_search", max_keyword: 3, force_search: false, limit: 5 },
         { type: "function", function: { name: "my_func" } },
       ]);
     });
 
     it("filters out non-function, non-web_search tools", () => {
-      const body = {
+      const body: Record<string, unknown> = {
         model: "mimo-v2.5-pro",
         tools: [
           { type: "function", function: { name: "my_func" } },
@@ -118,23 +118,23 @@ describe("mimoHandler", () => {
         ],
       };
       const original = { model: "mimo-v2.5-pro" };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["tools"]).toEqual([{ type: "function", function: { name: "my_func" } }]);
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["tools"]).toEqual([{ type: "function", function: { name: "my_func" } }]);
     });
 
     it("deletes tools and tool_choice when no tools remain", () => {
-      const body = { model: "mimo-v2.5-pro", tools: [{ type: "retrieval" }], tool_choice: "auto" };
+      const body: Record<string, unknown> = { model: "mimo-v2.5-pro", tools: [{ type: "retrieval" }], tool_choice: "auto" };
       const original = { model: "mimo-v2.5-pro" };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["tools"]).toBeUndefined();
-      expect(result["tool_choice"]).toBeUndefined();
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["tools"]).toBeUndefined();
+      expect(body["tool_choice"]).toBeUndefined();
     });
 
     it("deletes tool_choice when tools is absent", () => {
-      const body = { model: "mimo-v2.5-pro", tool_choice: "auto" };
+      const body: Record<string, unknown> = { model: "mimo-v2.5-pro", tool_choice: "auto" };
       const original = { model: "mimo-v2.5-pro" };
-      const result = mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(result["tool_choice"]).toBeUndefined();
+      mimoHandler.transformRequest(body, baseModel, original, baseProviderConfig);
+      expect(body["tool_choice"]).toBeUndefined();
     });
   });
 });

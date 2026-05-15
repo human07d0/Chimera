@@ -38,7 +38,7 @@ export async function createApp(): Promise<express.Application> {
     );
     res.header(
       "Access-Control-Allow-Headers",
-      "Content-Type, Authorization, api-key, x-api-key, x-requested-with, x-playground-token, anthropic-version",
+      "Content-Type, Authorization, api-key, x-api-key, x-requested-with, x-playground-token, anthropic-version, anthropic-beta",
     );
 
     if (_req.method === "OPTIONS") {
