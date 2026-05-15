@@ -43,6 +43,10 @@ describe("getTier", () => {
 });
 
 describe("calculateCost", () => {
+  beforeEach(() => {
+    flatPricingMap.clear();
+  });
+
   it("calculates cost for mimo-v2-flash (single tier)", () => {
     // input: 1M tokens * 0.7 = 0.7, output: 1M tokens * 2.1 = 2.1
     const cost = calculateCost("mimo-v2-flash", 1_000_000, 0, 1_000_000);
