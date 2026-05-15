@@ -7,6 +7,13 @@ export interface OpsInfo {
   version: string;
 }
 
+export interface OpsProviderInfo {
+  name: string;
+  type: string;
+  endpoint: string;
+  modelCount: number;
+}
+
 export interface OpsStatus {
   uptime: number;
   pid: number;
@@ -20,6 +27,7 @@ export interface OpsStatus {
   nodeVersion: string;
   platform: string;
   arch: string;
+  providers?: OpsProviderInfo[];
 }
 
 export interface ConfigSchema {
@@ -33,7 +41,12 @@ export interface ConfigSchema {
 }
 
 export interface CurrentConfig {
-  [key: string]: string | number | boolean;
+  [key: string]: string | number | boolean | Record<string, boolean>;
+  sensitive: {
+    hasMimoApiKey: boolean;
+    hasProxyApiKey: boolean;
+    hasOpsPassword: boolean;
+  };
 }
 
 export interface ApiResponse<T> {

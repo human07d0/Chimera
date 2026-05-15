@@ -109,10 +109,6 @@ src/
 │  /v1/models                                     │
 │  /anthropic/v1/messages                         │
 │                                                 │
-│  /token-plan/v1/chat/completions                │
-│  /token-plan/v1/models                          │
-│  /token-plan/anthropic/v1/messages              │
-│                                                 │
 │  /{custom-endpoint}/v1/chat/completions         │
 │  /{custom-endpoint}/v1/models                   │
 │  /{custom-endpoint}/anthropic/v1/messages       │

@@ -64,7 +64,7 @@ export async function loadConfigData(): Promise<void> {
   formEl.innerHTML = "";
 
   for (const [key, schema] of Object.entries(currentSchema)) {
-    const value = currentConfig![key];
+    const value = currentConfig![key] as string | number | boolean | undefined;
     const item = createConfigItem(key, schema, value);
     formEl.appendChild(item);
   }
@@ -72,6 +72,11 @@ export async function loadConfigData(): Promise<void> {
   loadingEl.classList.add("hidden");
   contentEl.classList.remove("hidden");
   errorEl.classList.add("hidden");
+}
+
+function escapeAttr(value: string | number | boolean | undefined): string {
+  if (value === undefined || value === null) return "";
+  return String(value).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function createConfigItem(
@@ -108,14 +113,14 @@ function createConfigItem(
       <label>
         <span style="display: block; margin-bottom: 6px;">${schema.description || key}</span>
         <input type="number" id="${inputId}" data-key="${key}" 
-          value="${value ?? ""}" ${schema.min !== undefined ? `min="${schema.min}"` : ""} />
+          value="${escapeAttr(value)}" ${schema.min !== undefined ? `min="${schema.min}"` : ""} />
       </label>
     `;
   } else {
     inputHtml = `
       <label>
         <span style="display: block; margin-bottom: 6px;">${schema.description || key}</span>
-        <input type="text" id="${inputId}" data-key="${key}" value="${value ?? ""}" />
+        <input type="text" id="${inputId}" data-key="${key}" value="${escapeAttr(value)}" />
       </label>
     `;
   }

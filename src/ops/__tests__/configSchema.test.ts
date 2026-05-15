@@ -8,18 +8,18 @@ import {
 
 describe("configSchema", () => {
   describe("CONFIG_FIELDS", () => {
-    it("should have 8 fields", () => {
-      expect(CONFIG_FIELDS).toHaveLength(8);
+    it("should have 9 fields", () => {
+      expect(CONFIG_FIELDS).toHaveLength(9);
     });
 
     it("should have unique envKeys", () => {
       const keys = CONFIG_FIELDS.map((f) => f.envKey);
-      expect(new Set(keys).size).toBe(8);
+      expect(new Set(keys).size).toBe(9);
     });
 
     it("should have unique aliases", () => {
       const aliases = CONFIG_FIELDS.map((f) => f.alias);
-      expect(new Set(aliases).size).toBe(8);
+      expect(new Set(aliases).size).toBe(9);
     });
 
     it("each field should have required properties", () => {
@@ -80,8 +80,8 @@ describe("configSchema", () => {
       }
     });
 
-    it("should have 8 entries", () => {
-      expect(Object.keys(KEY_ALIASES)).toHaveLength(8);
+    it("should have 9 entries", () => {
+      expect(Object.keys(KEY_ALIASES)).toHaveLength(9);
     });
   });
 
@@ -120,6 +120,11 @@ describe("configSchema", () => {
           min: 1,
           description: "监控异步队列最大长度",
         },
+        debugEnabled: {
+          key: "DEBUG_ENABLED",
+          type: "boolean",
+          description: "调试模块开关",
+        },
         debugMaxRecords: {
           key: "DEBUG_MAX_RECORDS",
           type: "number",
@@ -143,9 +148,9 @@ describe("configSchema", () => {
       expect(schema).toEqual(expected);
     });
 
-    it("should have 8 entries", () => {
+    it("should have 9 entries", () => {
       const schema = generateSchema();
-      expect(Object.keys(schema)).toHaveLength(8);
+      expect(Object.keys(schema)).toHaveLength(9);
     });
 
     it("each entry should have key, type, description", () => {

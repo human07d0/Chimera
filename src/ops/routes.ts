@@ -6,6 +6,7 @@ import { requestShutdown, requestRestart } from "../shutdownManager";
 import { logger } from "../utils/logger";
 import { config } from "../config";
 import { generateSchema } from "./configSchema";
+import { modelRegistry } from "../providers/registry";
 
 export const opsRouter: Router = Router();
 
@@ -67,6 +68,21 @@ opsRouter.get("/config/schema", opsAuthMiddleware, (_req: Request, res: Response
 });
 
 opsRouter.get("/status", opsAuthMiddleware, (_req: Request, res: Response) => {
+  const providers = modelRegistry.getProviders();
+  const endpoints = modelRegistry.getEndpoints();
+
+  const providerInfo = providers.map(p => {
+    const providerModels = endpoints.flatMap(ep =>
+      modelRegistry.getAllModels(ep).filter(m => m.providerName === p.name)
+    );
+    return {
+      name: p.name,
+      type: p.type,
+      endpoint: p.endpoint || "(default)",
+      modelCount: providerModels.length,
+    };
+  });
+
   res.json({
     success: true,
     data: {
@@ -77,6 +93,7 @@ opsRouter.get("/status", opsAuthMiddleware, (_req: Request, res: Response) => {
       nodeVersion: process.version,
       platform: process.platform,
       arch: process.arch,
+      providers: providerInfo,
     },
   });
 });

@@ -9,6 +9,8 @@ import { KEY_ALIASES, getFieldDef, CONFIG_FIELDS } from "./configSchema";
  * 运行时配置管理器
  * 支持修改白名单内的配置项，并持久化到 .env 文件
  */
+type Snapshot = Record<string, unknown>;
+
 export class OpsConfigManager {
   private static writeLock = false;
 
@@ -42,9 +44,11 @@ export class OpsConfigManager {
       debugMaxRecords: config.debug.maxRecords,
       debugMaxBodySize: config.debug.maxBodySize,
       debugMaxMediaBytes: config.debug.maxMediaBytes,
+      debugEnabled: config.debug.enabled,
 
       sensitive: {
-        hasMimoApiKey: !!(process.env["MIMO_API_KEY"] || ""),
+        // MIMO_API_KEY is not in config.ts (provider-level config), read env directly
+        hasMimoApiKey: !!process.env["MIMO_API_KEY"],
         hasProxyApiKey: !!config.proxyApiKey,
         hasOpsPassword: !!config.opsPassword,
       },
@@ -71,11 +75,12 @@ export class OpsConfigManager {
       validatedUpdates[normalizedKey] = validated.value!;
     }
 
+    const snapshot = this.snapshotCurrentValues(validatedUpdates);
     this.applyRuntimeUpdate(validatedUpdates);
 
     const persistResult = this.persistToEnv(validatedUpdates);
     if (!persistResult.success) {
-      this.revertRuntimeUpdate(validatedUpdates);
+      this.revertRuntimeUpdate(snapshot);
       return persistResult;
     }
 
@@ -176,16 +181,105 @@ export class OpsConfigManager {
         case "DEBUG_MAX_MEDIA_BYTES":
           config.debug.maxMediaBytes = parseInt(value, 10);
           break;
+
+        case "DEBUG_ENABLED":
+          config.debug.enabled = value === "true";
+          break;
       }
     }
 
     logger.info("Runtime config updated", { updates: Object.keys(updates) });
   }
 
-  private static revertRuntimeUpdate(_updates: Record<string, string>): void {
-    // 当前实现中，我们直接修改 config 对象
-    // 完整回滚需要保存旧值，这里简化处理 - 重新加载环境变量
-    logger.warn("Runtime config update failed, manual restart may be needed to restore");
+  private static snapshotCurrentValues(updates: Record<string, string>): Snapshot {
+    const snapshot: Snapshot = {};
+
+    for (const key of Object.keys(updates)) {
+      switch (key) {
+        case "LOG_LEVEL":
+          snapshot[key] = config.logLevel;
+          break;
+
+        case "MONITOR_FLUSH_INTERVAL_MS":
+          snapshot[key] = config.monitor.flushIntervalMs;
+          break;
+
+        case "MONITOR_RETENTION_DAYS":
+          snapshot[key] = config.monitor.retentionDays;
+          break;
+
+        case "MONITOR_FLUSH_BATCH_SIZE":
+          snapshot[key] = config.monitor.flushBatchSize;
+          break;
+
+        case "MONITOR_QUEUE_MAX_SIZE":
+          snapshot[key] = config.monitor.queueMaxSize;
+          break;
+
+        case "DEBUG_MAX_RECORDS":
+          snapshot[key] = config.debug.maxRecords;
+          break;
+
+        case "DEBUG_MAX_BODY_SIZE":
+          snapshot[key] = config.debug.maxBodySize;
+          break;
+
+        case "DEBUG_MAX_MEDIA_BYTES":
+          snapshot[key] = config.debug.maxMediaBytes;
+          break;
+
+        case "DEBUG_ENABLED":
+          snapshot[key] = config.debug.enabled;
+          break;
+      }
+    }
+
+    return snapshot;
+  }
+
+  private static revertRuntimeUpdate(snapshot: Snapshot): void {
+    for (const [key, value] of Object.entries(snapshot)) {
+      switch (key) {
+        case "LOG_LEVEL":
+          (config as Record<string, unknown>).logLevel = value as typeof config.logLevel;
+          break;
+
+        case "MONITOR_FLUSH_INTERVAL_MS":
+          config.monitor.flushIntervalMs = value as number;
+          break;
+
+        case "MONITOR_RETENTION_DAYS":
+          config.monitor.retentionDays = value as number;
+          break;
+
+        case "MONITOR_FLUSH_BATCH_SIZE":
+          config.monitor.flushBatchSize = value as number;
+          break;
+
+        case "MONITOR_QUEUE_MAX_SIZE":
+          config.monitor.queueMaxSize = value as number;
+          break;
+
+        case "DEBUG_MAX_RECORDS":
+          config.debug.maxRecords = value as number;
+          debugStore.setMaxRecords(config.debug.maxRecords);
+          break;
+
+        case "DEBUG_MAX_BODY_SIZE":
+          config.debug.maxBodySize = value as number;
+          break;
+
+        case "DEBUG_MAX_MEDIA_BYTES":
+          config.debug.maxMediaBytes = value as number;
+          break;
+
+        case "DEBUG_ENABLED":
+          config.debug.enabled = value as boolean;
+          break;
+      }
+    }
+
+    logger.warn("Runtime config reverted after persist failure", { keys: Object.keys(snapshot) });
   }
 
   private static persistToEnv(

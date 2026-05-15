@@ -5,6 +5,10 @@
 import { opsApi, OpsStatus } from "../api";
 import { toast } from "../components/toast";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
@@ -81,6 +85,8 @@ export function renderStatusView(container: HTMLElement): void {
             <span class="stat-value" id="stat-rss">-</span>
           </div>
         </div>
+        <h4 class="mt-4 mb-4">Providers</h4>
+        <div id="providers-list" class="providers-grid"></div>
         <div class="text-right mt-4">
           <div class="refresh-indicator">
             <span class="dot"></span>
@@ -129,7 +135,16 @@ export async function loadStatusData(): Promise<void> {
     (document.getElementById("stat-rss") as HTMLElement).textContent =
       formatBytes(status.memory.rss);
 
-    // 更新时间
+    const providersList = document.getElementById("providers-list");
+    if (providersList && status.providers) {
+      providersList.innerHTML = status.providers.map(p => `
+        <div class="stat-item">
+          <span class="stat-label">${escapeHtml(p.name)} (${escapeHtml(p.type)})</span>
+          <span class="stat-value">${escapeHtml(p.endpoint)} — ${p.modelCount} models</span>
+        </div>
+      `).join("");
+    }
+
     const now = new Date();
     (document.getElementById("last-updated") as HTMLElement).textContent =
       `最后更新: ${now.toLocaleTimeString("zh-CN")}`;

@@ -13,6 +13,7 @@ export const CONFIG_FIELDS: ConfigFieldDef[] = [
   { envKey: "MONITOR_RETENTION_DAYS", alias: "monitorRetentionDays", type: "number", min: 1, description: "监控数据保留天数" },
   { envKey: "MONITOR_FLUSH_BATCH_SIZE", alias: "monitorFlushBatchSize", type: "number", min: 1, description: "监控异步写入批量大小" },
   { envKey: "MONITOR_QUEUE_MAX_SIZE", alias: "monitorQueueMaxSize", type: "number", min: 1, description: "监控异步队列最大长度" },
+  { envKey: "DEBUG_ENABLED", alias: "debugEnabled", type: "boolean", description: "调试模块开关" },
   { envKey: "DEBUG_MAX_RECORDS", alias: "debugMaxRecords", type: "number", min: 1, description: "调试记录最大条数（环形缓冲区容量）" },
   { envKey: "DEBUG_MAX_BODY_SIZE", alias: "debugMaxBodySize", type: "number", min: 1024, description: "调试记录单条请求/响应体最大字节数" },
   { envKey: "DEBUG_MAX_MEDIA_BYTES", alias: "debugMaxMediaBytes", type: "number", min: 1024, description: "调试模式媒体资源缓存最大字节数" },

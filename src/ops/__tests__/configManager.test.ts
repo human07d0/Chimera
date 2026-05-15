@@ -73,13 +73,14 @@ describe("OpsConfigManager", () => {
   });
 
   describe("WRITABLE_KEYS", () => {
-    it("should have 8 writable keys", () => {
-      expect(OpsConfigManager.WRITABLE_KEYS.size).toBe(8);
+    it("should have 9 writable keys", () => {
+      expect(OpsConfigManager.WRITABLE_KEYS.size).toBe(9);
     });
 
     it("should include all expected keys", () => {
       const expected = [
         "LOG_LEVEL",
+        "DEBUG_ENABLED",
         "MONITOR_FLUSH_INTERVAL_MS",
         "MONITOR_RETENTION_DAYS",
         "MONITOR_FLUSH_BATCH_SIZE",
@@ -100,6 +101,7 @@ describe("OpsConfigManager", () => {
       expect(cfg.logLevel).toBe("info");
       expect(cfg.monitorRetentionDays).toBe(30);
       expect(cfg.debugMaxRecords).toBe(500);
+      expect(cfg.debugEnabled).toBe(true);
       expect(cfg.sensitive).toBeDefined();
     });
   });
@@ -147,6 +149,17 @@ describe("OpsConfigManager", () => {
     it("should accept valid DEBUG_MAX_MEDIA_BYTES (>= 1024)", () => {
       const result = OpsConfigManager.updateConfig({ debugMaxMediaBytes: 2048 });
       expect(result.success).toBe(true);
+    });
+
+    it("should accept valid boolean for DEBUG_ENABLED", () => {
+      const result = OpsConfigManager.updateConfig({ debugEnabled: false });
+      expect(result.success).toBe(true);
+    });
+
+    it("should reject non-boolean for DEBUG_ENABLED", () => {
+      const result = OpsConfigManager.updateConfig({ debugEnabled: "yes" });
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("DEBUG_ENABLED must be a boolean");
     });
 
     it("should reject DEBUG_MAX_MEDIA_BYTES < 1024", () => {
