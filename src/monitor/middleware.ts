@@ -43,7 +43,7 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
   const tsStart = Date.now();
   const modelRequested = (req.body?.model as string) || "unknown";
   const method = req.method;
-  const path = req.originalUrl || req.path;
+  const reqPath = req.originalUrl || req.path;
 
   const originalJson = res.json.bind(res);
   const originalWrite = res.write.bind(res);
@@ -150,7 +150,7 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       ts_start: tsStart,
       ts_end: tsEnd,
       latency_ms: latencyMs,
-      path,
+      path: reqPath,
       method,
       status_code: res.statusCode,
       model_requested: modelRequested,
