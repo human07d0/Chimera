@@ -155,8 +155,7 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
       method,
       status_code: res.statusCode,
       model_requested: modelRequested,
-      model_upstream:
-        (res.locals.upstreamModel as string | undefined) || "unknown",
+      model_upstream: upstreamModel,
       provider_name: providerName,
       stream,
       chunks,
