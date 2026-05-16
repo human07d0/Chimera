@@ -5,3 +5,4 @@ dist*/
 data/
 localworkspace/
 config/provider/
+.worktrees/
