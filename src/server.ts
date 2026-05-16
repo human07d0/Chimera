@@ -116,21 +116,12 @@ export async function createApp(): Promise<express.Application> {
       const indexPath = path.join(playgroundDir, "index.html");
       let html = fs.readFileSync(indexPath, "utf-8");
 
-      const endpointModels: Record<string, string[]> = {};
-      for (const endpoint of modelRegistry.getEndpoints()) {
-        const label = endpointLabel(endpoint);
-        endpointModels[label] = modelRegistry.getAllModels(endpoint).map((m) => m.model.id);
-      }
-
-      const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify({
-        endpoints: modelRegistry.getEndpoints().map((ep) => ({
-          prefix: ep,
-          label: endpointLabel(ep),
-        })),
-        endpointModels,
+      const config = buildPlaygroundConfig({
+        getEndpoints: () => modelRegistry.getEndpoints(),
+        getAllModels: (ep) => modelRegistry.getAllModels(ep),
         playgroundToken,
-        featureSuffixes: { thinking: "-thinking", search: "-search", json: "-json" },
-      })}</script>`;
+      });
+      const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify(config)}</script>`;
       html = html.replace("<head>", `<head>\n    ${configScript}`);
 
       res.setHeader("Content-Type", "text/html");
@@ -279,9 +270,26 @@ export function stopCleanupTask(): void {
   }
 }
 
-function endpointLabel(endpoint: string): string {
-  if (!endpoint) return "main";
-  return endpoint.replace(/^\//, "").replace(/\//g, "-");
+export function buildPlaygroundConfig(options: {
+  getEndpoints: () => string[];
+  getAllModels: (endpoint: string) => Array<{ model: { id: string } }>;
+  playgroundToken: string;
+}): {
+  endpoints: string[];
+  endpointModels: Record<string, string[]>;
+  playgroundToken: string;
+  featureSuffixes: { thinking: string; search: string; json: string };
+} {
+  const endpointModels: Record<string, string[]> = {};
+  for (const endpoint of options.getEndpoints()) {
+    endpointModels[endpoint] = options.getAllModels(endpoint).map((m) => m.model.id);
+  }
+  return {
+    endpoints: options.getEndpoints(),
+    endpointModels,
+    playgroundToken: options.playgroundToken,
+    featureSuffixes: { thinking: "-thinking", search: "-search", json: "-json" },
+  };
 }
 
 function resolveStaticDir(dirName: string): string | null {

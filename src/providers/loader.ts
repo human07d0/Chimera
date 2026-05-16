@@ -10,7 +10,7 @@ import type { ProviderConfig, ModelConfig } from "./types";
 
 const CUSTOM_TYPES = new Set(["openai", "anthropic"]);
 
-const VALID_TYPES = ["mimo", "deepseek", "openai", "anthropic"] as const;
+const VALID_TYPES = ["mimo", "deepseek", "aliyun", "kimi", "openai", "anthropic"] as const;
 
 const pricingSchema = z.object({
   input: z.number(),

@@ -1,0 +1,190 @@
+# src/builtin_provider_config/aliyun-token-plan.yaml
+version: 1
+type: aliyun
+api_key: ${ALIYUN_TOKEN_PLAN_API_KEY}
+auth_header: Authorization
+auth_prefix: "Bearer "
+base_url: https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode
+endpoint: /token-plan
+anthropic_url: https://token-plan.cn-beijing.maas.aliyuncs.com/apps/anthropic
+
+capabilities:
+  thinking: true
+  json_output: true
+
+models:
+  # --- Qwen (self-developed) ---
+  - id: qwen3.6-plus
+    upstream: qwen3.6-plus
+    context_length: 1000000
+    max_output_tokens: 64000
+    modalities:
+      input: [text]
+      output: [text]
+    description: Qwen3.6-Plus (1M context, thinking)
+
+  - id: qwen3.6-flash
+    upstream: qwen3.6-flash
+    context_length: 1000000
+    max_output_tokens: 64000
+    modalities:
+      input: [text]
+      output: [text]
+    description: Qwen3.6-Flash (1M context, thinking)
+
+  - id: qwen3-coder-plus
+    upstream: qwen3-coder-plus
+    context_length: 1000000
+    max_output_tokens: 64000
+    modalities:
+      input: [text]
+      output: [text]
+    description: Qwen3-Coder-Plus (1M context, coding)
+
+  - id: qwen3-coder-flash
+    upstream: qwen3-coder-flash
+    context_length: 1000000
+    max_output_tokens: 64000
+    modalities:
+      input: [text]
+      output: [text]
+    description: Qwen3-Coder-Flash (1M context, coding)
+
+  - id: qwen-max
+    upstream: qwen-max
+    context_length: 128000
+    max_output_tokens: 32000
+    modalities:
+      input: [text]
+      output: [text]
+    description: Qwen-Max (legacy)
+
+  - id: qwen-plus
+    upstream: qwen-plus
+    context_length: 1000000
+    max_output_tokens: 32000
+    modalities:
+      input: [text]
+      output: [text]
+    description: Qwen-Plus (legacy)
+
+  - id: qwen-vl-plus
+    upstream: qwen-vl-plus
+    context_length: 128000
+    max_output_tokens: 32000
+    modalities:
+      input: [text, image]
+      output: [text]
+    description: Qwen-VL-Plus (vision)
+
+  # --- DeepSeek (via DashScope) ---
+  - id: deepseek-v4-pro
+    upstream: deepseek-v4-pro
+    context_length: 1048576
+    max_output_tokens: 384000
+    modalities:
+      input: [text]
+      output: [text]
+    description: DeepSeek-V4-Pro (1M context, thinking)
+
+  - id: deepseek-v4-flash
+    upstream: deepseek-v4-flash
+    context_length: 1048576
+    max_output_tokens: 384000
+    modalities:
+      input: [text]
+      output: [text]
+    description: DeepSeek-V4-Flash (1M context, thinking)
+
+  - id: deepseek-v3.2
+    upstream: deepseek-v3.2
+    context_length: 128000
+    max_output_tokens: 128000
+    modalities:
+      input: [text]
+      output: [text]
+    description: DeepSeek-V3.2
+
+  # --- Zhipu GLM (via DashScope) ---
+  - id: glm-5.1
+    upstream: glm-5.1
+    context_length: 198000
+    max_output_tokens: 128000
+    modalities:
+      input: [text]
+      output: [text]
+    description: GLM-5.1 (Zhipu, thinking)
+
+  - id: glm-5
+    upstream: glm-5
+    context_length: 198000
+    max_output_tokens: 128000
+    modalities:
+      input: [text]
+      output: [text]
+    description: GLM-5 (Zhipu, thinking)
+
+  - id: glm-4.7
+    upstream: glm-4.7
+    context_length: 198000
+    max_output_tokens: 128000
+    modalities:
+      input: [text]
+      output: [text]
+    description: GLM-4.7 (Zhipu, thinking)
+
+  - id: glm-4.6
+    upstream: glm-4.6
+    context_length: 198000
+    max_output_tokens: 128000
+    modalities:
+      input: [text]
+      output: [text]
+    description: GLM-4.6 (Zhipu, thinking)
+
+  # --- Moonshot Kimi (via DashScope) ---
+  - id: kimi-k2.6
+    upstream: kimi-k2.6
+    context_length: 262144
+    max_output_tokens: 96000
+    modalities:
+      input: [text, image]
+      output: [text]
+    description: Kimi K2.6 (multimodal, thinking)
+
+  - id: kimi-k2.5
+    upstream: kimi-k2.5
+    context_length: 262144
+    max_output_tokens: 96000
+    modalities:
+      input: [text, image]
+      output: [text]
+    description: Kimi K2.5 (multimodal, thinking)
+
+  - id: kimi-k2-thinking
+    upstream: kimi-k2-thinking
+    context_length: 262144
+    max_output_tokens: 96000
+    modalities:
+      input: [text]
+      output: [text]
+    description: Kimi K2 Thinking (reasoning)
+
+  # --- MiniMax (via DashScope) ---
+  - id: MiniMax-M2.5
+    upstream: MiniMax-M2.5
+    context_length: 192000
+    max_output_tokens: 32000
+    modalities:
+      input: [text]
+      output: [text]
+    description: MiniMax-M2.5 (thinking)
+
+  - id: MiniMax-M2.1
+    upstream: MiniMax-M2.1
+    context_length: 200000
+    max_output_tokens: 32000
+    modalities:
+      input: [text]
+      output: [text]
+    description: MiniMax-M2.1

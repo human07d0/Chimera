@@ -348,17 +348,22 @@
         const CONFIG = window.PLAYGROUND_CONFIG || {};
 
         // --- Utility ---
-        function getSelectedEndpointInfo() {
-            const val = document.getElementById('endpoint').value;
-            const [protocol, label] = val.split(':');
-            const epInfo = (CONFIG.endpoints || []).find(e => e.label === label);
-            return { protocol, endpointLabel: label, endpointPrefix: epInfo ? epInfo.prefix : '' };
+        // Must match route registration in server.ts ({prefix}/v1 and {prefix}/anthropic/v1)
+        function getSuffix(protocol) {
+            return protocol === 'anthropic' ? '/anthropic/v1/messages' : '/v1/chat/completions';
         }
 
-        function buildPlaygroundUrl(protocol, endpointPrefix) {
-            const pfx = endpointPrefix || '';
-            if (protocol === 'openai') return `/playground/api${pfx}/v1/chat/completions`;
-            return `/playground/api${pfx}/anthropic/v1/messages`;
+        function getSelectedEndpointInfo() {
+            const val = document.getElementById('endpoint').value;
+            const colonIdx = val.indexOf(':');
+            const protocol = val.substring(0, colonIdx);
+            const prefix = val.substring(colonIdx + 1);
+            return { protocol, prefix };
+        }
+
+        function buildPlaygroundUrl(protocol, prefix) {
+            const pfx = prefix || '';
+            return `/playground/api${pfx}${getSuffix(protocol)}`;
         }
         let activeFeatures = new Set(['stream']);
         let reasoningEffort = 'medium';
@@ -410,7 +415,7 @@
             }
 
             const isStream = activeFeatures.has('stream');
-            const { protocol, endpointPrefix } = getSelectedEndpointInfo();
+            const { protocol, prefix } = getSelectedEndpointInfo();
             const isAnthropic = protocol === 'anthropic';
 
             // Build model name with suffixes
@@ -467,7 +472,7 @@
 
             // Determine URL and headers
             const tpHeaders = { 'Content-Type': 'application/json', 'x-playground-token': CONFIG.playgroundToken };
-            const url = buildPlaygroundUrl(protocol, endpointPrefix);
+            const url = buildPlaygroundUrl(protocol, prefix);
             let headers;
             if (isAnthropic) {
                 headers = { ...tpHeaders, 'anthropic-version': '2023-06-01' };
@@ -622,8 +627,8 @@
         }
 
         function onEndpointChange() {
-            const { endpointLabel } = getSelectedEndpointInfo();
-            const models = CONFIG.endpointModels?.[endpointLabel] || [];
+            const { prefix } = getSelectedEndpointInfo();
+            const models = CONFIG.endpointModels?.[prefix] || [];
             const select = document.getElementById('model');
             select.innerHTML = '';
             if (models.length === 0) {
@@ -645,13 +650,12 @@
         const endpoints = CONFIG.endpoints || [];
         const endpointSelect = document.getElementById('endpoint');
         const protocols = ['openai', 'anthropic'];
-        endpoints.forEach(ep => {
+        endpoints.forEach(prefix => {
             protocols.forEach(proto => {
                 const opt = document.createElement('option');
-                opt.value = proto + ':' + ep.label;
-                const protoName = proto === 'openai' ? 'OpenAI' : 'Anthropic';
-                const epName = ep.label.charAt(0).toUpperCase() + ep.label.slice(1);
-                opt.textContent = protoName + ' \u00B7 ' + epName;
+                opt.value = proto + ':' + prefix;
+                const suffix = getSuffix(proto);
+                opt.textContent = (prefix || '') + suffix;
                 endpointSelect.appendChild(opt);
             });
         });
