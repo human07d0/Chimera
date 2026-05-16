@@ -22,7 +22,7 @@ flowchart LR
   - 按 endpoint 前缀过滤候选提供商
   - 在候选中查找匹配的 model ID
   - 未找到 → 返回 null（路由层返回 HTTP 404）
-- **getModelsByEndpoint(endpointPrefix)**：返回该端点下所有模型（用于 `/v1/models`）
+- **getAllModels(endpointPrefix)**：返回该端点下所有模型（用于 `/v1/models`）
 
 ### Handler 分发
 
@@ -47,7 +47,7 @@ config/
     mimo.yaml
     mimo-token-plan-cn.yaml
     deepseek.yaml
-  provider/                  # 活跃配置目录（CONFIG_DIR 环境变量，默认 ./config/provider/）
+  provider/                  # 活跃配置目录（CONFIG_DIR 环境变量，默认 ./config/provider/）。运行 init-config 后生成
     mimo.yaml                # init-config 从 builtin 复制（不存在时）
     mimo-token-plan-cn.yaml
     deepseek.yaml            # 永不覆盖已有文件
@@ -142,7 +142,7 @@ return result;
 ### 配置示例
 
 ```yaml
-# config/builtin_provider/mimo.yaml
+# config/builtin_provider/mimo.yaml（摘录）
 version: 1
 type: mimo
 api_key: ${MIMO_API_KEY}
@@ -190,15 +190,14 @@ models:
 ```
 
 ```yaml
-# config/builtin_provider/mimo-token-plan-cn.yaml
+# config/builtin_provider/mimo-token-plan-cn.yaml（摘录）
 version: 1
 type: mimo
 api_key: ${TOKEN_PLAN_MIMO_API_KEY}
 auth_header: api-key
 auth_prefix: ""
 base_url: https://token-plan-cn.xiaomimimo.com
-# anthropic_url 未设置 → loader 使用 handler.getDefaultAnthropicUrl()
-# 如 token-plan 需要不同的 Anthropic URL，须显式设置 anthropic_url
+anthropic_url: https://token-plan-cn.xiaomimimo.com/anthropic
 endpoint: /token-plan
 
 models:
@@ -268,17 +267,18 @@ interface ProviderHandler {
   // 仅结构适配（字段重命名、格式重组），不注入值。
   // originalClientBody：应用 default 前的原始客户端请求。
   // 用于区分客户端提供的值和 default 注入的值。
-  // 自定义 handler 返回 body 不变。
+  // 自定义 handler 不修改 body。
   transformRequest(
-    body: Record<string, unknown>,          // 应用 default 后的最终 body
+    body: Record<string, unknown>,          // 应用 default 后的最终 body（原地修改）
     model: ModelConfig,
-    originalClientBody: Record<string, unknown>  // 原始客户端 body（应用 default 前）
-  ): Record<string, unknown>;
+    originalClientBody: Record<string, unknown>,  // 原始客户端 body（应用 default 前）
+    providerConfig: ProviderConfig,
+  ): void;
 }
 ```
 
 - `getOpenAIUrl` / `getAnthropicUrl`：返回完整上游 URL，`null` 表示不支持该协议。endpoint 前缀由 Express router 处理，不由 handler 处理
-- `transformRequest`：仅做结构适配（字段重命名），不注入值。自定义 handler 返回 body 不变。接收 `originalClientBody` 用于区分客户端提供的值和 default 注入的值——例如，只有客户端未提供 `max_tokens` 时才将其重命名为 `max_completion_tokens`，如果该值来自 default 则跳过（因为 default 已使用转换后的 key）
+- `transformRequest`：仅做结构适配（字段重命名），不注入值。自定义 handler 不修改 body。接收 `originalClientBody` 用于区分客户端提供的值和 default 注入的值——例如，只有客户端未提供 `max_tokens` 时才将其重命名为 `max_completion_tokens`，如果该值来自 default 则跳过（因为 default 已使用转换后的 key）
 
 ### ProviderConfig
 
@@ -308,8 +308,8 @@ interface ModelConfig {
   upstream: string;
   context_length: number;
   max_output_tokens: number;
-  description: string;              // 加载后始终有值（缺失时从 id 自动生成）
-  created: number;                  // 加载后始终有值（缺失时默认为配置加载时间）
+  description?: string;             // 加载后始终有值（缺失时从 id 自动生成）
+  created?: number;                 // 加载后始终有值（缺失时默认为配置加载时间）
   default?: Record<string, unknown>;
   capabilities?: Record<string, unknown>;  // 与提供商级别浅合并
   pricing?: {

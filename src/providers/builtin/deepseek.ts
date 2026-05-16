@@ -8,8 +8,8 @@ export const deepseekHandler: ProviderHandler = {
     return `${baseUrl}/v1/chat/completions`;
   },
 
-  getAnthropicUrl(_baseUrl: string): string | null {
-    return null;
+  getAnthropicUrl(baseUrl: string): string | null {
+    return `${baseUrl}/v1/messages`;
   },
 
   getDefaultBaseUrl(): string | null {
@@ -17,7 +17,7 @@ export const deepseekHandler: ProviderHandler = {
   },
 
   getDefaultAnthropicUrl(): string | null {
-    return null;
+    return "https://api.deepseek.com/anthropic";
   },
 
   transformRequest(
