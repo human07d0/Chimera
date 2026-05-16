@@ -31,7 +31,7 @@ flowchart LR
 | type | handler | 协议支持 | 行为 |
 |------|---------|----------|------|
 | `mimo` | BuiltinMiMoHandler | OpenAI + Anthropic | 字段适配（`max_tokens` → `max_completion_tokens`） |
-| `deepseek` | BuiltinDeepSeekHandler | OpenAI + Anthropic | 字段适配 |
+| `deepseek` | BuiltinDeepSeekHandler | OpenAI + Anthropic | 工具过滤（非 function tools 移除） |
 | `openai` | CustomOpenAIHandler | OpenAI only | 纯透传 |
 | `anthropic` | CustomAnthropicHandler | Anthropic only | 纯透传 |
 
@@ -60,11 +60,11 @@ config/
 
 ### 设计规则
 
-1. **`type` 决定协议和透传行为。** 自定义提供商仅服务原生协议，纯透传：`type: openai` → 仅 OpenAI 路由；`type: anthropic` → 仅 Anthropic 路由。除替换 `upstream` 和应用 `default` 外不做任何请求转换，不做跨协议格式转换。内置 handler（`mimo`、`deepseek`）服务两种端点并处理提供商特定字段适配（如 `max_tokens` → `max_completion_tokens`），这不属于格式转换。
+1. **`type` 决定协议和透传行为。** 自定义提供商仅服务原生协议，纯透传：`type: openai` → 仅 OpenAI 路由；`type: anthropic` → 仅 Anthropic 路由。除替换 `upstream` 和应用 `default` 外不做任何请求转换，不做跨协议格式转换。内置 handler（`deepseek`、`mimo`）服务两种端点并处理提供商特定字段适配（如 MiMo 的 `max_tokens` → `max_completion_tokens`），这不属于格式转换。
 
 2. **优先级：客户端 > default。** `default` 值仅在客户端未发送该 key 时应用（基于原始客户端 body 判断，非转换后 body）。Handler 不注入任何字段值——所有提供商特定字段（`thinking`、`response_format`、`web_search` 等）通过 YAML `default` 配置。Handler 仅做结构适配（字段重命名、格式重组）。`transformRequest()` 同时接收最终 body（应用 default 后）和原始客户端 body，以区分客户端提供的值和 default 注入的值。
 
-3. **`default` key 使用转换后名称**（`transformRequest` 之后），非原始客户端字段名。例如用 `default.max_completion_tokens`，不用 `default.max_tokens`，因为 `transformRequest` 将 `max_tokens` 重命名为 `max_completion_tokens`。`default` 可包含提供商特定 key（`thinking`、`response_format`、`tools`、`web_search`）。Loader 验证拒绝与 `transformRequest` 无条件字段删除/重命名冲突的 `default` key，但允许提供商特定 key。
+3. **`default` key 使用转换后名称**（`transformRequest` 之后），非原始客户端字段名。例如 MiMo 用 `default.max_completion_tokens` 而非 `default.max_tokens`，因为其 `transformRequest` 将 `max_tokens` 重命名为 `max_completion_tokens`。其他 handler（如 DeepSeek）直接透传 `max_tokens`。`default` 可包含提供商特定 key（`thinking`、`response_format`、`tools`、`web_search`）。Loader 验证拒绝与 `transformRequest` 无条件字段删除/重命名冲突的 `default` key（按 provider type 区分），但允许提供商特定 key。
 
 4. **虚拟模型变体显式声明。** 所有变体在 YAML 中写出，无运行时自动生成。
 
@@ -123,7 +123,7 @@ config/
 **致命启动错误：**
 - YAML 格式错误
 - 未知 `type` 或 `version`
-- `default` key 与 `transformRequest` 无条件字段删除/重命名冲突（如 `default.max_tokens` 被拒绝，因为 `transformRequest` 将其重命名为 `max_completion_tokens`）。提供商特定 key（`thinking`、`response_format`、`tools`、`web_search`）允许出现在 `default` 中
+- `default` key 与 `transformRequest` 无条件字段删除/重命名冲突（当前仅 MiMo 的 `default.max_tokens` 被拒绝，因为其 `transformRequest` 将其重命名为 `max_completion_tokens`）。提供商特定 key（`thinking`、`response_format`、`tools`、`web_search`、`reasoning_effort`）允许出现在 `default` 中
 
 **警告（非致命）：** 空 `models` 数组 → 跳过。
 

@@ -3,12 +3,11 @@ import { deepseekHandler } from "../deepseek";
 import type { ModelConfig, ProviderConfig } from "../../types";
 
 const baseModel: ModelConfig = {
-  id: "deepseek-chat",
-  upstream: "deepseek-chat",
-  context_length: 128000,
-  max_output_tokens: 8192,
-  description: "deepseek-chat",
-  created: 1700000000,
+  id: "deepseek-v4-flash",
+  upstream: "deepseek-v4-flash",
+  context_length: 1000000,
+  max_output_tokens: 384000,
+  description: "deepseek-v4-flash",
 };
 
 const baseProviderConfig: ProviderConfig = {
@@ -57,53 +56,38 @@ describe("deepseekHandler", () => {
   });
 
   describe("transformRequest", () => {
-    it("renames max_tokens to max_completion_tokens when client sent max_tokens", () => {
-      const body: Record<string, unknown> = { model: "deepseek-chat", max_tokens: 1000 };
-      const original = { model: "deepseek-chat", max_tokens: 1000 };
+    it("preserves max_tokens as-is", () => {
+      const body: Record<string, unknown> = { model: "deepseek-v4-flash", max_tokens: 1000 };
+      const original = { model: "deepseek-v4-flash" };
       deepseekHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(body["max_completion_tokens"]).toBe(1000);
-      expect(body["max_tokens"]).toBeUndefined();
-    });
-
-    it("does not overwrite max_completion_tokens when client sent both", () => {
-      const body: Record<string, unknown> = { model: "deepseek-chat", max_tokens: 1000, max_completion_tokens: 2000 };
-      const original = { model: "deepseek-chat", max_tokens: 1000, max_completion_tokens: 2000 };
-      deepseekHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(body["max_completion_tokens"]).toBe(2000);
-      expect(body["max_tokens"]).toBeUndefined();
-    });
-
-    it("preserves default max_completion_tokens when client did not send max_tokens", () => {
-      const body: Record<string, unknown> = { model: "deepseek-chat", max_completion_tokens: 4096 };
-      const original = { model: "deepseek-chat" };
-      deepseekHandler.transformRequest(body, baseModel, original, baseProviderConfig);
-      expect(body["max_completion_tokens"]).toBe(4096);
+      expect(body["max_tokens"]).toBe(1000);
+      expect(body["max_completion_tokens"]).toBeUndefined();
     });
 
     it("filters out non-function tools", () => {
       const body: Record<string, unknown> = {
-        model: "deepseek-chat",
+        model: "deepseek-v4-flash",
         tools: [
           { type: "function", function: { name: "my_func" } },
           { type: "retrieval" },
         ],
       };
-      const original = { model: "deepseek-chat" };
+      const original = { model: "deepseek-v4-flash" };
       deepseekHandler.transformRequest(body, baseModel, original, baseProviderConfig);
       expect(body["tools"]).toEqual([{ type: "function", function: { name: "my_func" } }]);
     });
 
     it("deletes tools and tool_choice when no tools remain", () => {
-      const body: Record<string, unknown> = { model: "deepseek-chat", tools: [{ type: "retrieval" }], tool_choice: "auto" };
-      const original = { model: "deepseek-chat" };
+      const body: Record<string, unknown> = { model: "deepseek-v4-flash", tools: [{ type: "retrieval" }], tool_choice: "auto" };
+      const original = { model: "deepseek-v4-flash" };
       deepseekHandler.transformRequest(body, baseModel, original, baseProviderConfig);
       expect(body["tools"]).toBeUndefined();
       expect(body["tool_choice"]).toBeUndefined();
     });
 
     it("deletes tool_choice when tools is absent", () => {
-      const body: Record<string, unknown> = { model: "deepseek-chat", tool_choice: "auto" };
-      const original = { model: "deepseek-chat" };
+      const body: Record<string, unknown> = { model: "deepseek-v4-flash", tool_choice: "auto" };
+      const original = { model: "deepseek-v4-flash" };
       deepseekHandler.transformRequest(body, baseModel, original, baseProviderConfig);
       expect(body["tool_choice"]).toBeUndefined();
     });

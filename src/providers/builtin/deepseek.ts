@@ -23,16 +23,9 @@ export const deepseekHandler: ProviderHandler = {
   transformRequest(
     body: Record<string, unknown>,
     _model: ModelConfig,
-    originalClientBody: Record<string, unknown>,
+    _originalClientBody: Record<string, unknown>,
     _providerConfig: ProviderConfig,
   ): void {
-    if ("max_tokens" in body) {
-      if (!("max_completion_tokens" in originalClientBody)) {
-        body["max_completion_tokens"] = body["max_tokens"];
-      }
-      delete body["max_tokens"];
-    }
-
     if (Array.isArray(body["tools"])) {
       const tools = body["tools"] as Record<string, unknown>[];
       const filtered = tools.filter((t) => t.type === "function");

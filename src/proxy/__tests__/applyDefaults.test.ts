@@ -30,4 +30,20 @@ describe("applyDefaults", () => {
     const result = applyDefaults(body, {}, body);
     expect(result).toBe(body);
   });
+
+  it("applies reasoning_effort default when not provided by client", () => {
+    const body = { model: "deepseek-v4-flash-max", thinking: { type: "enabled" } };
+    const defaults = { thinking: { type: "enabled" }, reasoning_effort: "max" };
+    const original = { model: "deepseek-v4-flash-max" };
+    const result = applyDefaults(body, defaults, original);
+    expect(result["reasoning_effort"]).toBe("max");
+  });
+
+  it("does not overwrite client-provided reasoning_effort", () => {
+    const body = { model: "deepseek-v4-flash-max", reasoning_effort: "high", thinking: { type: "enabled" } };
+    const defaults = { reasoning_effort: "max", thinking: { type: "enabled" } };
+    const original = { model: "deepseek-v4-flash-max", reasoning_effort: "high" };
+    const result = applyDefaults(body, defaults, original);
+    expect(result["reasoning_effort"]).toBe("high");
+  });
 });

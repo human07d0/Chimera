@@ -10,15 +10,76 @@ capabilities:
   json_output: true
 
 models:
-  - id: deepseek-chat
-    upstream: deepseek-chat
-    context_length: 128000
-    max_output_tokens: 8192
+  - id: deepseek-v4-flash
+    upstream: deepseek-v4-flash
+    context_length: 1000000
+    max_output_tokens: 384000
+    description: DeepSeek-V4-Flash
+    pricing:
+      input: 1.0
+      cached_input: 0.02
+      output: 2.0
 
-  - id: deepseek-reasoner
-    upstream: deepseek-reasoner
-    context_length: 128000
-    max_output_tokens: 8192
+  - id: deepseek-v4-flash-nothinking
+    upstream: deepseek-v4-flash
+    context_length: 1000000
+    max_output_tokens: 384000
+    description: DeepSeek-V4-Flash (thinking disabled)
+    default:
+      thinking:
+        type: disabled
+    pricing:
+      input: 1.0
+      cached_input: 0.02
+      output: 2.0
+
+  - id: deepseek-v4-flash-max
+    upstream: deepseek-v4-flash
+    context_length: 1000000
+    max_output_tokens: 384000
+    description: DeepSeek-V4-Flash (max reasoning effort)
     default:
       thinking:
         type: enabled
+      reasoning_effort: max
+    pricing:
+      input: 1.0
+      cached_input: 0.02
+      output: 2.0
+
+  - id: deepseek-v4-pro
+    upstream: deepseek-v4-pro
+    context_length: 1000000
+    max_output_tokens: 384000
+    description: DeepSeek-V4-Pro
+    pricing:
+      input: 12.0
+      cached_input: 0.1
+      output: 24.0
+
+  - id: deepseek-v4-pro-nothinking
+    upstream: deepseek-v4-pro
+    context_length: 1000000
+    max_output_tokens: 384000
+    description: DeepSeek-V4-Pro (thinking disabled)
+    default:
+      thinking:
+        type: disabled
+    pricing:
+      input: 12.0
+      cached_input: 0.1
+      output: 24.0
+
+  - id: deepseek-v4-pro-max
+    upstream: deepseek-v4-pro
+    context_length: 1000000
+    max_output_tokens: 384000
+    description: DeepSeek-V4-Pro (max reasoning effort)
+    default:
+      thinking:
+        type: enabled
+      reasoning_effort: max
+    pricing:
+      input: 12.0
+      cached_input: 0.1
+      output: 24.0

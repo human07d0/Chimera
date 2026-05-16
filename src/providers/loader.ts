@@ -85,11 +85,11 @@ function resolveEnvVarsInObject(
   return result;
 }
 
-function validateDefaultKeys(defaults: Record<string, unknown> | undefined, modelId: string): void {
+function validateDefaultKeys(defaults: Record<string, unknown> | undefined, modelId: string, providerType: string): void {
   if (!defaults) return;
-  if ("max_tokens" in defaults) {
+  if (providerType === "mimo" && "max_tokens" in defaults) {
     throw new Error(
-      `Model '${modelId}': default.max_tokens is not allowed because transformRequest renames it to max_completion_tokens`,
+      `Model '${modelId}': default.max_tokens is not allowed for MiMo because transformRequest renames it to max_completion_tokens. Use default.max_completion_tokens instead.`,
     );
   }
 }
@@ -171,7 +171,7 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
 
     const models: ModelConfig[] = [];
     for (const rawModel of raw.models) {
-      validateDefaultKeys(rawModel.default, rawModel.id);
+      validateDefaultKeys(rawModel.default, rawModel.id, raw.type);
 
       if (seenIds.has(rawModel.id)) {
         throw new Error(

@@ -370,6 +370,24 @@ models:
     expect(() => loadProviders(tmpDir)).toThrow("default.max_tokens is not allowed");
   });
 
+  it("allows default.max_tokens for non-MiMo providers (e.g. deepseek)", () => {
+    const yaml = `
+version: 1
+type: deepseek
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    default:
+      max_tokens: 100
+`;
+    writeYaml("test.yaml", yaml);
+    expect(() => loadProviders(tmpDir)).not.toThrow();
+  });
+
   it("allows provider-specific default keys like thinking", () => {
     const yaml = `
 version: 1
