@@ -1,7 +1,6 @@
 # config/builtin_provider/mimo.yaml
 version: 1
 type: mimo
-name: xiaomi-mimo
 api_key: ${MIMO_API_KEY}
 auth_header: api-key
 auth_prefix: ""

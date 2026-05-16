@@ -480,7 +480,7 @@ models: []
     expect(providers[0]!.name).toBe("my-provider");
   });
 
-  it("uses provided name over filename", () => {
+  it("rejects YAML with name field due to strict mode", () => {
     const yaml = `
 version: 1
 type: mimo
@@ -494,8 +494,7 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("file.yaml", yaml);
-    const providers = loadProviders(tmpDir);
-    expect(providers[0]!.name).toBe("custom-name");
+    expect(() => loadProviders(tmpDir)).toThrow(/unrecognized_keys|name/);
   });
 
   it("normalizes endpoint", () => {
@@ -694,5 +693,25 @@ models:
     writeYaml("test.yml", MINIMAL_PROVIDER);
     const providers = loadProviders(tmpDir);
     expect(providers).toHaveLength(1);
+  });
+
+  it("derives provider name from filename", () => {
+    for (const type of ["mimo", "deepseek"]) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+      fs.mkdirSync(tmpDir, { recursive: true });
+      writeYaml(`my-${type}.yaml`, `
+version: 1
+type: ${type}
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`);
+      const providers = loadProviders(tmpDir);
+      expect(providers[0]!.name).toBe(`my-${type}`);
+    }
   });
 });

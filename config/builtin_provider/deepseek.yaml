@@ -1,7 +1,6 @@
 # config/builtin_provider/deepseek.yaml
 version: 1
 type: deepseek
-name: deepseek
 api_key: ${DEEPSEEK_API_KEY}
 auth_header: Authorization
 auth_prefix: "Bearer "

@@ -36,7 +36,6 @@ const providerSchema = z
   .object({
     version: z.literal(1),
     type: z.enum(VALID_TYPES),
-    name: z.string().optional(),
     api_key: z.string(),
     base_url: z.string().optional(),
     anthropic_url: z.string().nullable().optional(),
@@ -158,7 +157,7 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
       continue;
     }
 
-    const name = raw.name ?? path.basename(file, path.extname(file));
+    const name = path.basename(file, path.extname(file));
     const endpoint = normalizeEndpoint(raw.endpoint);
 
     if (!modelIdMap.has(endpoint)) {

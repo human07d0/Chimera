@@ -76,7 +76,6 @@ config/
 |------|------|--------|------|
 | `version` | 是 | — | Schema 版本（当前 `1`）。未知 → 致命错误 |
 | `type` | 是 | — | Handler 类型：`mimo`、`deepseek`（内置）或 `openai`、`anthropic`（自定义） |
-| `name` | 否 | YAML 文件名（不含扩展名） | 提供商名称，暴露为 `/v1/models` 中的 `owned_by` |
 | `api_key` | 是 | — | API key，`${VAR}` 从 env 解析。空字符串 = 无鉴权 |
 | `base_url` | 内置: 否。自定义: 是 | 内置: `handler.getDefaultBaseUrl()` | 上游 base URL。自动补全 `https://`（若未提供 scheme） |
 | `anthropic_url` | 否 | 内置: `handler.getDefaultAnthropicUrl()`。自定义: 始终 `null` | Anthropic 端点独立 base URL。`null` = 不适用。自定义提供商始终为 `null`，`base_url` 用于原生协议。**注意：** 当 `base_url` 在 YAML 中被覆盖且 `anthropic_url` 未设置时，loader 从 handler 默认值派生，而非从覆盖后的 `base_url` 派生。如需不同的 Anthropic URL，须显式设置 `anthropic_url` |
@@ -117,6 +116,8 @@ config/
 
 启动时读取 `CONFIG_DIR` 下所有 `*.yaml`，使用 zod（strict mode，拒绝未知字段）验证，解析 `${VAR}`，应用上表默认值。对自定义提供商强制 `anthropic_url = null`（无论 YAML 如何设置）。工具参数（如 `web_search`）遵循与其他字段相同的 default 值模式——提供商级别值为默认值，模型级别 `default` 值覆盖。Loader 在加载时执行模型级别 `capabilities` 与提供商级别 `capabilities` 的浅合并。
 
+提供商 `name` 始终从 YAML 文件名派生（去除扩展名），YAML 中不得包含 `name` 字段（strict mode 拒绝）。
+
 **致命启动错误：**
 - YAML 格式错误
 - 未知 `type` 或 `version`
@@ -143,7 +144,6 @@ return result;
 # config/builtin_provider/mimo.yaml
 version: 1
 type: mimo
-name: xiaomi-mimo
 api_key: ${MIMO_API_KEY}
 auth_header: api-key
 auth_prefix: ""
@@ -192,7 +192,6 @@ models:
 # config/builtin_provider/mimo-token-plan.yaml
 version: 1
 type: mimo
-name: xiaomi-mimo-token-plan
 api_key: ${TOKEN_PLAN_MIMO_API_KEY}
 auth_header: api-key
 auth_prefix: ""
@@ -212,7 +211,6 @@ models:
 # config/provider/my-openai.yaml
 version: 1
 type: openai
-name: my-openai
 base_url: https://api.openai.com
 api_key: ${OPENAI_API_KEY}
 auth_header: Authorization
