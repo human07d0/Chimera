@@ -539,6 +539,24 @@ describe("monitorMiddleware — res.write monkey-patch (SSE chunks)", () => {
     expect(event.output_tokens).toBe(5);
   });
 
+  it("extracts cached_prompt_tokens from SSE chunk with prompt_tokens_details", () => {
+    const req = createMockReq("/chat/completions");
+    const res = createMockRes("/chat/completions");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.write as any)(
+      'data: {"usage":{"prompt_tokens":100,"completion_tokens":20,"prompt_tokens_details":{"cached_tokens":30}}}\n\n',
+    );
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(100);
+    expect(event.output_tokens).toBe(20);
+    expect(event.cached_prompt_tokens).toBe(30);
+  });
+
   it("skips [DONE] markers", () => {
     const req = createMockReq("/chat/completions");
     const res = createMockRes("/chat/completions");

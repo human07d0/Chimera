@@ -559,6 +559,25 @@ describe("POST /v1/chat/completions", () => {
       expect(res.body.error.message).toBe("Internal Server Error");
     });
 
+    it("returns 'Unknown error' when both json() and text() fail", async () => {
+      vi.mocked(fetchWithTimeout).mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Internal Server Error",
+        headers: new Headers({ "Content-Type": "text/plain" }),
+        json: vi.fn().mockRejectedValue(new Error("not json")),
+        text: vi.fn().mockRejectedValue(new Error("not text")),
+      } as unknown as Response);
+
+      const res = await postChat({
+        model: "test-model",
+        messages: [{ role: "user", content: "hi" }],
+      });
+      expect(res.status).toBe(500);
+      expect(res.body.error.type).toBe("upstream_error");
+      expect(res.body.error.message).toBe("Unknown error");
+    });
+
     it("falls back to status-based error type when upstream error has no type", async () => {
       vi.mocked(fetchWithTimeout).mockResolvedValue(
         makeUpstreamResponse({ error: { message: "Forbidden" } }, 403),
