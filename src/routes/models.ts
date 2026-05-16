@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { modelRegistry } from "../providers/registry";
+import { extractEndpointPrefix } from "./endpointPrefix";
 
 export const modelsRouter: import("express").Router = Router();
 
@@ -53,9 +54,3 @@ modelsRouter.get("/models/:modelId", (req: Request, res: Response) => {
     ...(resolved.modelConfig.pricing ? { pricing: resolved.modelConfig.pricing } : {}),
   });
 });
-
-function extractEndpointPrefix(req: Request): string {
-  const baseUrl = req.baseUrl.replace("/playground/api", "");
-  const match = baseUrl.match(/^(.*?)\/v1$/);
-  return match ? match[1] : "";
-}

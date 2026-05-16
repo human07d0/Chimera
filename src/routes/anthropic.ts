@@ -7,6 +7,7 @@ import { logger } from "../utils/logger";
 import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 import { sanitizeForLog } from "../utils/sanitizeForLog";
 import { generateRequestId } from "../utils/requestId";
+import { extractEndpointPrefix } from "./endpointPrefix";
 
 export const anthropicRouter: import("express").Router = Router();
 
@@ -224,12 +225,6 @@ anthropicRouter.get("/messages", (_req: Request, res: Response) => {
     },
   });
 });
-
-function extractEndpointPrefix(req: Request): string {
-  const baseUrl = req.baseUrl.replace("/playground/api", "");
-  const match = baseUrl.match(/^(.*?)\/(?:v1|anthropic\/v1)$/);
-  return match ? match[1] : "";
-}
 
 function sendAnthropicError(
   res: Response,
