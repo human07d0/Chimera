@@ -31,6 +31,9 @@ models:
     context_length: 128000
     max_output_tokens: 16384
     description: GPT-4o Mini
+    modalities:
+      input: [text, image]
+      output: [text]
 
     # Optional model fields:
 
@@ -41,6 +44,10 @@ models:
 
     # capabilities:                  # Model-level overrides (merged into provider caps)
     #   vision: true
+
+    # modalities:                  # Input/output content types
+    #   input: [text, image]       # text, image, file, audio, video
+    #   output: [text]             # text, image, audio
 
     # pricing:
     #   input: 0.15

@@ -18,6 +18,14 @@ const pricingSchema = z.object({
   output: z.number(),
 });
 
+const INPUT_MODALITIES = ["text", "image", "file", "audio", "video"] as const;
+const OUTPUT_MODALITIES = ["text", "image", "audio"] as const;
+
+const modalitiesSchema = z.object({
+  input: z.array(z.enum(INPUT_MODALITIES)),
+  output: z.array(z.enum(OUTPUT_MODALITIES)),
+});
+
 const modelSchema = z
   .object({
     id: z.string(),
@@ -29,6 +37,7 @@ const modelSchema = z
     default: z.record(z.string(), z.unknown()).optional(),
     capabilities: z.record(z.string(), z.unknown()).optional(),
     pricing: pricingSchema.optional(),
+    modalities: modalitiesSchema.optional(),
   })
   .strict();
 
@@ -192,6 +201,7 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
           raw.capabilities,
           rawModel.capabilities,
         ),
+        modalities: rawModel.modalities,
         pricing: rawModel.pricing,
       });
     }

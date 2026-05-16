@@ -788,4 +788,86 @@ models:
       expect(providers[0]!.name).toBe(`my-${type}`);
     }
   });
+
+  describe("modalities validation", () => {
+    it("loads valid modalities", () => {
+      const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    modalities:
+      input: [text, image, audio, video]
+      output: [text]
+`;
+      writeYaml("test.yaml", yaml);
+      const providers = loadProviders(tmpDir);
+      const mods = providers[0]!.models[0]!.modalities;
+      expect(mods).toBeDefined();
+      expect(mods!.input).toEqual(["text", "image", "audio", "video"]);
+      expect(mods!.output).toEqual(["text"]);
+    });
+
+    it("rejects invalid input modality", () => {
+      const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    modalities:
+      input: [text, imge]
+      output: [text]
+`;
+      writeYaml("test.yaml", yaml);
+      expect(() => loadProviders(tmpDir)).toThrow("Invalid");
+    });
+
+    it("rejects invalid output modality", () => {
+      const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    modalities:
+      input: [text]
+      output: [pdf]
+`;
+      writeYaml("test.yaml", yaml);
+      expect(() => loadProviders(tmpDir)).toThrow("Invalid");
+    });
+
+    it("rejects typos like vdieo", () => {
+      const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    modalities:
+      input: [vdieo]
+      output: [text]
+`;
+      writeYaml("test.yaml", yaml);
+      expect(() => loadProviders(tmpDir)).toThrow("Invalid");
+    });
+  });
 });

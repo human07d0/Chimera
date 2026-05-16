@@ -37,6 +37,10 @@ export interface ModelConfig {
   created?: number;
   default?: Record<string, unknown>;
   capabilities?: Record<string, unknown>;
+  modalities?: {
+    input: string[];
+    output: string[];
+  };
   pricing?: {
     input: number;
     cached_input?: number;

@@ -26,32 +26,50 @@ models:
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
+    modalities:
+      input: [text]
+      output: [text]
 
   - id: mimo-v2-pro
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image]
+      output: [text]
 
   - id: mimo-v2-omni
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image, video, audio]
+      output: [text]
 
   - id: mimo-v2.5
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image, video, audio]
+      output: [text]
 
   - id: mimo-v2.5-pro
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image]
+      output: [text]
 
   # Thinking variants
   - id: mimo-v2-flash-thinking
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
+    modalities:
+      input: [text]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -60,6 +78,9 @@ models:
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -68,6 +89,9 @@ models:
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image, video, audio]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -76,6 +100,9 @@ models:
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image, video, audio]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -84,6 +111,9 @@ models:
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -93,6 +123,9 @@ models:
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
+    modalities:
+      input: [text]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -102,6 +135,9 @@ models:
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -111,6 +147,9 @@ models:
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image, video, audio]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -120,6 +159,9 @@ models:
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image, video, audio]
+      output: [text]
     default:
       thinking:
         type: enabled
@@ -129,6 +171,9 @@ models:
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
+    modalities:
+      input: [text, image]
+      output: [text]
     default:
       thinking:
         type: enabled

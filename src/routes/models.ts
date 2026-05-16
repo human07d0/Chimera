@@ -17,6 +17,10 @@ modelsRouter.get("/models", (req: Request, res: Response) => {
     context_length: model.context_length,
     max_output_tokens: model.max_output_tokens,
     capabilities: model.capabilities ?? {},
+    architecture: {
+      input_modalities: model.modalities?.input ?? ["text"],
+      output_modalities: model.modalities?.output ?? ["text"],
+    },
     ...(model.pricing ? { pricing: model.pricing } : {}),
   }));
 
@@ -51,6 +55,10 @@ modelsRouter.get("/models/:modelId", (req: Request, res: Response) => {
     context_length: resolved.modelConfig.context_length,
     max_output_tokens: resolved.modelConfig.max_output_tokens,
     capabilities: resolved.modelConfig.capabilities ?? {},
+    architecture: {
+      input_modalities: resolved.modelConfig.modalities?.input ?? ["text"],
+      output_modalities: resolved.modelConfig.modalities?.output ?? ["text"],
+    },
     ...(resolved.modelConfig.pricing ? { pricing: resolved.modelConfig.pricing } : {}),
   });
 });

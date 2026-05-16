@@ -106,11 +106,11 @@ src/
 │  /ops/*              ← 运维界面                  │
 │                                                 │
 │  /v1/chat/completions                           │
-│  /v1/models                                     │
+│  /v1/models               (含 architecture 模态) │
 │  /anthropic/v1/messages                         │
 │                                                 │
 │  /{custom-endpoint}/v1/chat/completions         │
-│  /{custom-endpoint}/v1/models                   │
+│  /{custom-endpoint}/v1/models  (含 architecture 模态) │
 │  /{custom-endpoint}/anthropic/v1/messages       │
 └─────────────────────────────────────────────────┘
 ```
@@ -149,9 +149,59 @@ Client → POST /anthropic/v1/messages
 ```text
 Client → GET /v1/models
        → registry 返回该 endpoint 前缀下所有模型
-       → owned_by = provider name
-       → capabilities = provider-level ⊕ model-level
+       → 返回字段遵循 OpenRouter 扩展格式
 ```
+
+响应结构（单个模型对象）：
+
+| 字段 | 类型 | 来源 | 说明 |
+|------|------|------|------|
+| `id` | string | YAML `id` | 模型标识符 |
+| `object` | `"model"` | 固定值 | 对象类型 |
+| `created` | number | YAML `created` 或加载时间 | Unix 时间戳 |
+| `owned_by` | string | YAML 文件名 | 提供商名称 |
+| `description` | string | YAML `description` | 人类可读描述 |
+| `context_length` | number | YAML `context_length` | 上下文窗口（token） |
+| `max_output_tokens` | number | YAML `max_output_tokens` | 最大输出（token） |
+| `capabilities` | object | provider ⊕ model | 能力标志（thinking, json_output 等） |
+| `architecture` | object | YAML `modalities` | 输入/输出模态（见下表） |
+| `pricing` | object? | YAML `pricing` | 每百万 token 定价（可选） |
+
+`architecture` 子字段：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `input_modalities` | string[] | 支持的输入类型：`text`, `image`, `file`, `audio`, `video` |
+| `output_modalities` | string[] | 支持的输出类型：`text`, `image`, `audio` |
+
+当 YAML 未定义 `modalities` 时，默认值为 `{ input: ["text"], output: ["text"] }`。
+
+### 模态（Modalities）
+
+YAML 配置中通过 `modalities` 字段声明模型支持的输入/输出内容类型：
+
+```yaml
+models:
+  - id: mimo-v2-omni
+    upstream: mimo-v2-omni
+    context_length: 256000
+    max_output_tokens: 128000
+    modalities:
+      input: [text, image, video, audio]
+      output: [text]
+```
+
+字段定义遵循 OpenRouter 的 `architecture` 规范：
+
+| 值 | 含义 | 典型用例 |
+|----|------|----------|
+| `text` | 纯文本 | 所有模型 |
+| `image` | 图片（URL 或 base64） | 视觉模型（GPT-4o, MiMo-V2-Pro） |
+| `file` | 文件（PDF 等） | 文档分析模型 |
+| `audio` | 音频（base64） | 语音模型（MiMo-V2-Omni） |
+| `video` | 视频（URL 或 base64） | 视频理解模型（MiMo-V2-Omni） |
+
+此信息通过 `GET /v1/models` 端点暴露在 `architecture` 字段中，供 ChatBox 等客户端读取以判断模型能力。
 
 ## 非目标
 
