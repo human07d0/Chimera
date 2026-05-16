@@ -4,6 +4,8 @@ type: mimo
 api_key: ${MIMO_API_KEY}
 auth_header: api-key
 auth_prefix: ""
+base_url: https://api.xiaomimimo.com
+anthropic_url: https://api.xiaomimimo.com/anthropic
 
 capabilities:
   thinking: true
