@@ -42,6 +42,47 @@ describe("getTier", () => {
   it("throws on empty tiers array", () => {
     expect(() => getTier(100, [])).toThrow("Empty tiers");
   });
+
+  it("handles tiers in reverse order (-1 first)", () => {
+    const reversed = [
+      { max_tokens: -1, input: 14.0, cached_input: 2.8, output: 42.0 },
+      { max_tokens: 256_000, input: 7.0, cached_input: 1.4, output: 21.0 },
+    ];
+    expect(getTier(100, reversed).max_tokens).toBe(256_000);
+    expect(getTier(300_000, reversed).max_tokens).toBe(-1);
+  });
+
+  it("handles tiers already sorted", () => {
+    const sorted = [
+      { max_tokens: 100_000, input: 1.0, cached_input: 0.1, output: 3.0 },
+      { max_tokens: 500_000, input: 2.0, cached_input: 0.2, output: 6.0 },
+      { max_tokens: -1, input: 4.0, cached_input: 0.4, output: 12.0 },
+    ];
+    expect(getTier(50_000, sorted).max_tokens).toBe(100_000);
+    expect(getTier(200_000, sorted).max_tokens).toBe(500_000);
+    expect(getTier(1_000_000, sorted).max_tokens).toBe(-1);
+  });
+
+  it("handles arbitrary unsorted order", () => {
+    const arbitrary = [
+      { max_tokens: 500_000, input: 2.0, cached_input: 0.2, output: 6.0 },
+      { max_tokens: 100_000, input: 1.0, cached_input: 0.1, output: 3.0 },
+      { max_tokens: -1, input: 4.0, cached_input: 0.4, output: 12.0 },
+    ];
+    expect(getTier(50_000, arbitrary).max_tokens).toBe(100_000);
+    expect(getTier(200_000, arbitrary).max_tokens).toBe(500_000);
+    expect(getTier(1_000_000, arbitrary).max_tokens).toBe(-1);
+  });
+
+  it("does not mutate the input tiers array", () => {
+    const original = [
+      { max_tokens: -1, input: 14.0, cached_input: 2.8, output: 42.0 },
+      { max_tokens: 256_000, input: 7.0, cached_input: 1.4, output: 21.0 },
+    ];
+    const frozen = [...original];
+    getTier(100, original);
+    expect(original).toEqual(frozen);
+  });
 });
 
 describe("calculateCost", () => {

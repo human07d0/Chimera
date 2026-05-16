@@ -16,7 +16,7 @@ const flatPricingSchema = z.object({
   input: z.number(),
   cached_input: z.number().optional(),
   output: z.number(),
-});
+}).strict();
 
 const tierEntrySchema = z.object({
   max_tokens: z.number(),
@@ -27,7 +27,7 @@ const tierEntrySchema = z.object({
 
 const tieredPricingSchema = z.object({
   tiers: z.array(tierEntrySchema).min(1),
-});
+}).strict();
 
 const pricingSchema = z.union([tieredPricingSchema, flatPricingSchema]);
 

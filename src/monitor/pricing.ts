@@ -25,10 +25,15 @@ export function getTier(tokens: number, tiers: PriceTier[]): PriceTier {
   if (tiers.length === 0) {
     throw new Error("Empty tiers");
   }
-  for (const tier of tiers) {
+  const sorted = [...tiers].sort((a, b) => {
+    if (a.max_tokens === -1) return 1;
+    if (b.max_tokens === -1) return -1;
+    return a.max_tokens - b.max_tokens;
+  });
+  for (const tier of sorted) {
     if (tier.max_tokens === -1 || tokens <= tier.max_tokens) return tier;
   }
-  return tiers[tiers.length - 1];
+  return sorted[sorted.length - 1];
 }
 
 export function calculateCost(

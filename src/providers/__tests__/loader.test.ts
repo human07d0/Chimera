@@ -676,6 +676,26 @@ models:
     });
   });
 
+  it("rejects pricing with both tiers and flat fields (ambiguous schema)", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    pricing:
+      tiers: []
+      input: 1.0
+      output: 2.0
+`;
+    writeYaml("test.yaml", yaml);
+    expect(() => loadProviders(tmpDir)).toThrow();
+  });
+
   it("rejects tiered pricing with empty tiers array", () => {
     const yaml = `
 version: 1
