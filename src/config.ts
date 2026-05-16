@@ -59,6 +59,8 @@ function warnInvalidIntEnv(name: string, defaultValue: number): void {
 export const config = {
   configDir: optionalEnv("CONFIG_DIR", "./config/provider/"),
 
+  enabledProviders: (process.env["ENABLED_PROVIDERS"] || "").trim(),
+
   proxyApiKey: process.env["PROXY_API_KEY"] || "",
 
   opsPassword: process.env["OPS_PASSWORD"] || "",

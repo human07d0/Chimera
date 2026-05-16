@@ -45,11 +45,11 @@ flowchart LR
 config/
   builtin_provider/          # 版本控制，随发布分发（模板，运行时不加载）
     mimo.yaml
-    mimo-token-plan.yaml
+    mimo-token-plan-cn.yaml
     deepseek.yaml
   provider/                  # 活跃配置目录（CONFIG_DIR 环境变量，默认 ./config/provider/）
     mimo.yaml                # init-config 从 builtin 复制（不存在时）
-    mimo-token-plan.yaml
+    mimo-token-plan-cn.yaml
     deepseek.yaml            # 永不覆盖已有文件
     my-custom.yaml           # 用户添加的自定义提供商
 ```
@@ -68,7 +68,7 @@ config/
 
 4. **虚拟模型变体显式声明。** 所有变体在 YAML 中写出，无运行时自动生成。
 
-5. **`${VAR}` 引用** 在加载时从 `process.env` 解析。缺失变量 → 启动致命错误。空字符串 = 无鉴权。
+5. **`${VAR}` 引用** 在加载时从 `process.env` 解析。缺失变量解析为空字符串，不阻塞启动。`api_key` 为空字符串表示无鉴权。
 
 ### 提供商级别字段
 
@@ -118,13 +118,14 @@ config/
 
 提供商 `name` 始终从 YAML 文件名派生（去除扩展名），YAML 中不得包含 `name` 字段（strict mode 拒绝）。
 
+**`ENABLED_PROVIDERS` 环境变量：** 逗号分隔的 provider 名称列表（匹配 YAML 文件名去扩展名）。仅加载列表中指定的 provider，其余静默跳过（debug 日志）。不设置或为空时加载全部。
+
 **致命启动错误：**
 - YAML 格式错误
 - 未知 `type` 或 `version`
-- 缺失必需 `${VAR}`
 - `default` key 与 `transformRequest` 无条件字段删除/重命名冲突（如 `default.max_tokens` 被拒绝，因为 `transformRequest` 将其重命名为 `max_completion_tokens`）。提供商特定 key（`thinking`、`response_format`、`tools`、`web_search`）允许出现在 `default` 中
 
-**警告：** 空 `models` 数组 → 记录警告，跳过提供商。
+**警告（非致命）：** 空 `models` 数组 → 跳过。
 
 **模型 ID 冲突：** 同一 `endpoint` 内重复 `id` → 致命错误。不同端点的相同 `id` → 允许。
 
@@ -189,7 +190,7 @@ models:
 ```
 
 ```yaml
-# config/builtin_provider/mimo-token-plan.yaml
+# config/builtin_provider/mimo-token-plan-cn.yaml
 version: 1
 type: mimo
 api_key: ${TOKEN_PLAN_MIMO_API_KEY}

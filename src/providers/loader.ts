@@ -59,11 +59,9 @@ export function normalizeEndpoint(endpoint: string): string {
 }
 
 export function resolveEnvVars(value: string): string {
-  return value.replace(/\$\{(\w+)\}/g, (match, varName: string) => {
+  return value.replace(/\$\{(\w+)\}/g, (_match, varName: string) => {
     const envValue = process.env[varName];
-    if (envValue === undefined) {
-      throw new Error(`Missing required environment variable: ${varName}`);
-    }
+    if (envValue === undefined) return "";
     return envValue;
   });
 }
@@ -104,7 +102,7 @@ function normalizeCapabilities(
   return { ...providerCaps, ...modelCaps };
 }
 
-export function loadProviders(configDir?: string): ProviderConfig[] {
+export function loadProviders(configDir?: string, enabledProviderNames?: Set<string> | null): ProviderConfig[] {
   const dir = configDir ?? "./config/provider/";
   const resolvedDir = path.resolve(dir);
 
@@ -129,6 +127,13 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
   const handlerMap = new Map<string, ProviderHandler>([...builtinHandlers, ...customHandlers]);
 
   for (const file of files) {
+    const name = path.basename(file, path.extname(file));
+
+    if (enabledProviderNames && !enabledProviderNames.has(name)) {
+      logger.debug(`Skipping provider '${name}': not in ENABLED_PROVIDERS`);
+      continue;
+    }
+
     const filePath = path.join(resolvedDir, file);
     let rawYaml: unknown;
 
@@ -157,7 +162,6 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
       continue;
     }
 
-    const name = path.basename(file, path.extname(file));
     const endpoint = normalizeEndpoint(raw.endpoint);
 
     if (!modelIdMap.has(endpoint)) {
@@ -221,6 +225,12 @@ export function loadProviders(configDir?: string): ProviderConfig[] {
       models,
       capabilities: raw.capabilities,
       web_search: raw.web_search,
+    });
+
+    logger.info(`Provider '${name}' loaded`, {
+      type: raw.type,
+      endpoint: endpoint || "(default)",
+      models: models.length,
     });
   }
 

@@ -3,6 +3,7 @@ import { loadProviders } from "./loader";
 import { builtinHandlers } from "./builtin";
 import { customHandlers } from "./custom";
 import { logger } from "../utils/logger";
+import { config } from "../config";
 
 export class ProviderRegistry {
   private handlers: Map<string, ProviderHandler>;
@@ -15,7 +16,10 @@ export class ProviderRegistry {
   }
 
   init(configDir?: string): void {
-    this.providers = loadProviders(configDir);
+    const enabledSet = config.enabledProviders
+      ? new Set(config.enabledProviders.split(",").map((s) => s.trim()).filter(Boolean))
+      : null;
+    this.providers = loadProviders(configDir, enabledSet);
     this.buildIndex();
     this.initialized = true;
 

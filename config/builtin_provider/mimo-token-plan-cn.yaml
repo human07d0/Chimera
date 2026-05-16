@@ -1,4 +1,4 @@
-# config/builtin_provider/mimo-token-plan.yaml
+# config/builtin_provider/mimo-token-plan-cn.yaml
 version: 1
 type: mimo
 api_key: ${TOKEN_PLAN_MIMO_API_KEY}

@@ -94,11 +94,9 @@ describe("resolveEnvVars", () => {
     delete process.env["KEY"];
   });
 
-  it("throws on missing variable", () => {
+  it("returns empty string for missing variable", () => {
     delete process.env["MISSING"];
-    expect(() => resolveEnvVars("${MISSING}")).toThrow(
-      "Missing required environment variable: MISSING",
-    );
+    expect(resolveEnvVars("${MISSING}")).toBe("");
   });
 
   it("resolves empty string env var to empty string", () => {
@@ -223,7 +221,7 @@ models:
     delete process.env["MODEL_ID"];
   });
 
-  it("throws on missing ${VAR}", () => {
+  it("loads provider with empty api_key when env var is missing", () => {
     delete process.env["NONEXISTENT_VAR"];
     const yaml = `
 version: 1
@@ -237,10 +235,12 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow("Missing required environment variable: NONEXISTENT_VAR");
+    const providers = loadProviders(tmpDir);
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.api_key).toBe("");
   });
 
-  it("treats empty string ${VAR} as empty (not missing)", () => {
+  it("loads provider with empty api_key when env var is empty string", () => {
     process.env["EMPTY_KEY"] = "";
     const yaml = `
 version: 1
@@ -255,8 +255,64 @@ models:
 `;
     writeYaml("test.yaml", yaml);
     const providers = loadProviders(tmpDir);
+    expect(providers).toHaveLength(1);
     expect(providers[0]!.api_key).toBe("");
     delete process.env["EMPTY_KEY"];
+  });
+
+  it("skips provider not in enabledProviderNames set", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir, new Set(["other"]));
+    expect(providers).toHaveLength(0);
+    expect(logger.debug).toHaveBeenCalledWith(
+      expect.stringContaining("not in ENABLED_PROVIDERS"),
+    );
+  });
+
+  it("loads provider in enabledProviderNames set", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir, new Set(["test"]));
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.name).toBe("test");
+  });
+
+  it("loads all providers when enabledProviderNames is null", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir, null);
+    expect(providers).toHaveLength(1);
   });
 
   it("throws on malformed YAML", () => {
