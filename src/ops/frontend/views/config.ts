@@ -7,6 +7,7 @@ import {
   ConfigSchema,
   CurrentConfig,
 } from "../api";
+import { store } from "../store";
 import { toast } from "../components/toast";
 
 let currentSchema: ConfigSchema | null = null;
@@ -199,6 +200,15 @@ export async function saveConfig(): Promise<void> {
     currentConfig = response.data!;
     hasChanges = false;
     resetSaveButton();
+
+    if ("debugEnabled" in updates) {
+      const enabled = !!updates.debugEnabled;
+      store.setState({ debugEnabled: enabled });
+      const debugLink = document.getElementById("nav-debug");
+      if (debugLink) {
+        debugLink.hidden = !enabled;
+      }
+    }
   } else {
     toast.error(response.error || "Save failed");
     if (saveBtn) {

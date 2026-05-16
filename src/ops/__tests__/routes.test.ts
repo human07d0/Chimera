@@ -151,6 +151,7 @@ describe("Ops Routes", () => {
         success: true,
         data: {
           enabled: true,
+          debugEnabled: expect.any(Boolean),
           version: expect.any(String),
         },
       });

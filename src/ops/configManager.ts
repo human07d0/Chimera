@@ -195,7 +195,7 @@ export class OpsConfigManager {
       }
     }
 
-    logger.info("Runtime config updated", { updates: Object.keys(updates) });
+    logger.info("Runtime config updated", { updates });
   }
 
   private static snapshotCurrentValues(updates: Record<string, string>): Snapshot {
@@ -320,7 +320,7 @@ export class OpsConfigManager {
       }
 
       fs.writeFileSync(envPath, envContent, "utf-8");
-      logger.info("Config persisted to .env", { updates: Object.keys(updates) });
+      logger.info("Config persisted to .env", { updates });
 
       this.writeLock = false;
       return { success: true };

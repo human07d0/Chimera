@@ -4,6 +4,7 @@
 
 export interface OpsInfo {
   enabled: boolean;
+  debugEnabled: boolean;
   version: string;
 }
 

@@ -32,12 +32,15 @@ async function init(): Promise<void> {
     // 检查 Ops 是否启用
     const infoRes = await opsApi.getInfo();
 
+    const debugEnabled = infoRes.data?.debugEnabled ?? false;
+    store.setState({ initialized: true, debugEnabled });
+
     if (!infoRes.success || !infoRes.data?.enabled) {
       renderDisabledView();
       return;
     }
 
-    store.setState({ opsEnabled: true, initialized: true });
+    store.setState({ opsEnabled: true });
 
     // 尝试恢复登录状态
     const savedToken = store.loadToken();
@@ -107,12 +110,14 @@ async function renderDashboard(): Promise<void> {
   const app = document.getElementById("app");
   if (!app) return;
 
+  const debugHidden = store.getState().debugEnabled ? "" : " hidden";
+
   app.innerHTML = `
     <header class="header">
       <h1>Chimera <span style="color: var(--text-secondary); font-weight: 400; font-size: 14px; margin-left: 8px;">Ops</span></h1>
       <div class="header-actions">
         <a class="nav-link" href="../">Monitor</a>
-        <a class="nav-link" href="../debug/">Debug</a>
+        <a class="nav-link" href="../debug/" id="nav-debug"${debugHidden}>Debug</a>
         <a class="nav-link active" href="#/dashboard">Ops</a>
         <a class="nav-link" href="../playground/">Playground</a>
         <button class="btn btn-secondary btn-sm" id="btn-refresh">Refresh</button>

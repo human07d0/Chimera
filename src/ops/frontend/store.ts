@@ -7,6 +7,7 @@ import type { OpsInfo, OpsStatus, ConfigSchema, CurrentConfig } from "./api";
 export interface AppState {
   initialized: boolean;
   opsEnabled: boolean;
+  debugEnabled: boolean;
   loggedIn: boolean;
   token: string | null;
   status: OpsStatus | null;
@@ -22,6 +23,7 @@ class Store {
   private state: AppState = {
     initialized: false,
     opsEnabled: false,
+    debugEnabled: false,
     loggedIn: false,
     token: null,
     status: null,

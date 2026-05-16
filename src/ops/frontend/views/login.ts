@@ -11,12 +11,14 @@ export function renderLoginView(): void {
   const app = document.getElementById("app");
   if (!app) return;
 
+  const debugHidden = store.getState().debugEnabled ? "" : " hidden";
+
   app.innerHTML = `
     <header class="header">
       <h1>Chimera <span style="color: var(--text-secondary); font-weight: 400; font-size: 14px; margin-left: 8px;">Ops</span></h1>
       <div class="header-actions">
         <a class="nav-link" href="../">Monitor</a>
-        <a class="nav-link" href="../debug/">Debug</a>
+        <a class="nav-link" href="../debug/" id="nav-debug"${debugHidden}>Debug</a>
         <a class="nav-link active" href="#/login">Ops</a>
         <a class="nav-link" href="../playground/">Playground</a>
       </div>
@@ -80,12 +82,14 @@ export function renderDisabledView(): void {
   const app = document.getElementById("app");
   if (!app) return;
 
+  const debugHidden = store.getState().debugEnabled ? "" : " hidden";
+
   app.innerHTML = `
     <header class="header">
       <h1>Chimera <span style="color: var(--text-secondary); font-weight: 400; font-size: 14px; margin-left: 8px;">Ops</span></h1>
       <div class="header-actions">
         <a class="nav-link" href="../">Monitor</a>
-        <a class="nav-link" href="../debug/">Debug</a>
+        <a class="nav-link" href="../debug/" id="nav-debug"${debugHidden}>Debug</a>
         <a class="nav-link active" href="#/">Ops</a>
         <a class="nav-link" href="../playground/">Playground</a>
       </div>

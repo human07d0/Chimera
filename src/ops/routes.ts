@@ -16,6 +16,7 @@ opsRouter.get("/info", (_req: Request, res: Response) => {
     success: true,
     data: {
       enabled: !!config.opsPassword,
+      debugEnabled: config.debug.enabled,
       version: process.env.npm_package_version || "unknown",
     },
   });
