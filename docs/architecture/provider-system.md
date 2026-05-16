@@ -42,16 +42,8 @@ flowchart LR
 ### 配置文件布局
 
 ```text
-config/
-  builtin_provider/          # 版本控制，随发布分发（模板，运行时不加载）
-    mimo.yaml
-    mimo-token-plan-cn.yaml
-    deepseek.yaml
-  provider/                  # 活跃配置目录（CONFIG_DIR 环境变量，默认 ./config/provider/）。运行 init-config 后生成
-    mimo.yaml                # init-config 从 builtin 复制（不存在时）
-    mimo-token-plan-cn.yaml
-    deepseek.yaml            # 永不覆盖已有文件
-    my-custom.yaml           # 用户添加的自定义提供商
+src/builtin_provider_config/   # 模板，随版本分发，运行时不加载
+config/provider/               # 活跃配置目录（CONFIG_DIR 环境变量），运行 init-config 后生成
 ```
 
 `pnpm run init-config` 将 builtin 模板复制到 `CONFIG_DIR`，仅在目标文件不存在时执行。
@@ -89,15 +81,6 @@ config/
 
 仅 `web_search` 有提供商级别字段，因为它是最高频配置的工具。其他工具通过模型级别 `default` 配置。
 
-**`web_search` 已知参数**（均为可选 — 提供商级别默认值，模型级别 `default.web_search` 覆盖）：
-
-| 参数 | 说明 |
-|------|------|
-| `max_keyword` | 最大搜索关键词数 |
-| `force_search` | 强制搜索（即使不需要） |
-| `limit` | 最大搜索结果数 |
-| `user_location` | 搜索上下文的用户位置。对象，含 `country`、`region`、`city` |
-
 ### 模型级别字段
 
 | 字段 | 必需 | 说明 |
@@ -129,193 +112,7 @@ config/
 
 **模型 ID 冲突：** 同一 `endpoint` 内重复 `id` → 致命错误。不同端点的相同 `id` → 允许。
 
-**`endpoint` 规范化伪代码：**
-```
-if (endpoint === "") return "";
-const result = "/" + endpoint.replace(/^\/+/, "").replace(/\/+$/, "");
-if (result === "/") return "";
-return result;
-```
+加载后 `ProviderConfig` 所有字段完全填充。
 
-加载后 `ProviderConfig` 所有字段完全填充，运行时无 `undefined`。
 
-### 配置示例
 
-```yaml
-# config/builtin_provider/mimo.yaml（摘录）
-version: 1
-type: mimo
-api_key: ${MIMO_API_KEY}
-auth_header: api-key
-auth_prefix: ""
-
-capabilities:
-  thinking: true
-  web_search: true
-  json_output: true
-
-web_search:
-  max_keyword: 3
-  force_search: false
-  limit: 5
-  user_location:
-    country: CN
-    region: ""
-    city: ""
-
-models:
-  - id: mimo-v2.5-pro
-    upstream: mimo-v2.5-pro
-    context_length: 1000000
-    max_output_tokens: 128000
-
-  - id: mimo-v2.5-pro-thinking
-    upstream: mimo-v2.5-pro
-    context_length: 1000000
-    max_output_tokens: 128000
-    default:
-      thinking:
-        type: enabled
-
-  - id: mimo-v2.5-pro-thinking-search
-    upstream: mimo-v2.5-pro
-    context_length: 1000000
-    max_output_tokens: 128000
-    default:
-      thinking:
-        type: enabled
-      web_search: true
-    # Handler 从合并后的配置（提供商默认 + 模型覆盖）组装工具对象。
-    # true → 最小工具对象；对象 → 使用提供的参数；缺失 → 无工具。
-```
-
-```yaml
-# config/builtin_provider/mimo-token-plan-cn.yaml（摘录）
-version: 1
-type: mimo
-api_key: ${TOKEN_PLAN_MIMO_API_KEY}
-auth_header: api-key
-auth_prefix: ""
-base_url: https://token-plan-cn.xiaomimimo.com
-anthropic_url: https://token-plan-cn.xiaomimimo.com/anthropic
-endpoint: /token-plan
-
-models:
-  - id: mimo-v2.5-pro-tp
-    upstream: mimo-v2.5-pro
-    context_length: 1000000
-    max_output_tokens: 128000
-```
-
-```yaml
-# config/provider/my-openai.yaml
-version: 1
-type: openai
-base_url: https://api.openai.com
-api_key: ${OPENAI_API_KEY}
-auth_header: Authorization
-auth_prefix: "Bearer "
-
-models:
-  - id: gpt-4o
-    upstream: gpt-4o
-    context_length: 128000
-    max_output_tokens: 16384
-    pricing:
-      input: 2.50
-      cached_input: 1.25
-      output: 10.00
-
-  - id: gpt-4o-precise
-    upstream: gpt-4o
-    context_length: 128000
-    max_output_tokens: 16384
-    default:
-      temperature: 0.2
-```
-
-## 代码架构
-
-```text
-src/providers/
-  registry.ts          ← Type → handler 映射。Model lookup 按 endpoint 前缀作用域。
-  loader.ts            ← YAML 加载、zod 验证、${VAR} 解析、default key 验证。
-  types.ts             ← ProviderHandler、ProviderConfig、ModelConfig 接口。
-
-  builtin/
-    mimo.ts            ← MiMo handler：url 构造、transformRequest、已知模型。
-    deepseek.ts        ← DeepSeek handler：url 构造、已知模型。
-    index.ts           ← Map<string, BuiltinProvider>。
-
-  custom/
-    openai.ts          ← OpenAI 兼容透传。
-    anthropic.ts       ← Anthropic 兼容透传。
-```
-
-## 接口契约
-
-### ProviderHandler
-
-```typescript
-interface ProviderHandler {
-  readonly type: string;
-  // 返回完整上游 URL，null 表示不支持该协议。endpoint 前缀由 Express router 处理。
-  getOpenAIUrl(baseUrl: string): string | null;
-  getAnthropicUrl(baseUrl: string): string | null;
-  getDefaultBaseUrl(): string | null;
-  getDefaultAnthropicUrl(): string | null;
-  // 仅结构适配（字段重命名、格式重组），不注入值。
-  // originalClientBody：应用 default 前的原始客户端请求。
-  // 用于区分客户端提供的值和 default 注入的值。
-  // 自定义 handler 不修改 body。
-  transformRequest(
-    body: Record<string, unknown>,          // 应用 default 后的最终 body（原地修改）
-    model: ModelConfig,
-    originalClientBody: Record<string, unknown>,  // 原始客户端 body（应用 default 前）
-    providerConfig: ProviderConfig,
-  ): void;
-}
-```
-
-- `getOpenAIUrl` / `getAnthropicUrl`：返回完整上游 URL，`null` 表示不支持该协议。endpoint 前缀由 Express router 处理，不由 handler 处理
-- `transformRequest`：仅做结构适配（字段重命名），不注入值。自定义 handler 不修改 body。接收 `originalClientBody` 用于区分客户端提供的值和 default 注入的值——例如，只有客户端未提供 `max_tokens` 时才将其重命名为 `max_completion_tokens`，如果该值来自 default 则跳过（因为 default 已使用转换后的 key）
-
-### ProviderConfig
-
-```typescript
-interface ProviderConfig {
-  version: number;
-  type: string;
-  name: string;
-  api_key: string;
-  base_url: string;
-  anthropic_url: string | null;
-  auth_header: string;
-  auth_prefix: string;
-  timeout: number;
-  endpoint: string;
-  models: ModelConfig[];
-  capabilities: Record<string, unknown>;
-  web_search: Record<string, unknown> | null;
-}
-```
-
-### ModelConfig
-
-```typescript
-interface ModelConfig {
-  id: string;
-  upstream: string;
-  context_length: number;
-  max_output_tokens: number;
-  description?: string;             // 加载后始终有值（缺失时从 id 自动生成）
-  created?: number;                 // 加载后始终有值（缺失时默认为配置加载时间）
-  default?: Record<string, unknown>;
-  capabilities?: Record<string, unknown>;  // 与提供商级别浅合并
-  pricing?: {
-    input: number;
-    cached_input?: number;
-    output: number;
-  };
-}
-```

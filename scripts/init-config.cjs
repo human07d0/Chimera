@@ -1,7 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const builtinDir = path.resolve(__dirname, "../config/builtin_provider");
+const builtinDir = path.resolve(__dirname, "../src/builtin_provider_config");
 const targetDir = process.env["CONFIG_DIR"]
   ? path.resolve(process.env["CONFIG_DIR"])
   : path.resolve(__dirname, "../config/provider");

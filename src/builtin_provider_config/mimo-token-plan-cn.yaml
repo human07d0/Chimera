@@ -1,11 +1,12 @@
-# config/builtin_provider/mimo.yaml
+# src/builtin_provider_config/mimo-token-plan-cn.yaml
 version: 1
 type: mimo
-api_key: ${MIMO_API_KEY}
+api_key: ${TOKEN_PLAN_MIMO_API_KEY}
 auth_header: api-key
 auth_prefix: ""
-base_url: https://api.xiaomimimo.com
-anthropic_url: https://api.xiaomimimo.com/anthropic
+base_url: https://token-plan-cn.xiaomimimo.com
+endpoint: /token-plan
+anthropic_url: https://token-plan-cn.xiaomimimo.com/anthropic
 
 capabilities:
   thinking: true
@@ -22,33 +23,32 @@ web_search:
     city: ""
 
 models:
-  - id: mimo-v2-flash
+  - id: mimo-v2-flash-tp
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
 
-  - id: mimo-v2-pro
+  - id: mimo-v2-pro-tp
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
 
-  - id: mimo-v2-omni
+  - id: mimo-v2-omni-tp
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
 
-  - id: mimo-v2.5
+  - id: mimo-v2.5-tp
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
 
-  - id: mimo-v2.5-pro
+  - id: mimo-v2.5-pro-tp
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
 
-  # Thinking variants
-  - id: mimo-v2-flash-thinking
+  - id: mimo-v2-flash-tp-thinking
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
@@ -56,7 +56,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2-pro-thinking
+  - id: mimo-v2-pro-tp-thinking
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -64,7 +64,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2-omni-thinking
+  - id: mimo-v2-omni-tp-thinking
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
@@ -72,7 +72,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2.5-thinking
+  - id: mimo-v2.5-tp-thinking
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
@@ -80,7 +80,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2.5-pro-thinking
+  - id: mimo-v2.5-pro-tp-thinking
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -88,8 +88,7 @@ models:
       thinking:
         type: enabled
 
-  # Thinking + Search variants
-  - id: mimo-v2-flash-thinking-search
+  - id: mimo-v2-flash-tp-thinking-search
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
@@ -98,7 +97,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2-pro-thinking-search
+  - id: mimo-v2-pro-tp-thinking-search
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -107,7 +106,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2-omni-thinking-search
+  - id: mimo-v2-omni-tp-thinking-search
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
@@ -116,7 +115,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2.5-thinking-search
+  - id: mimo-v2.5-tp-thinking-search
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
@@ -125,7 +124,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2.5-pro-thinking-search
+  - id: mimo-v2.5-pro-tp-thinking-search
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
