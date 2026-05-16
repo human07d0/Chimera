@@ -217,13 +217,7 @@ anthropicRouter.post("/messages", async (req: Request, res: Response) => {
 });
 
 anthropicRouter.get("/messages", (_req: Request, res: Response) => {
-  res.status(405).json({
-    type: "invalid_request",
-    error: {
-      type: "invalid_request",
-      message: "Anthropic Messages API only supports POST method. Use POST /anthropic/v1/messages.",
-    },
-  });
+  sendAnthropicError(res, 405, "invalid_request", "Anthropic Messages API only supports POST method. Use POST /anthropic/v1/messages.");
 });
 
 function sendAnthropicError(
