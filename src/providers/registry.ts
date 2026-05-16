@@ -16,9 +16,11 @@ export class ProviderRegistry {
   }
 
   init(configDir?: string): void {
-    const enabledSet = config.enabledProviders
-      ? new Set(config.enabledProviders.split(",").map((s) => s.trim()).filter(Boolean))
-      : null;
+    let enabledSet: Set<string> | null = null;
+    if (config.enabledProviders) {
+      const names = config.enabledProviders.split(",").map((s) => s.trim()).filter(Boolean);
+      if (names.length > 0) enabledSet = new Set(names);
+    }
     this.providers = loadProviders(configDir, enabledSet);
     this.buildIndex();
     this.initialized = true;
