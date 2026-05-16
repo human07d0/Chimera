@@ -87,7 +87,7 @@ cp .env.example .env
 pnpm run build
 
 # 5. 启动
-node dist-bun/index.js
+node dist/index.js
 ```
 
 ---
