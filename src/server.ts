@@ -116,9 +116,18 @@ export async function createApp(): Promise<express.Application> {
       const indexPath = path.join(playgroundDir, "index.html");
       let html = fs.readFileSync(indexPath, "utf-8");
 
-      const allModels = modelRegistry.getAllModels("");
+      const endpointModels: Record<string, string[]> = {};
+      for (const endpoint of modelRegistry.getEndpoints()) {
+        const label = endpointLabel(endpoint);
+        endpointModels[label] = modelRegistry.getAllModels(endpoint).map((m) => m.model.id);
+      }
+
       const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify({
-        models: allModels.map((m) => m.model.id),
+        endpoints: modelRegistry.getEndpoints().map((ep) => ({
+          prefix: ep,
+          label: endpointLabel(ep),
+        })),
+        endpointModels,
         playgroundToken,
         featureSuffixes: { thinking: "-thinking", search: "-search", json: "-json" },
       })}</script>`;
@@ -160,8 +169,12 @@ export async function createApp(): Promise<express.Application> {
     }
     next();
   });
-  app.use("/playground/api/v1", monitorMiddleware, modelsRouter, chatRouter);
-  app.use("/playground/api/anthropic/v1", monitorMiddleware, anthropicRouter);
+
+  for (const endpoint of modelRegistry.getEndpoints()) {
+    const prefix = endpoint || "";
+    app.use(`/playground/api${prefix}/v1`, monitorMiddleware, modelsRouter, chatRouter);
+    app.use(`/playground/api${prefix}/anthropic/v1`, monitorMiddleware, anthropicRouter);
+  }
 
   // --------------------------------------------------------------------------
   // 挂载路由（根据 registry 中的 endpoint 动态挂载）
@@ -264,6 +277,11 @@ export function stopCleanupTask(): void {
     cleanupInterval = null;
     logger.info("Daily cleanup task stopped");
   }
+}
+
+function endpointLabel(endpoint: string): string {
+  if (!endpoint) return "main";
+  return endpoint.replace(/^\//, "").replace(/\//g, "-");
 }
 
 function resolveStaticDir(dirName: string): string | null {

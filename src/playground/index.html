@@ -269,11 +269,7 @@
 
             <div class="form-group">
                 <label>Endpoint</label>
-                <select id="endpoint">
-                    <option value="openai-main">OpenAI &middot; Main</option>
-                    <option value="openai-tp">OpenAI &middot; Token-Plan</option>
-                    <option value="anthropic-main">Anthropic &middot; Main</option>
-                    <option value="anthropic-tp">Anthropic &middot; Token-Plan</option>
+                <select id="endpoint" onchange="onEndpointChange()">
                 </select>
             </div>
 
@@ -351,7 +347,19 @@
         // --- Config injected server-side ---
         const CONFIG = window.PLAYGROUND_CONFIG || {};
 
-        // --- State ---
+        // --- Utility ---
+        function getSelectedEndpointInfo() {
+            const val = document.getElementById('endpoint').value;
+            const [protocol, label] = val.split(':');
+            const epInfo = (CONFIG.endpoints || []).find(e => e.label === label);
+            return { protocol, endpointLabel: label, endpointPrefix: epInfo ? epInfo.prefix : '' };
+        }
+
+        function buildPlaygroundUrl(protocol, endpointPrefix) {
+            const pfx = endpointPrefix || '';
+            if (protocol === 'openai') return `/playground/api${pfx}/v1/chat/completions`;
+            return `/playground/api${pfx}/anthropic/v1/messages`;
+        }
         let activeFeatures = new Set(['stream']);
         let reasoningEffort = 'medium';
         let abortController = null;
@@ -390,7 +398,6 @@
                 return;
             }
 
-            const endpoint = document.getElementById('endpoint').value;
             const model = document.getElementById('model').value;
             const maxTokens = parseInt(document.getElementById('maxTokens').value, 10) || 4096;
             const temperature = parseFloat(document.getElementById('temperature').value) || 0.7;
@@ -403,7 +410,8 @@
             }
 
             const isStream = activeFeatures.has('stream');
-            const isAnthropic = endpoint.startsWith('anthropic');
+            const { protocol, endpointPrefix } = getSelectedEndpointInfo();
+            const isAnthropic = protocol === 'anthropic';
 
             // Build model name with suffixes
             let modelName = model;
@@ -458,20 +466,13 @@
             }
 
             // Determine URL and headers
-            let url, headers;
             const tpHeaders = { 'Content-Type': 'application/json', 'x-playground-token': CONFIG.playgroundToken };
-            if (endpoint === 'openai-main') {
-                url = '/playground/api/v1/chat/completions';
-                headers = { 'Content-Type': 'application/json', 'x-playground-token': CONFIG.playgroundToken };
-            } else if (endpoint === 'openai-tp') {
-                url = '/playground/api/token-plan/v1/chat/completions';
-                headers = tpHeaders;
-            } else if (endpoint === 'anthropic-main') {
-                url = '/playground/api/anthropic/v1/messages';
+            const url = buildPlaygroundUrl(protocol, endpointPrefix);
+            let headers;
+            if (isAnthropic) {
                 headers = { ...tpHeaders, 'anthropic-version': '2023-06-01' };
             } else {
-                url = '/playground/api/token-plan/anthropic/v1/messages';
-                headers = { ...tpHeaders, 'anthropic-version': '2023-06-01' };
+                headers = tpHeaders;
             }
 
             // UI state
@@ -620,16 +621,42 @@
             return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
 
+        function onEndpointChange() {
+            const { endpointLabel } = getSelectedEndpointInfo();
+            const models = CONFIG.endpointModels?.[endpointLabel] || [];
+            const select = document.getElementById('model');
+            select.innerHTML = '';
+            if (models.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'No models available';
+                select.appendChild(opt);
+                return;
+            }
+            models.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = m;
+                select.appendChild(opt);
+            });
+        }
+
         // --- Init ---
-        const models = CONFIG.models || [];
-        const select = document.getElementById('model');
-        select.innerHTML = '';
-        models.forEach(m => {
-          const opt = document.createElement('option');
-          opt.value = m;
-          opt.textContent = m;
-          select.appendChild(opt);
+        const endpoints = CONFIG.endpoints || [];
+        const endpointSelect = document.getElementById('endpoint');
+        const protocols = ['openai', 'anthropic'];
+        endpoints.forEach(ep => {
+            protocols.forEach(proto => {
+                const opt = document.createElement('option');
+                opt.value = proto + ':' + ep.label;
+                const protoName = proto === 'openai' ? 'OpenAI' : 'Anthropic';
+                const epName = ep.label.charAt(0).toUpperCase() + ep.label.slice(1);
+                opt.textContent = protoName + ' \u00B7 ' + epName;
+                endpointSelect.appendChild(opt);
+            });
         });
+
+        onEndpointChange();
     </script>
 </body>
 </html>

@@ -170,7 +170,7 @@ chatRouter.post("/chat/completions", async (req: Request, res: Response) => {
 });
 
 function extractEndpointPrefix(req: Request): string {
-  const baseUrl = req.baseUrl;
+  const baseUrl = req.baseUrl.replace("/playground/api", "");
   const match = baseUrl.match(/^(.*?)\/v1$/);
   return match ? match[1] : "";
 }
