@@ -1,66 +1,21 @@
-export interface FlatPricing {
-  input: number;
-  cached_input?: number;
-  output: number;
+import type { FlatPricing, PriceTier, TieredPricing } from "../providers/types";
+
+export type { FlatPricing, PriceTier, TieredPricing };
+
+export const pricingMap = new Map<string, FlatPricing | TieredPricing>();
+
+export function registerPricing(modelId: string, pricing: FlatPricing | TieredPricing): void {
+  pricingMap.set(modelId, pricing);
 }
-
-export interface PriceTier {
-  threshold: number;
-  inputPrice: number;
-  cachedPrice: number;
-  outputPrice: number;
-}
-
-export interface ModelPricing {
-  tiers: PriceTier[];
-}
-
-export const flatPricingMap = new Map<string, FlatPricing>();
-
-export function registerFlatPricing(modelId: string, pricing: FlatPricing): void {
-  flatPricingMap.set(modelId, pricing);
-}
-
-export const PRICING: Record<string, ModelPricing> = {
-  "mimo-v2-flash": {
-    tiers: [
-      { threshold: Infinity, inputPrice: 0.7, cachedPrice: 0.07, outputPrice: 2.1 },
-    ],
-  },
-  "mimo-v2-pro": {
-    tiers: [
-      { threshold: 256_000, inputPrice: 7.0, cachedPrice: 1.4, outputPrice: 21.0 },
-      { threshold: Infinity, inputPrice: 14.0, cachedPrice: 2.8, outputPrice: 42.0 },
-    ],
-  },
-  "mimo-v2-omni": {
-    tiers: [
-      { threshold: 256_000, inputPrice: 2.8, cachedPrice: 0.56, outputPrice: 14.0 },
-      { threshold: Infinity, inputPrice: 5.6, cachedPrice: 1.12, outputPrice: 28.0 },
-    ],
-  },
-  "mimo-v2.5": {
-    tiers: [
-      { threshold: 256_000, inputPrice: 2.8, cachedPrice: 0.56, outputPrice: 14.0 },
-      { threshold: Infinity, inputPrice: 5.6, cachedPrice: 1.12, outputPrice: 28.0 },
-    ],
-  },
-  "mimo-v2.5-pro": {
-    tiers: [
-      { threshold: 256_000, inputPrice: 7.0, cachedPrice: 1.4, outputPrice: 21.0 },
-      { threshold: Infinity, inputPrice: 14.0, cachedPrice: 2.8, outputPrice: 42.0 },
-    ],
-  },
-};
 
 export function registerProviderPricing(
-  providers: Array<{ models: Array<{ id: string; upstream: string; pricing?: FlatPricing }> }>,
+  providers: Array<{ models: Array<{ id: string; upstream: string; pricing?: FlatPricing | TieredPricing }> }>,
 ): void {
   for (const provider of providers) {
     for (const model of provider.models) {
       if (model.pricing) {
-        flatPricingMap.set(model.id, model.pricing);
-        flatPricingMap.set(model.upstream, model.pricing);
+        pricingMap.set(model.id, model.pricing);
+        pricingMap.set(model.upstream, model.pricing);
       }
     }
   }
@@ -71,7 +26,7 @@ export function getTier(tokens: number, tiers: PriceTier[]): PriceTier {
     throw new Error("Empty tiers");
   }
   for (const tier of tiers) {
-    if (tokens <= tier.threshold) return tier;
+    if (tier.max_tokens === -1 || tokens <= tier.max_tokens) return tier;
   }
   return tiers[tiers.length - 1];
 }
@@ -82,22 +37,21 @@ export function calculateCost(
   cachedPromptTokens: number,
   completionTokens: number,
 ): number {
-  const flat = flatPricingMap.get(modelId);
-  if (flat) {
-    const paidPromptTokens = Math.max(promptTokens - cachedPromptTokens, 0);
-    const cachedCost = (cachedPromptTokens / 1_000_000) * (flat.cached_input ?? 0);
-    const promptCost = (paidPromptTokens / 1_000_000) * flat.input;
-    const completionCost = (completionTokens / 1_000_000) * flat.output;
+  const pricing = pricingMap.get(modelId);
+  if (!pricing) return 0;
+
+  const paidPromptTokens = Math.max(promptTokens - cachedPromptTokens, 0);
+
+  if ("input" in pricing) {
+    const cachedCost = (cachedPromptTokens / 1_000_000) * (pricing.cached_input ?? 0);
+    const promptCost = (paidPromptTokens / 1_000_000) * pricing.input;
+    const completionCost = (completionTokens / 1_000_000) * pricing.output;
     return cachedCost + promptCost + completionCost;
   }
 
-  const pricing = PRICING[modelId];
-  if (!pricing) return 0;
   const tier = getTier(promptTokens + completionTokens, pricing.tiers);
-
-  const paidPromptTokens = Math.max(promptTokens - cachedPromptTokens, 0);
-  const cachedCost = (cachedPromptTokens / 1_000_000) * tier.cachedPrice;
-  const promptCost = (paidPromptTokens / 1_000_000) * tier.inputPrice;
-  const completionCost = (completionTokens / 1_000_000) * tier.outputPrice;
+  const cachedCost = (cachedPromptTokens / 1_000_000) * (tier.cached_input ?? 0);
+  const promptCost = (paidPromptTokens / 1_000_000) * tier.input;
+  const completionCost = (completionTokens / 1_000_000) * tier.output;
   return cachedCost + promptCost + completionCost;
 }

@@ -1,40 +1,42 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { calculateCost, getTier, PRICING, flatPricingMap, registerFlatPricing, registerProviderPricing } from "../pricing";
+import { calculateCost, getTier, pricingMap, registerPricing, registerProviderPricing } from "../pricing";
 
 describe("getTier", () => {
-  it("returns first tier when tokens <= threshold", () => {
-    const tiers = PRICING["mimo-v2-pro"].tiers;
-    expect(getTier(100, tiers)).toBe(tiers[0]);
-    expect(getTier(256_000, tiers)).toBe(tiers[0]);
+  const twoTier = [
+    { max_tokens: 256_000, input: 7.0, cached_input: 1.4, output: 21.0 },
+    { max_tokens: -1, input: 14.0, cached_input: 2.8, output: 42.0 },
+  ];
+  const singleTier = [
+    { max_tokens: -1, input: 0.7, cached_input: 0.07, output: 2.1 },
+  ];
+
+  it("returns first tier when tokens <= max_tokens", () => {
+    expect(getTier(100, twoTier)).toBe(twoTier[0]);
+    expect(getTier(256_000, twoTier)).toBe(twoTier[0]);
   });
 
-  it("returns second tier when tokens > first threshold", () => {
-    const tiers = PRICING["mimo-v2-pro"].tiers;
-    expect(getTier(256_001, tiers)).toBe(tiers[1]);
+  it("returns second tier when tokens > first max_tokens", () => {
+    expect(getTier(256_001, twoTier)).toBe(twoTier[1]);
   });
 
   it("returns single-tier model correctly", () => {
-    const tiers = PRICING["mimo-v2-flash"].tiers;
-    expect(getTier(0, tiers)).toBe(tiers[0]);
-    expect(getTier(1_000_000, tiers)).toBe(tiers[0]);
+    expect(getTier(0, singleTier)).toBe(singleTier[0]);
+    expect(getTier(1_000_000, singleTier)).toBe(singleTier[0]);
   });
 
-  it("returns tier 0 when tokens are below threshold", () => {
-    const tiers = PRICING["mimo-v2-pro"].tiers;
-    const tier = getTier(100_000, tiers);
-    expect(tier.threshold).toBe(256_000);
+  it("returns tier 0 when tokens are below max_tokens", () => {
+    const tier = getTier(100_000, twoTier);
+    expect(tier.max_tokens).toBe(256_000);
   });
 
-  it("returns tier 1 when tokens exceed threshold", () => {
-    const tiers = PRICING["mimo-v2-pro"].tiers;
-    const tier = getTier(300_000, tiers);
-    expect(tier.threshold).toBe(Infinity);
+  it("returns tier 1 when tokens exceed max_tokens", () => {
+    const tier = getTier(300_000, twoTier);
+    expect(tier.max_tokens).toBe(-1);
   });
 
-  it("returns tier at exact threshold boundary", () => {
-    const tiers = PRICING["mimo-v2-pro"].tiers;
-    const tier = getTier(256_000, tiers);
-    expect(tier.threshold).toBe(256_000);
+  it("returns tier at exact max_tokens boundary", () => {
+    const tier = getTier(256_000, twoTier);
+    expect(tier.max_tokens).toBe(256_000);
   });
 
   it("throws on empty tiers array", () => {
@@ -44,31 +46,34 @@ describe("getTier", () => {
 
 describe("calculateCost", () => {
   beforeEach(() => {
-    flatPricingMap.clear();
+    pricingMap.clear();
+    registerPricing("mimo-v2-flash", {
+      tiers: [{ max_tokens: -1, input: 0.7, cached_input: 0.07, output: 2.1 }],
+    });
+    registerPricing("mimo-v2-pro", {
+      tiers: [
+        { max_tokens: 256_000, input: 7.0, cached_input: 1.4, output: 21.0 },
+        { max_tokens: -1, input: 14.0, cached_input: 2.8, output: 42.0 },
+      ],
+    });
   });
 
   it("calculates cost for mimo-v2-flash (single tier)", () => {
-    // input: 1M tokens * 0.7 = 0.7, output: 1M tokens * 2.1 = 2.1
     const cost = calculateCost("mimo-v2-flash", 1_000_000, 0, 1_000_000);
     expect(cost).toBeCloseTo(0.7 + 2.1, 6);
   });
 
   it("deducts cached tokens from input cost", () => {
-    // 1M input, 500K cached: paid = 500K * 0.7/1M + 500K * 0.07/1M = 0.35 + 0.035
     const cost = calculateCost("mimo-v2-flash", 1_000_000, 500_000, 0);
     expect(cost).toBeCloseTo(0.35 + 0.035, 6);
   });
 
   it("calculates cost for mimo-v2-pro with tiered pricing", () => {
-    // 100K input (tier 1): 100K * 7.0/1M = 0.7
-    // 100K output (tier 1): 100K * 21.0/1M = 2.1
     const cost = calculateCost("mimo-v2-pro", 100_000, 0, 100_000);
     expect(cost).toBeCloseTo(0.7 + 2.1, 6);
   });
 
   it("uses higher tier for large total tokens on mimo-v2-pro", () => {
-    // 300K input + 100K output = 400K total > 256K → tier 1 for both
-    // input: 300K * 14.0/1M = 4.2, output: 100K * 42.0/1M = 4.2
     const cost = calculateCost("mimo-v2-pro", 300_000, 0, 100_000);
     expect(cost).toBeCloseTo(4.2 + 4.2, 6);
   });
@@ -83,62 +88,56 @@ describe("calculateCost", () => {
   });
 
   it("handles all cached tokens (no paid input cost)", () => {
-    // 1M input all cached: 1M * 0.07/1M = 0.07, output: 0
     const cost = calculateCost("mimo-v2-flash", 1_000_000, 1_000_000, 0);
     expect(cost).toBeCloseTo(0.07, 6);
   });
 
   it("uses single tier based on total tokens (C1)", () => {
-    // 10 prompt + 300K completion = 300K total > 256K threshold
-    // Should use tier 1 for BOTH input and output
     const cost = calculateCost("mimo-v2-pro", 10, 0, 300_000);
 
-    const tier1 = PRICING["mimo-v2-pro"].tiers[1]; // threshold: Infinity
-    const expectedPrompt = (10 / 1_000_000) * tier1.inputPrice;
-    const expectedCompletion = (300_000 / 1_000_000) * tier1.outputPrice;
+    const expectedPrompt = (10 / 1_000_000) * 14.0;
+    const expectedCompletion = (300_000 / 1_000_000) * 42.0;
     expect(cost).toBeCloseTo(expectedPrompt + expectedCompletion, 5);
   });
 
   it("uses tier 0 when total tokens below threshold", () => {
     const cost = calculateCost("mimo-v2-pro", 100_000, 0, 100_000);
 
-    const tier0 = PRICING["mimo-v2-pro"].tiers[0]; // threshold: 256_000
-    const expectedPrompt = (100_000 / 1_000_000) * tier0.inputPrice;
-    const expectedCompletion = (100_000 / 1_000_000) * tier0.outputPrice;
+    const expectedPrompt = (100_000 / 1_000_000) * 7.0;
+    const expectedCompletion = (100_000 / 1_000_000) * 21.0;
     expect(cost).toBeCloseTo(expectedPrompt + expectedCompletion);
   });
 
   it("accounts for cached tokens at cached price", () => {
     const cost = calculateCost("mimo-v2-pro", 100_000, 50_000, 100_000);
 
-    const tier0 = PRICING["mimo-v2-pro"].tiers[0];
-    const expectedCached = (50_000 / 1_000_000) * tier0.cachedPrice;
-    const expectedPrompt = (50_000 / 1_000_000) * tier0.inputPrice;
-    const expectedCompletion = (100_000 / 1_000_000) * tier0.outputPrice;
+    const expectedCached = (50_000 / 1_000_000) * 1.4;
+    const expectedPrompt = (50_000 / 1_000_000) * 7.0;
+    const expectedCompletion = (100_000 / 1_000_000) * 21.0;
     expect(cost).toBeCloseTo(expectedCached + expectedPrompt + expectedCompletion);
   });
 
 });
 
-describe("registerFlatPricing", () => {
+describe("registerPricing", () => {
   beforeEach(() => {
-    flatPricingMap.clear();
+    pricingMap.clear();
   });
 
   it("adds flat pricing to the map", () => {
-    registerFlatPricing("flat-test-model", { input: 5, output: 10 });
+    registerPricing("flat-test-model", { input: 5, output: 10 });
     const cost = calculateCost("flat-test-model", 1_000_000, 0, 1_000_000);
     expect(cost).toBeCloseTo(5 + 10, 6);
   });
 
   it("supports cached_input pricing in flat pricing", () => {
-    registerFlatPricing("flat-cached-model", { input: 5, cached_input: 1, output: 10 });
+    registerPricing("flat-cached-model", { input: 5, cached_input: 1, output: 10 });
     const cost = calculateCost("flat-cached-model", 1_000_000, 500_000, 1_000_000);
     expect(cost).toBeCloseTo(2.5 + 0.5 + 10, 6);
   });
 
   it("defaults cached_input to 0 when not provided", () => {
-    registerFlatPricing("flat-no-cache", { input: 5, output: 10 });
+    registerPricing("flat-no-cache", { input: 5, output: 10 });
     const cost = calculateCost("flat-no-cache", 1_000_000, 500_000, 0);
     expect(cost).toBeCloseTo(2.5, 6);
   });
@@ -146,22 +145,25 @@ describe("registerFlatPricing", () => {
 
 describe("calculateCost with flat pricing", () => {
   beforeEach(() => {
-    flatPricingMap.clear();
-    registerFlatPricing("flat-model-only", { input: 3, cached_input: 0.5, output: 9 });
+    pricingMap.clear();
+    registerPricing("flat-model-only", { input: 3, cached_input: 0.5, output: 9 });
   });
 
-  it("uses flat pricing when available (not in PRICING)", () => {
+  it("uses flat pricing when available (not tiered)", () => {
     const cost = calculateCost("flat-model-only", 1_000_000, 0, 1_000_000);
     expect(cost).toBeCloseTo(3 + 9, 6);
   });
 
   it("prefers flat pricing over tiered pricing when both exist", () => {
-    registerFlatPricing("mimo-v2-flash", { input: 1, cached_input: 0.1, output: 3 });
+    registerPricing("mimo-v2-flash", { input: 1, cached_input: 0.1, output: 3 });
     const cost = calculateCost("mimo-v2-flash", 1_000_000, 0, 1_000_000);
     expect(cost).toBeCloseTo(1 + 3, 6);
   });
 
-  it("falls back to tiered pricing when flat pricing map is empty for model", () => {
+  it("uses tiered pricing when registered as tiered", () => {
+    registerPricing("mimo-v2-flash", {
+      tiers: [{ max_tokens: -1, input: 0.7, cached_input: 0.07, output: 2.1 }],
+    });
     const cost = calculateCost("mimo-v2-flash", 1_000_000, 0, 1_000_000);
     expect(cost).toBeCloseTo(0.7 + 2.1, 6);
   });
@@ -169,7 +171,7 @@ describe("calculateCost with flat pricing", () => {
 
 describe("registerProviderPricing", () => {
   beforeEach(() => {
-    flatPricingMap.clear();
+    pricingMap.clear();
   });
 
   it("registers pricing under both virtual model ID and upstream model ID", () => {
@@ -208,7 +210,7 @@ describe("registerProviderPricing", () => {
     expect(() => {
       registerProviderPricing([]);
     }).not.toThrow();
-    expect(flatPricingMap.size).toBe(0);
+    expect(pricingMap.size).toBe(0);
   });
 
   it("registers multiple providers with multiple models", () => {
@@ -230,6 +232,31 @@ describe("registerProviderPricing", () => {
     expect(calculateCost("v2", 1_000_000, 0, 1_000_000)).toBeCloseTo(3 + 4, 6);
     expect(calculateCost("u3", 1_000_000, 0, 1_000_000)).toBeCloseTo(5 + 6, 6);
 
-    expect(flatPricingMap.size).toBe(6);
+    expect(pricingMap.size).toBe(6);
+  });
+
+  it("registers tiered pricing from providers", () => {
+    registerProviderPricing([
+      {
+        models: [
+          {
+            id: "tiered-v",
+            upstream: "tiered-u",
+            pricing: {
+              tiers: [
+                { max_tokens: 100_000, input: 2.0, output: 6.0 },
+                { max_tokens: -1, input: 4.0, output: 12.0 },
+              ],
+            },
+          },
+        ],
+      },
+    ]);
+
+    const costLow = calculateCost("tiered-v", 50_000, 0, 50_000);
+    expect(costLow).toBeCloseTo(0.1 + 0.3, 6);
+
+    const costHigh = calculateCost("tiered-u", 200_000, 0, 200_000);
+    expect(costHigh).toBeCloseTo(0.8 + 2.4, 6);
   });
 });

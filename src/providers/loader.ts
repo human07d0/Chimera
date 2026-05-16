@@ -12,11 +12,24 @@ const CUSTOM_TYPES = new Set(["openai", "anthropic"]);
 
 const VALID_TYPES = ["mimo", "deepseek", "aliyun", "kimi", "openai", "anthropic"] as const;
 
-const pricingSchema = z.object({
+const flatPricingSchema = z.object({
   input: z.number(),
   cached_input: z.number().optional(),
   output: z.number(),
 });
+
+const tierEntrySchema = z.object({
+  max_tokens: z.number(),
+  input: z.number(),
+  cached_input: z.number().optional(),
+  output: z.number(),
+});
+
+const tieredPricingSchema = z.object({
+  tiers: z.array(tierEntrySchema).min(1),
+});
+
+const pricingSchema = z.union([tieredPricingSchema, flatPricingSchema]);
 
 const INPUT_MODALITIES = ["text", "image", "file", "audio", "video"] as const;
 const OUTPUT_MODALITIES = ["text", "image", "audio"] as const;

@@ -614,6 +614,86 @@ models:
     });
   });
 
+  it("loads tiered pricing from YAML", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    pricing:
+      tiers:
+        - max_tokens: 256000
+          input: 7.0
+          cached_input: 1.4
+          output: 21.0
+        - max_tokens: -1
+          input: 14.0
+          cached_input: 2.8
+          output: 42.0
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir);
+    const pricing = providers[0]!.models[0]!.pricing;
+    expect(pricing).toBeDefined();
+    expect("tiers" in pricing!).toBe(true);
+    if ("tiers" in pricing!) {
+      expect(pricing.tiers).toHaveLength(2);
+      expect(pricing.tiers[0]!.max_tokens).toBe(256000);
+      expect(pricing.tiers[0]!.input).toBe(7.0);
+      expect(pricing.tiers[1]!.max_tokens).toBe(-1);
+      expect(pricing.tiers[1]!.input).toBe(14.0);
+    }
+  });
+
+  it("loads flat pricing (backward compatible)", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    pricing:
+      input: 0.5
+      cached_input: 0.1
+      output: 1.0
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir);
+    const pricing = providers[0]!.models[0]!.pricing;
+    expect(pricing).toEqual({
+      input: 0.5,
+      cached_input: 0.1,
+      output: 1.0,
+    });
+  });
+
+  it("rejects tiered pricing with empty tiers array", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: m1
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+    pricing:
+      tiers: []
+`;
+    writeYaml("test.yaml", yaml);
+    expect(() => loadProviders(tmpDir)).toThrow();
+  });
+
   it("loads multiple providers from multiple files", () => {
     const yaml1 = `
 version: 1

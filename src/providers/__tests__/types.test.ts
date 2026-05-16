@@ -4,6 +4,8 @@ import type {
   ProviderConfig,
   ModelConfig,
   ResolvedModel,
+  FlatPricing,
+  TieredPricing,
 } from "../types";
 
 describe("provider types", () => {
@@ -24,12 +26,7 @@ describe("provider types", () => {
       Record<string, unknown> | undefined
     >();
     expectTypeOf<ModelConfig["pricing"]>().toEqualTypeOf<
-      | {
-          input: number;
-          cached_input?: number;
-          output: number;
-        }
-      | undefined
+      FlatPricing | TieredPricing | undefined
     >();
   });
 

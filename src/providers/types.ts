@@ -1,3 +1,20 @@
+export interface FlatPricing {
+  input: number;
+  cached_input?: number;
+  output: number;
+}
+
+export interface PriceTier {
+  max_tokens: number;
+  input: number;
+  cached_input?: number;
+  output: number;
+}
+
+export interface TieredPricing {
+  tiers: PriceTier[];
+}
+
 export interface ProviderHandler {
   readonly type: string;
   getOpenAIUrl(baseUrl: string): string | null;
@@ -41,11 +58,7 @@ export interface ModelConfig {
     input: string[];
     output: string[];
   };
-  pricing?: {
-    input: number;
-    cached_input?: number;
-    output: number;
-  };
+  pricing?: FlatPricing | TieredPricing;
 }
 
 export interface ResolvedModel {

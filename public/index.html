@@ -483,63 +483,33 @@
             <span class="filter-meta" id="filterMeta">updated — · 0 calls</span>
         </div>
 
-        <!-- 按量计费 (Main) -->
-        <h2>Pay-as-you-go (Main)</h2>
-        <div id="stats-main" class="stats-grid">
+        <!-- Overview Stats -->
+        <h2>Overview</h2>
+        <div id="stats-overview" class="stats-grid">
             <div class="stat-card">
                 <h3>Total Calls</h3>
-                <div class="value" id="main-totalCalls">-</div>
+                <div class="value" id="totalCalls">-</div>
             </div>
             <div class="stat-card">
                 <h3>Total Cost</h3>
-                <div class="value" id="main-totalCost">-</div>
+                <div class="value" id="totalCost">-</div>
                 <span class="unit">CNY</span>
             </div>
             <div class="stat-card">
                 <h3>Total Tokens</h3>
-                <div class="value" id="main-totalTokens">-</div>
+                <div class="value" id="totalTokens">-</div>
             </div>
             <div class="stat-card">
                 <h3>Input Tokens</h3>
-                <div class="value" id="main-totalInputTokens">-</div>
+                <div class="value" id="totalInputTokens">-</div>
             </div>
             <div class="stat-card">
                 <h3>Cached Tokens</h3>
-                <div class="value" id="main-totalCachedTokens">-</div>
+                <div class="value" id="totalCachedTokens">-</div>
             </div>
             <div class="stat-card">
                 <h3>Output Tokens</h3>
-                <div class="value" id="main-totalOutputTokens">-</div>
-            </div>
-        </div>
-
-        <!-- Token-Plan -->
-        <h2>Token-Plan </h2>
-        <div id="stats-token-plan" class="stats-grid">
-            <div class="stat-card">
-                <h3>Total Calls</h3>
-                <div class="value" id="tp-totalCalls">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Total Cost <span class="tooltip-trigger" data-tip="虚拟估算值，实际计费以小米官方账单为准">[?]</span></h3>
-                <div class="value" id="tp-totalCost">-</div>
-                <span class="unit">CNY</span>
-            </div>
-            <div class="stat-card">
-                <h3>Total Tokens</h3>
-                <div class="value" id="tp-totalTokens">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Input Tokens</h3>
-                <div class="value" id="tp-totalInputTokens">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Cached Tokens</h3>
-                <div class="value" id="tp-totalCachedTokens">-</div>
-            </div>
-            <div class="stat-card">
-                <h3>Output Tokens</h3>
-                <div class="value" id="tp-totalOutputTokens">-</div>
+                <div class="value" id="totalOutputTokens">-</div>
             </div>
         </div>
 
@@ -758,13 +728,13 @@
         }
 
         // --- Rendering ---
-        function renderStats(prefix, s) {
-            document.getElementById(prefix + '-totalCalls').textContent = s.totalCalls;
-            document.getElementById(prefix + '-totalCost').textContent = s.totalCost.toFixed(4);
-            document.getElementById(prefix + '-totalTokens').textContent = s.totalTokens.toLocaleString();
-            document.getElementById(prefix + '-totalInputTokens').textContent = s.totalInputTokens.toLocaleString();
-            document.getElementById(prefix + '-totalCachedTokens').textContent = s.totalCachedPromptTokens.toLocaleString();
-            document.getElementById(prefix + '-totalOutputTokens').textContent = s.totalOutputTokens.toLocaleString();
+        function renderStats(data) {
+            document.getElementById('totalCalls').textContent = (data.totalCalls || 0).toLocaleString();
+            document.getElementById('totalCost').textContent = (data.totalCost || 0).toFixed(4);
+            document.getElementById('totalTokens').textContent = (data.totalTokens || 0).toLocaleString();
+            document.getElementById('totalInputTokens').textContent = (data.totalInputTokens || 0).toLocaleString();
+            document.getElementById('totalCachedTokens').textContent = (data.totalCachedPromptTokens || 0).toLocaleString();
+            document.getElementById('totalOutputTokens').textContent = (data.totalOutputTokens || 0).toLocaleString();
         }
 
         async function loadData() {
@@ -773,18 +743,15 @@
             const endParam = currentEnd !== null ? `&end=${currentEnd}` : '';
 
             try {
-                const [mainRes, tpRes] = await Promise.all([
-                    fetch(`./monitor/stats?source=main${modelParam}${startParam}${endParam}`),
-                    fetch(`./monitor/stats?source=token-plan${modelParam}${startParam}${endParam}`),
+                const [statsRes] = await Promise.all([
+                    fetch(`./monitor/stats?days=3${modelParam}${startParam}${endParam}`),
                     loadCalls(),
                 ]);
-                const mainData = await mainRes.json();
-                const tpData = await tpRes.json();
+                const statsData = await statsRes.json();
 
-                if (mainData.success) renderStats('main', mainData.data);
-                if (tpData.success) renderStats('tp', tpData.data);
+                if (statsData.success) renderStats(statsData.data);
 
-                const totalCalls = (mainData.data?.totalCalls || 0) + (tpData.data?.totalCalls || 0);
+                const totalCalls = statsData.data?.totalCalls || 0;
                 document.getElementById('filterMeta').textContent =
                     `updated ${new Date().toLocaleTimeString()} · ${totalCalls} calls`;
             } catch (error) {
@@ -890,29 +857,9 @@
 
             let allBuckets = [];
             try {
-                const [mainRes, tpRes] = await Promise.all([
-                    fetch(`./monitor/trend?source=main&granularity=${granularity}${modelParam}${startParam}${endParam}`),
-                    fetch(`./monitor/trend?source=token-plan&granularity=${granularity}${modelParam}${startParam}${endParam}`),
-                ]);
-                const mainData = await mainRes.json();
-                const tpData = await tpRes.json();
-
-                const bucketMap = new Map();
-                for (const b of (mainData.data?.buckets || [])) {
-                    bucketMap.set(b.ts, { ...b });
-                }
-                for (const b of (tpData.data?.buckets || [])) {
-                    const existing = bucketMap.get(b.ts);
-                    if (existing) {
-                        existing.calls += b.calls;
-                        existing.tokens += b.tokens;
-                        existing.cost += b.cost;
-                        existing.latency_ms = Math.round((existing.latency_ms * existing.calls + b.latency_ms * b.calls) / (existing.calls + b.calls));
-                    } else {
-                        bucketMap.set(b.ts, { ...b });
-                    }
-                }
-                allBuckets = Array.from(bucketMap.values()).sort((a, b) => a.ts - b.ts);
+                const res = await fetch(`./monitor/trend?granularity=${granularity}${modelParam}${startParam}${endParam}`);
+                const data = await res.json();
+                allBuckets = data.data?.buckets || [];
             } catch {
                 allBuckets = [];
             }
@@ -1020,29 +967,9 @@
             const startParam = currentStart !== null ? `&start=${currentStart}` : '';
             const endParam = currentEnd !== null ? `&end=${currentEnd}` : '';
             try {
-                const [mainRes, tpRes] = await Promise.all([
-                    fetch(`./monitor/token-trend?source=main${startParam}${endParam}`),
-                    fetch(`./monitor/token-trend?source=token-plan${startParam}${endParam}`),
-                ]);
-                const mainData = await mainRes.json();
-                const tpData = await tpRes.json();
-                const bucketMap = new Map();
-                for (const b of (mainData.data?.buckets || [])) {
-                    bucketMap.set(b.ts + ':' + b.model_upstream, { ...b });
-                }
-                for (const b of (tpData.data?.buckets || [])) {
-                    const key = b.ts + ':' + b.model_upstream;
-                    const existing = bucketMap.get(key);
-                    if (existing) {
-                        existing.calls += b.calls;
-                        existing.input_tokens += b.input_tokens;
-                        existing.output_tokens += b.output_tokens;
-                        existing.cached_prompt_tokens += b.cached_prompt_tokens;
-                    } else {
-                        bucketMap.set(key, { ...b });
-                    }
-                }
-                return Array.from(bucketMap.values());
+                const res = await fetch(`./monitor/token-trend?days=3${startParam}${endParam}`);
+                const data = await res.json();
+                return data.data?.buckets || [];
             } catch { return []; }
         }
 
