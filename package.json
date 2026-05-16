@@ -19,8 +19,8 @@
     "test:ops": "npm run build && node scripts/test-ops-config.cjs",
     "test:monitor": "npm run build && node scripts/monitor-checks.cjs",
     "test:models": "npm run build && node scripts/test-all-models.cjs",
-    "bun:build": "npx -y bun@latest build src/index.ts --outdir=dist-bun --target=bun --external vite --external lightningcss --external postcss",
-    "bun:start": "npx -y bun@latest run dist-bun/index.js",
+    "bun:build": "npx -y bun@1.2.15 build src/index.ts --outdir=dist-bun --target=bun --external vite --external lightningcss --external postcss",
+    "bun:start": "npx -y bun@1.2.15 run dist-bun/index.js",
     "init-config": "node scripts/init-config.cjs",
     "verify": "node scripts/verify.cjs",
     "prepare": "simple-git-hooks"
