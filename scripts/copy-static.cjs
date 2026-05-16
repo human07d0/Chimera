@@ -97,3 +97,34 @@ if (fs.existsSync(frontendSource)) {
   );
 }
 
+// Copy builtin provider config templates into dist/config/
+const configTemplatesSource = path.join(rootDir, "src", "builtin_provider_config");
+const configTemplatesTarget = path.join(rootDir, "dist", "config");
+
+if (fs.existsSync(configTemplatesSource)) {
+  const yamlFiles = fs
+    .readdirSync(configTemplatesSource)
+    .filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
+
+  if (yamlFiles.length > 0) {
+    fs.mkdirSync(configTemplatesTarget, { recursive: true });
+
+    for (const file of yamlFiles) {
+      const baseName = path.basename(file, path.extname(file));
+      const targetFile = `${baseName}_template.yaml`;
+      fs.copyFileSync(
+        path.join(configTemplatesSource, file),
+        path.join(configTemplatesTarget, targetFile)
+      );
+    }
+
+    console.log(
+      `[copy-static] Copied ${yamlFiles.length} provider config templates to ${path.relative(rootDir, configTemplatesTarget)}`
+    );
+  }
+} else {
+  console.log(
+    `[copy-static] Skipped missing: ${path.relative(rootDir, configTemplatesSource)}`
+  );
+}
+

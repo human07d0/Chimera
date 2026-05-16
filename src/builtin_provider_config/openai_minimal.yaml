@@ -1,0 +1,8 @@
+# src/builtin_provider_config/openai_minimal.yaml
+version: 1
+type: openai
+api_key: ${OPENAI_API_KEY}
+auth_header: Authorization
+auth_prefix: "Bearer "
+base_url: https://api.openai.com
+models: []

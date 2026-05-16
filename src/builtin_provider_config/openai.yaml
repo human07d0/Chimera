@@ -1,0 +1,48 @@
+# src/builtin_provider_config/openai.yaml
+# ---------------------------------------------------------------------------
+# Custom OpenAI-compatible provider template (fully annotated).
+# Copy and edit to add your own upstream.
+# ---------------------------------------------------------------------------
+
+version: 1
+type: openai                        # Handler: openai | anthropic | deepseek | mimo
+api_key: ${OPENAI_API_KEY}          # Env variable or plain text
+auth_header: Authorization          # HTTP header name for auth
+auth_prefix: "Bearer "              # Prefix prepended to api_key value
+
+# --- Optional fields ---
+
+# base_url: https://api.openai.com  # Required for custom providers (no default)
+
+# endpoint: ""                      # Route prefix (empty = standard /v1)
+                                   # Custom endpoint: e.g. "/my-gateway"
+
+# timeout: 120000                   # Request timeout in ms (default: 120000)
+
+# capabilities:                     # Model capabilities (merged w/ provider caps)
+#   json_output: true
+#   function_calling: true
+
+# --- Model definitions ---
+
+models:
+  - id: gpt-4o-mini                  # Model ID exposed to clients
+    upstream: gpt-4o-mini            # Upstream model name sent to provider
+    context_length: 128000
+    max_output_tokens: 16384
+    description: GPT-4o Mini
+
+    # Optional model fields:
+
+    # created: 1700000000            # Unix timestamp (default: load time)
+
+    # default:                       # Injected when client omits the key
+    #   temperature: 0.7
+
+    # capabilities:                  # Model-level overrides (merged into provider caps)
+    #   vision: true
+
+    # pricing:
+    #   input: 0.15
+    #   cached_input: 0.075
+    #   output: 0.6
