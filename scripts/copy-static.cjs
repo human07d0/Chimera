@@ -107,6 +107,7 @@ if (fs.existsSync(configTemplatesSource)) {
     .filter((f) => f.endsWith(".yaml") || f.endsWith(".yml"));
 
   if (yamlFiles.length > 0) {
+    removePathSync(configTemplatesTarget);
     fs.mkdirSync(configTemplatesTarget, { recursive: true });
 
     for (const file of yamlFiles) {
