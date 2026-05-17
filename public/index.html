@@ -772,6 +772,9 @@
 
             try {
                 const res = await fetch(`./monitor/calls?days=${callsDays}&limit=${callsLimit}&offset=${offset}${modelParam}`);
+                if (!res.ok) {
+                    throw new Error(`Server error: ${res.status}`);
+                }
                 const data = await res.json();
                 const tbody = document.getElementById('callsTable');
 
@@ -800,8 +803,12 @@
                     document.getElementById('nextPage').disabled = true;
                 }
             } catch (error) {
-                document.getElementById('callsTable').innerHTML =
-                    '<tr><td colspan="8" class="error">Failed to load, please retry later</td></tr>';
+                console.error('Failed to load calls:', error);
+                const tbody = document.getElementById('callsTable');
+                const errorMsg = error instanceof TypeError
+                    ? 'Network error, please check server status'
+                    : 'Failed to load, please retry later';
+                tbody.innerHTML = `<tr><td colspan="8" class="error">${errorMsg}</td></tr>`;
             }
         }
 

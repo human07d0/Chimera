@@ -58,6 +58,7 @@ export function getStorage(): MonitorStorage {
     return storageInstance;
   }
 
+  storageWorker.setStorage(memoryStorage);
   void getStorageAsync();
 
   return memoryStorage;

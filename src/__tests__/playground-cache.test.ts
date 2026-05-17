@@ -64,6 +64,11 @@ vi.mock("../monitor/storage/factory", () => ({
     flush: vi.fn(),
     getMetrics: vi.fn(),
   })),
+  getStorageAsync: vi.fn(() => Promise.resolve({
+    queue: vi.fn(),
+    flush: vi.fn(),
+    getMetrics: vi.fn(),
+  })),
 }));
 
 vi.mock("../ops/index", () => ({

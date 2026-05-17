@@ -5,7 +5,7 @@ import crypto from "crypto";
 
 import { monitorRouter, monitorMiddleware } from "./monitor";
 import { opsRouter } from "./ops/index";
-import { getStorage } from "./monitor/storage/factory";
+import { getStorage, getStorageAsync } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
@@ -91,6 +91,8 @@ export async function createApp(): Promise<express.Application> {
   // --------------------------------------------------------------------------
   // 监控路由（设计上不需要鉴权 — 本地可观测性端点）
   // --------------------------------------------------------------------------
+  // 确保 monitor 存储在接收请求前完成初始化
+  await getStorageAsync();
   app.use("/monitor", monitorRouter);
 
   // --------------------------------------------------------------------------
