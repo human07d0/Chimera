@@ -35,63 +35,63 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
   });
 
   const expectedModalities: Record<string, { input: string[]; output: string[] }> = {
-    "mimo-v2-flash-tp": {
+    "mimo-v2-flash": {
       input: ["text"],
       output: ["text"],
     },
-    "mimo-v2-pro-tp": {
+    "mimo-v2-pro": {
       input: ["text", "image"],
       output: ["text"],
     },
-    "mimo-v2-omni-tp": {
+    "mimo-v2-omni": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
-    "mimo-v2.5-tp": {
+    "mimo-v2.5": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
-    "mimo-v2.5-pro-tp": {
+    "mimo-v2.5-pro": {
       input: ["text", "image"],
       output: ["text"],
     },
-    "mimo-v2-flash-tp-thinking": {
+    "mimo-v2-flash-thinking": {
       input: ["text"],
       output: ["text"],
     },
-    "mimo-v2-pro-tp-thinking": {
+    "mimo-v2-pro-thinking": {
       input: ["text", "image"],
       output: ["text"],
     },
-    "mimo-v2-omni-tp-thinking": {
+    "mimo-v2-omni-thinking": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
-    "mimo-v2.5-tp-thinking": {
+    "mimo-v2.5-thinking": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
-    "mimo-v2.5-pro-tp-thinking": {
+    "mimo-v2.5-pro-thinking": {
       input: ["text", "image"],
       output: ["text"],
     },
-    "mimo-v2-flash-tp-thinking-search": {
+    "mimo-v2-flash-thinking-search": {
       input: ["text"],
       output: ["text"],
     },
-    "mimo-v2-pro-tp-thinking-search": {
+    "mimo-v2-pro-thinking-search": {
       input: ["text", "image"],
       output: ["text"],
     },
-    "mimo-v2-omni-tp-thinking-search": {
+    "mimo-v2-omni-thinking-search": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
-    "mimo-v2.5-tp-thinking-search": {
+    "mimo-v2.5-thinking-search": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
-    "mimo-v2.5-pro-tp-thinking-search": {
+    "mimo-v2.5-pro-thinking-search": {
       input: ["text", "image"],
       output: ["text"],
     },

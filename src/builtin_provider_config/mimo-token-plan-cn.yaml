@@ -23,7 +23,7 @@ web_search:
     city: ""
 
 models:
-  - id: mimo-v2-flash-tp
+  - id: mimo-v2-flash
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
@@ -37,7 +37,7 @@ models:
           cached_input: 0.07
           output: 2.1
 
-  - id: mimo-v2-pro-tp
+  - id: mimo-v2-pro
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -55,7 +55,7 @@ models:
           cached_input: 2.8
           output: 42.0
 
-  - id: mimo-v2-omni-tp
+  - id: mimo-v2-omni
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
@@ -73,7 +73,7 @@ models:
           cached_input: 1.12
           output: 28.0
 
-  - id: mimo-v2.5-tp
+  - id: mimo-v2.5
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
@@ -91,7 +91,7 @@ models:
           cached_input: 1.12
           output: 28.0
 
-  - id: mimo-v2.5-pro-tp
+  - id: mimo-v2.5-pro
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -109,7 +109,7 @@ models:
           cached_input: 2.8
           output: 42.0
 
-  - id: mimo-v2-flash-tp-thinking
+  - id: mimo-v2-flash-thinking
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
@@ -120,7 +120,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2-pro-tp-thinking
+  - id: mimo-v2-pro-thinking
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -131,7 +131,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2-omni-tp-thinking
+  - id: mimo-v2-omni-thinking
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
@@ -142,7 +142,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2.5-tp-thinking
+  - id: mimo-v2.5-thinking
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
@@ -153,7 +153,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2.5-pro-tp-thinking
+  - id: mimo-v2.5-pro-thinking
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -164,7 +164,7 @@ models:
       thinking:
         type: enabled
 
-  - id: mimo-v2-flash-tp-thinking-search
+  - id: mimo-v2-flash-thinking-search
     upstream: mimo-v2-flash
     context_length: 256000
     max_output_tokens: 64000
@@ -176,7 +176,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2-pro-tp-thinking-search
+  - id: mimo-v2-pro-thinking-search
     upstream: mimo-v2-pro
     context_length: 1000000
     max_output_tokens: 128000
@@ -188,7 +188,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2-omni-tp-thinking-search
+  - id: mimo-v2-omni-thinking-search
     upstream: mimo-v2-omni
     context_length: 256000
     max_output_tokens: 128000
@@ -200,7 +200,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2.5-tp-thinking-search
+  - id: mimo-v2.5-thinking-search
     upstream: mimo-v2.5
     context_length: 1000000
     max_output_tokens: 128000
@@ -212,7 +212,7 @@ models:
         type: enabled
       web_search: true
 
-  - id: mimo-v2.5-pro-tp-thinking-search
+  - id: mimo-v2.5-pro-thinking-search
     upstream: mimo-v2.5-pro
     context_length: 1000000
     max_output_tokens: 128000
