@@ -769,17 +769,13 @@
         async function loadCalls() {
             const modelParam = currentModel ? `&model=${encodeURIComponent(currentModel)}` : '';
             const offset = currentPage * callsLimit;
-            const url = `./monitor/calls?days=${callsDays}&limit=${callsLimit}&offset=${offset}${modelParam}`;
-            console.log('[loadCalls] fetching:', url, { callsDays, callsLimit, offset, currentPage });
 
             try {
-                const res = await fetch(url);
-                console.log('[loadCalls] response:', res.status, res.statusText, 'ok:', res.ok, 'type:', res.type);
+                const res = await fetch(`./monitor/calls?days=${callsDays}&limit=${callsLimit}&offset=${offset}${modelParam}`);
                 if (!res.ok) {
                     throw new Error(`Server error: ${res.status}`);
                 }
                 const data = await res.json();
-                console.log('[loadCalls] data:', { success: data.success, dataLength: data.data?.length, dataType: typeof data.data });
                 const tbody = document.getElementById('callsTable');
                 if (!tbody) throw new Error('callsTable element not found');
 
