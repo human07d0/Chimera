@@ -161,8 +161,12 @@ monitorRouter.get("/calls", (req: Request, res: Response) => {
     offset = parseQueryInt(req.query.offset, 0);
     model = parseModelParam(req.query.model);
 
+    logger.info("Monitor /calls request", { days, limit, offset, model });
+
     const storage = getStorage();
     const events = storage.query({ days, limit, offset, model });
+
+    logger.info("Monitor /calls result", { eventCount: events.length });
 
     // 前端兼容：保持旧版字段（timestamp/model/inputTokens/...）
     const calls = events.map((event: MonitorEvent) => ({

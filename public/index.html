@@ -769,16 +769,21 @@
         async function loadCalls() {
             const modelParam = currentModel ? `&model=${encodeURIComponent(currentModel)}` : '';
             const offset = currentPage * callsLimit;
+            const url = `./monitor/calls?days=${callsDays}&limit=${callsLimit}&offset=${offset}${modelParam}`;
+            console.log('[loadCalls] fetching:', url, { callsDays, callsLimit, offset, currentPage });
 
             try {
-                const res = await fetch(`./monitor/calls?days=${callsDays}&limit=${callsLimit}&offset=${offset}${modelParam}`);
+                const res = await fetch(url);
+                console.log('[loadCalls] response:', res.status, res.statusText, 'ok:', res.ok, 'type:', res.type);
                 if (!res.ok) {
                     throw new Error(`Server error: ${res.status}`);
                 }
                 const data = await res.json();
+                console.log('[loadCalls] data:', { success: data.success, dataLength: data.data?.length, dataType: typeof data.data });
                 const tbody = document.getElementById('callsTable');
+                if (!tbody) throw new Error('callsTable element not found');
 
-                if (data.success && data.data.length > 0) {
+                if (data.success && Array.isArray(data.data) && data.data.length > 0) {
                     const calls = data.data;
                     tbody.innerHTML = calls.map(c => {
                         const color = getModelColor(c.model);
@@ -803,8 +808,12 @@
                     document.getElementById('nextPage').disabled = true;
                 }
             } catch (error) {
-                console.error('Failed to load calls:', error);
+                console.error('[loadCalls] FAILED:', error, 'constructor:', error?.constructor?.name);
                 const tbody = document.getElementById('callsTable');
+                if (!tbody) {
+                    console.error('[loadCalls] tbody is null, cannot render error');
+                    return;
+                }
                 const errorMsg = error instanceof TypeError
                     ? 'Network error, please check server status'
                     : 'Failed to load, please retry later';
