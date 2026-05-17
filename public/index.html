@@ -792,10 +792,10 @@
                         return '<tr><td>' + new Date(c.timestamp).toLocaleString('zh-CN') + '</td>' +
                             '<td>' + escapedSource + '</td>' +
                             '<td><span class="model-tag" style="background:' + color + '22;color:' + color + ';border-color:' + color + '44" data-model="' + escapedModel + '">' + escapedModel + '</span></td>' +
-                            '<td>' + c.inputTokens.toLocaleString() + '</td>' +
-                            '<td>' + c.cachedPromptTokens.toLocaleString() + '</td>' +
-                            '<td>' + c.outputTokens.toLocaleString() + '</td>' +
-                            '<td>' + c.cost.toFixed(4) + '</td><td>' + escapeHtml(String(c.duration)) + '</td></tr>';
+                            '<td>' + (Number(c.inputTokens) || 0).toLocaleString() + '</td>' +
+                            '<td>' + (Number(c.cachedPromptTokens) || 0).toLocaleString() + '</td>' +
+                            '<td>' + (Number(c.outputTokens) || 0).toLocaleString() + '</td>' +
+                            '<td>' + (Number(c.cost) || 0).toFixed(4) + '</td><td>' + escapeHtml(String(c.duration)) + '</td></tr>';
                     }).join('');
 
                     document.getElementById('callsCount').textContent = `total ${offset + data.data.length}`;

@@ -216,7 +216,14 @@ export class SqliteStorage implements MonitorStorage {
     const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
 
     let sql = `
-      SELECT * FROM requests
+      SELECT
+        request_id, ts_start, ts_end, latency_ms,
+        path, method, status_code,
+        model_requested, model_upstream, provider_name,
+        stream, chunks, bytes_out, first_token_ms,
+        input_tokens, output_tokens, cached_prompt_tokens, cost,
+        error_type, source
+      FROM requests
       WHERE ts_start >= ?
     `;
     
