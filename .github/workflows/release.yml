@@ -1,4 +1,4 @@
-name: Release Bun Package
+name: Release
 
 on:
   push:
@@ -27,6 +27,7 @@ jobs:
         with:
           node-version: '24'
           cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
       
       - name: Install dependencies
         run: pnpm install
@@ -43,31 +44,27 @@ jobs:
       - name: Build with Bun
         run: pnpm run bun:build
       
-      - name: Copy ops SPA and config templates into dist-bun
+      - name: Package release zip
         run: |
-          cp -r dist/ops dist-bun/ops
-          cp -r dist/config dist-bun/config
-      
-      - name: Verify build output
-        run: |
-          ls -la dist-bun/
-          ls -la dist-bun/ops/
-          ls -la dist-bun/config/
-          echo "Build completed successfully"
-      
-      - name: Package release assets
-        run: |
-          cd dist-bun && zip -r ../chimera-ops.zip ops/ && zip -r ../chimera-config-templates.zip config/ && cd ..
-          ls -lh chimera-ops.zip chimera-config-templates.zip dist-bun/index.js .env.example
+          mkdir -p staging
+          cp dist-bun/index.js staging/
+          cp -r dist/ops staging/ops
+          cp -r dist/config staging/config
+          cp .env.example staging/
+          cp scripts/start.sh staging/
+          cp scripts/start.cmd staging/
+          cd staging && zip -r ../chimera.zip . && cd ..
+          ls -lh chimera.zip
+
+      - name: Publish to npm
+        run: npm publish --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0
         with:
-          files: |
-            dist-bun/index.js
-            chimera-ops.zip
-            chimera-config-templates.zip
-            .env.example
+          files: chimera.zip
           generate_release_notes: true
           draft: false
           prerelease: false

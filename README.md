@@ -13,23 +13,20 @@
 ## 快速开始
 
 ```bash
-# 安装依赖
-pnpm install
+# 安装
+npm install -g chimeraproxy
 
 # 配置
 cp .env.example .env
 # 编辑 .env 填入 API Key
 
-# 开发
-pnpm run dev
-
-# 构建 & 运行
-pnpm run build && pnpm start
+# 启动
+chimera
 ```
 
 服务默认运行在 `http://localhost:3000`。
 
 ## 文档
 
+- [安装手册](INSTALL.md) — npm / zip / 源码安装及后台运行
 - [架构概览](ARCHITECTURE.md)
-- [安装手册](INSTALL.md)
