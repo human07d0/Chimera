@@ -1,19 +1,24 @@
 import { logger } from "../../utils/logger";
 import { MonitorEvent, MonitorStorage, QueryParams, StatsParams, StatsResult, TrendParams, TrendBucket, TokenTrendParams, TokenTrendBucket } from "./index";
 
-class MemoryStorage implements MonitorStorage {
-  private records: MonitorEvent[] = [];
-  private readonly maxRecords = 10_000;
+export class MemoryStorage implements MonitorStorage {
+  private buffer: (MonitorEvent | undefined)[];
+  private head = 0;
+  private count = 0;
+  private readonly capacity: number;
+
+  constructor(maxRecords = 10_000) {
+    this.capacity = maxRecords;
+    this.buffer = new Array(maxRecords);
+  }
 
   init(): void {
   }
 
   append(event: MonitorEvent): void {
-    this.records.push(event);
-
-    if (this.records.length > this.maxRecords) {
-      this.records.shift();
-    }
+    this.buffer[this.head] = event;
+    this.head = (this.head + 1) % this.capacity;
+    if (this.count < this.capacity) this.count++;
 
     logger.debug("Monitor event appended (memory)", {
       requestId: event.request_id,
@@ -22,11 +27,18 @@ class MemoryStorage implements MonitorStorage {
     });
   }
 
+  private *iterate(): Generator<MonitorEvent> {
+    const start = (this.head - this.count + this.capacity) % this.capacity;
+    for (let i = 0; i < this.count; i++) {
+      yield this.buffer[(start + i) % this.capacity]!;
+    }
+  }
+
   query(params: QueryParams): MonitorEvent[] {
     const { days = 3, limit = 100, offset = 0, model } = params;
     const cutoffTs = Date.now() - days * 24 * 60 * 60 * 1000;
 
-    let filtered = this.records.filter((record) => record.ts_start >= cutoffTs);
+    let filtered = [...this.iterate()].filter((record) => record.ts_start >= cutoffTs);
 
     if (model) {
       filtered = filtered.filter((record) => record.model_requested === model);
@@ -41,7 +53,7 @@ class MemoryStorage implements MonitorStorage {
     const { days = 3, start, end, model, source } = params;
     const cutoffTs = start ?? Date.now() - days * 24 * 60 * 60 * 1000;
 
-    let filtered = this.records.filter((record) => record.ts_start >= cutoffTs);
+    let filtered = [...this.iterate()].filter((record) => record.ts_start >= cutoffTs);
     if (end !== undefined) {
       filtered = filtered.filter((record) => record.ts_start < end);
     }
@@ -71,7 +83,7 @@ class MemoryStorage implements MonitorStorage {
     const { days = 3, start, end, model, source, granularity } = params;
     const cutoffTs = start ?? Date.now() - days * 24 * 60 * 60 * 1000;
 
-    let filtered = this.records.filter((record) => record.ts_start >= cutoffTs);
+    let filtered = [...this.iterate()].filter((record) => record.ts_start >= cutoffTs);
     if (end !== undefined) {
       filtered = filtered.filter((record) => record.ts_start < end);
     }
@@ -114,7 +126,7 @@ class MemoryStorage implements MonitorStorage {
     const { start, end, source } = params;
     const cutoffTs = start ?? Date.now() - 3 * 24 * 60 * 60 * 1000;
 
-    let filtered = this.records.filter((record) => record.ts_start >= cutoffTs);
+    let filtered = [...this.iterate()].filter((record) => record.ts_start >= cutoffTs);
     if (end !== undefined) {
       filtered = filtered.filter((record) => record.ts_start < end);
     }
@@ -147,11 +159,22 @@ class MemoryStorage implements MonitorStorage {
 
   prune(retentionDays: number): number {
     const cutoffTs = Date.now() - retentionDays * 24 * 60 * 60 * 1000;
-    const initialLength = this.records.length;
 
-    this.records = this.records.filter((record) => record.ts_start >= cutoffTs);
+    const surviving: MonitorEvent[] = [];
+    for (const event of this.iterate()) {
+      if (event.ts_start >= cutoffTs) {
+        surviving.push(event);
+      }
+    }
+    const deletedCount = this.count - surviving.length;
 
-    const deletedCount = initialLength - this.records.length;
+    this.buffer = new Array(this.capacity);
+    this.head = 0;
+    this.count = 0;
+    for (const event of surviving) {
+      this.append(event);
+    }
+
     if (deletedCount > 0) {
       logger.info("Monitor prune completed (memory)", { deletedCount, retentionDays });
     }

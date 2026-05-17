@@ -36,9 +36,10 @@ function validateSource(value: unknown): string {
   return "unknown";
 }
 
+const MONITORED_PATHS = new Set(["/chat/completions", "/messages"]);
+
 export function monitorMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const monitoredPaths = new Set(["/chat/completions", "/messages"]);
-  if (!monitoredPaths.has(req.path)) {
+  if (!MONITORED_PATHS.has(req.path)) {
     next();
     return;
   }
@@ -79,24 +80,24 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
     stream = true;
     chunks += 1;
 
-    // 统一转换为 Buffer 以计算大小和解析 SSE
-    let buf: Buffer;
+    let str: string;
     if (typeof chunk === "string") {
-      buf = Buffer.from(chunk);
+      bytesOut += Buffer.byteLength(chunk, "utf-8");
+      str = chunk;
     } else if (Buffer.isBuffer(chunk)) {
-      buf = chunk;
+      bytesOut += chunk.length;
+      str = chunk.toString("utf-8");
     } else if (chunk instanceof Uint8Array) {
-      buf = Buffer.from(chunk.buffer, chunk.byteOffset, chunk.byteLength);
+      bytesOut += chunk.byteLength;
+      str = new TextDecoder("utf-8").decode(chunk);
     } else {
-      buf = Buffer.alloc(0);
+      bytesOut += 0;
+      str = "";
     }
-    bytesOut += buf.length;
 
-    if (firstTokenMs === null && buf.length > 0) {
+    if (firstTokenMs === null && str.length > 0) {
       firstTokenMs = Date.now() - tsStart;
     }
-
-    const str = buf.toString("utf-8");
     if (str) {
       const lines = str.split("\n");
       for (const line of lines) {
@@ -105,7 +106,8 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
         if (!dataContent || dataContent === "[DONE]") continue;
 
         try {
-          const parsed = JSON.parse(dataContent) as Record<string, unknown>;
+          const shared = (res as any)?.locals?._sseChunk;
+          const parsed = shared?.parsed ?? JSON.parse(dataContent) as Record<string, unknown>;
           const usage = extractUsage(parsed);
           inputTokens = usage.input_tokens ?? inputTokens;
           outputTokens = usage.output_tokens ?? outputTokens;

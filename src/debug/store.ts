@@ -2,22 +2,31 @@ import { config } from "../config";
 import { DebugEvent, DebugQueryParams } from "./types";
 
 export class DebugStore {
-  private buffer: DebugEvent[] = [];
-  private maxSize: number;
+  private buffer: (DebugEvent | undefined)[];
+  private head = 0;
+  private count = 0;
+  private capacity: number;
 
   constructor(maxSize?: number) {
-    this.maxSize = maxSize ?? config.debug.maxRecords;
+    this.capacity = maxSize ?? config.debug.maxRecords;
+    this.buffer = new Array(this.capacity);
   }
 
   append(event: DebugEvent): void {
-    if (this.buffer.length >= this.maxSize) {
-      this.buffer.shift();
+    this.buffer[this.head] = event;
+    this.head = (this.head + 1) % this.capacity;
+    if (this.count < this.capacity) this.count++;
+  }
+
+  private *iterate(): Generator<DebugEvent> {
+    const start = (this.head - this.count + this.capacity) % this.capacity;
+    for (let i = 0; i < this.count; i++) {
+      yield this.buffer[(start + i) % this.capacity]!;
     }
-    this.buffer.push(event);
   }
 
   query(params: DebugQueryParams = {}): { total: number; items: DebugEvent[] } {
-    let items = [...this.buffer];
+    let items = [...this.iterate()];
 
     if (params.model) {
       const model = params.model;
@@ -46,24 +55,34 @@ export class DebugStore {
   }
 
   getById(id: string): DebugEvent | undefined {
-    return this.buffer.find((e) => e.request_id === id);
+    for (const event of this.iterate()) {
+      if (event.request_id === id) return event;
+    }
+    return undefined;
   }
 
   prune(): number {
-    const count = this.buffer.length;
-    this.buffer = [];
+    const count = this.count;
+    this.buffer = new Array(this.capacity);
+    this.head = 0;
+    this.count = 0;
     return count;
   }
 
   get size(): number {
-    return this.buffer.length;
+    return this.count;
   }
 
   setMaxRecords(n: number): void {
     if (!Number.isFinite(n) || n < 1) return;
-    this.maxSize = n;
-    while (this.buffer.length > this.maxSize) {
-      this.buffer.shift();
+    const records = [...this.iterate()];
+    const surviving = records.length > n ? records.slice(records.length - n) : records;
+    this.capacity = n;
+    this.buffer = new Array(n);
+    this.head = 0;
+    this.count = 0;
+    for (const event of surviving) {
+      this.append(event);
     }
   }
 }

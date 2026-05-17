@@ -4,7 +4,7 @@ import { logger } from "../utils/logger";
 import { debugStore } from "./store";
 import { DebugMediaItem } from "./types";
 
-export function assembleStreamResponse(sseChunks: string[]): string {
+export function assembleStreamResponse(sseChunks: Array<string | Record<string, unknown>>): string {
   let format: "openai" | "anthropic" | null = null;
   let id: string | undefined;
   let model: string | undefined;
@@ -40,9 +40,9 @@ export function assembleStreamResponse(sseChunks: string[]): string {
   for (const chunk of sseChunks) {
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(chunk);
+      parsed = typeof chunk === "string" ? JSON.parse(chunk) : chunk;
     } catch {
-      logger.debug("debug: skipping unparseable SSE chunk", { chunk: chunk.slice(0, 120) });
+      logger.debug("debug: skipping unparseable SSE chunk", { chunk: typeof chunk === "string" ? chunk.slice(0, 120) : "[object]" });
       continue;
     }
 
@@ -272,7 +272,7 @@ export function assembleStreamResponse(sseChunks: string[]): string {
     return JSON.stringify(result);
   }
 
-  return "[" + sseChunks.join(",") + "]";
+  return "[" + sseChunks.map(c => typeof c === "string" ? c : JSON.stringify(c)).join(",") + "]";
 }
 
 const DATA_URI_RE = /^data:([a-z]+\/[a-z0-9+.-]+);base64,([A-Za-z0-9+/=\r\n]+)$/;
@@ -390,9 +390,10 @@ export function extractAndSummarizeMedia(
   return { body: JSON.stringify(parsed), media };
 }
 
+const MONITORED_PATHS = new Set(["/chat/completions", "/messages"]);
+
 export function debugMiddleware(req: Request, res: Response, next: NextFunction): void {
-  const monitoredPaths = new Set(["/chat/completions", "/messages"]);
-  if (!monitoredPaths.has(req.path)) {
+  if (!MONITORED_PATHS.has(req.path)) {
     next();
     return;
   }
@@ -432,7 +433,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
   let responseBodyStr = "";
   let errorType: string | null = null;
   let errorBodyStr: string | null = null;
-  const sseChunks: string[] = [];
+  const sseChunks: Array<string | Record<string, unknown>> = [];
   let sseBuffer = "";
 
   res.json = function (body: any): Response {
@@ -488,7 +489,8 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
         if (!line.startsWith("data: ")) continue;
         const dataContent = line.slice("data: ".length);
         if (!dataContent || dataContent === "[DONE]") continue;
-        sseChunks.push(dataContent);
+        const shared = (res as any)?.locals?._sseChunk;
+        sseChunks.push(shared?.parsed ?? dataContent);
       }
     }
 
@@ -501,7 +503,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
     if (stream) {
       for (const chunk of sseChunks) {
         try {
-          const parsed = JSON.parse(chunk) as Record<string, unknown>;
+          const parsed: Record<string, unknown> = typeof chunk === "string" ? JSON.parse(chunk) : chunk;
           if (parsed["error"] && typeof parsed["error"] === "object") {
             const errObj = parsed["error"] as Record<string, unknown>;
             errorType = (errObj["type"] as string) || "upstream_error";
@@ -510,7 +512,7 @@ export function debugMiddleware(req: Request, res: Response, next: NextFunction)
           }
         } catch {
           logger.debug("debug: skipping unparseable SSE chunk during error scan", {
-            chunk: chunk.slice(0, 120),
+            chunk: typeof chunk === "string" ? chunk.slice(0, 120) : "[object]",
           });
         }
       }

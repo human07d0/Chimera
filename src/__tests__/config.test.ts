@@ -8,6 +8,7 @@ describe("config module", () => {
     [
       "PORT",
       "HOST",
+      "BODY_SIZE_LIMIT",
       "MONITOR_RETENTION_DAYS",
       "MONITOR_FLUSH_INTERVAL_MS",
       "MONITOR_FLUSH_BATCH_SIZE",
@@ -91,6 +92,18 @@ describe("config module", () => {
     expect(config.debug.maxRecords).toBe(500);
     expect(warnSpy).toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+
+  it("bodySizeLimit defaults to 100mb", async () => {
+    const { config } = await import("../config");
+    expect(config.bodySizeLimit()).toBe("100mb");
+  });
+
+  it("bodySizeLimit respects BODY_SIZE_LIMIT env override", async () => {
+    process.env.BODY_SIZE_LIMIT = "50mb";
+    vi.resetModules();
+    const { config } = await import("../config");
+    expect(config.bodySizeLimit()).toBe("50mb");
   });
 
   it("valid debug config values are accepted", async () => {

@@ -565,6 +565,31 @@ describe("debugMiddleware", () => {
     expect(event.media).toBeDefined();
     expect(event.media!.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("should store pre-parsed objects from res.locals._sseChunk", () => {
+    const req = createMockReq();
+    const res = createMockRes();
+    const next = vi.fn();
+
+    debugMiddleware(req, res, next);
+
+    const parsedChunk = { id: "chatcmpl-1", model: "mimo-v2-flash", choices: [{ delta: { content: "Hello" } }] };
+    (res as any).locals._sseChunk = { parsed: parsedChunk, raw: JSON.stringify(parsedChunk) };
+    (res.write as any)("data: " + JSON.stringify(parsedChunk) + "\n\n");
+
+    const parsedChunk2 = { id: "chatcmpl-1", model: "mimo-v2-flash", choices: [{ delta: { content: " world" } }] };
+    (res as any).locals._sseChunk = { parsed: parsedChunk2, raw: JSON.stringify(parsedChunk2) };
+    (res.write as any)("data: " + JSON.stringify(parsedChunk2) + "\n\n");
+
+    (res.write as any)("data: [DONE]\n\n");
+    (res.end as any)();
+
+    expect(debugStore.size).toBe(1);
+    const event = debugStore.query().items[0];
+    expect(event.stream).toBe(true);
+    const body = JSON.parse(event.response_body);
+    expect(body.choices[0].message.content).toBe("Hello world");
+  });
 });
 
 // ============================================================
@@ -853,5 +878,33 @@ describe("assembleStreamResponse", () => {
     const chunks = ["garbage", "more garbage"];
     const result = assembleStreamResponse(chunks);
     expect(result).toBe("[" + chunks.join(",") + "]");
+  });
+
+  it("should handle pre-parsed objects in chunks array", () => {
+    const chunks = [
+      { id: "chatcmpl-1", model: "gpt-4", choices: [{ delta: { content: "Hello" } }] } as Record<string, unknown>,
+      { id: "chatcmpl-1", model: "gpt-4", choices: [{ delta: { content: " world" } }] } as Record<string, unknown>,
+    ];
+    const result = JSON.parse(assembleStreamResponse(chunks as any));
+    expect(result.id).toBe("chatcmpl-1");
+    expect(result.choices[0].message.content).toBe("Hello world");
+  });
+
+  it("should handle mixed string and pre-parsed object chunks", () => {
+    const chunks = [
+      '{"id":"chatcmpl-1","model":"gpt-4","choices":[{"delta":{"content":"Hello"}}]}',
+      { id: "chatcmpl-1", model: "gpt-4", choices: [{ delta: { content: " world" } }] } as Record<string, unknown>,
+    ];
+    const result = JSON.parse(assembleStreamResponse(chunks as any));
+    expect(result.choices[0].message.content).toBe("Hello world");
+  });
+
+  it("should return fallback format with mixed string and object chunks when unrecognizable", () => {
+    const chunks = [
+      '{"some_field":"value"}',
+      { another_field: 123 } as Record<string, unknown>,
+    ];
+    const result = assembleStreamResponse(chunks as any);
+    expect(result).toBe('[{"some_field":"value"},{"another_field":123}]');
   });
 });

@@ -83,6 +83,10 @@ export const config = {
     queueMaxSize: optionalIntEnv("MONITOR_QUEUE_MAX_SIZE", 10_000),
   },
 
+  bodySizeLimit(): string {
+    return optionalEnv("BODY_SIZE_LIMIT", "100mb");
+  },
+
   logLevel: optionalEnv("LOG_LEVEL", "info") as
     | "error"
     | "warn"

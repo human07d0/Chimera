@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { memoryStorage } from "../storage/memory";
+import { memoryStorage, MemoryStorage } from "../storage/memory";
 import { MonitorEvent } from "../storage/index";
 
 function makeEvent(overrides: Partial<MonitorEvent> = {}): MonitorEvent {
@@ -125,6 +125,190 @@ describe("MemoryStorage", () => {
       const result = memoryStorage.trend({ days: 1, granularity: "day", source: "main" });
       expect(result.length).toBe(1);
       expect(result[0].calls).toBe(1);
+    });
+  });
+});
+
+describe("MemoryStorage - ring buffer", () => {
+  let storage: MemoryStorage;
+
+  beforeEach(() => {
+    storage = new MemoryStorage(5);
+  });
+
+  describe("append", () => {
+    it("stores records up to capacity", () => {
+      const now = Date.now();
+      for (let i = 0; i < 5; i++) {
+        storage.append(makeEvent({ ts_start: now + i }));
+      }
+      const result = storage.query({ days: 1, limit: 100 });
+      expect(result).toHaveLength(5);
+    });
+
+    it("evicts oldest records when capacity exceeded", () => {
+      const now = Date.now();
+      for (let i = 0; i < 7; i++) {
+        storage.append(makeEvent({ ts_start: now + i }));
+      }
+      const result = storage.query({ days: 1, limit: 100 });
+      expect(result).toHaveLength(5);
+    });
+
+    it("keeps the newest records after overflow", () => {
+      const now = Date.now();
+      for (let i = 0; i < 7; i++) {
+        storage.append(makeEvent({ ts_start: now + i, request_id: `req-${i}` }));
+      }
+      const result = storage.query({ days: 1, limit: 100 });
+      const ids = result.map(r => r.request_id);
+      expect(ids).toContain("req-6");
+      expect(ids).toContain("req-5");
+      expect(ids).toContain("req-4");
+      expect(ids).toContain("req-3");
+      expect(ids).toContain("req-2");
+      expect(ids).not.toContain("req-0");
+      expect(ids).not.toContain("req-1");
+    });
+
+    it("handles multiple wrap-around cycles", () => {
+      const now = Date.now();
+      for (let i = 0; i < 23; i++) {
+        storage.append(makeEvent({ ts_start: now + i, request_id: `req-${i}` }));
+      }
+      const result = storage.query({ days: 1, limit: 100 });
+      expect(result).toHaveLength(5);
+      const ids = result.map(r => r.request_id);
+      expect(ids).toContain("req-22");
+      expect(ids).toContain("req-18");
+      expect(ids).not.toContain("req-17");
+    });
+  });
+
+  describe("query", () => {
+    it("returns records sorted newest first", () => {
+      const now = Date.now();
+      for (let i = 0; i < 5; i++) {
+        storage.append(makeEvent({ ts_start: now + i }));
+      }
+      const result = storage.query({ days: 1, limit: 100 });
+      for (let i = 1; i < result.length; i++) {
+        expect(result[i - 1].ts_start).toBeGreaterThanOrEqual(result[i].ts_start);
+      }
+    });
+
+    it("returns records in correct order after wrap-around", () => {
+      const now = Date.now();
+      for (let i = 0; i < 8; i++) {
+        storage.append(makeEvent({ ts_start: now + i, request_id: `req-${i}` }));
+      }
+      const result = storage.query({ days: 1, limit: 100 });
+      expect(result[0].request_id).toBe("req-7");
+      expect(result[4].request_id).toBe("req-3");
+    });
+
+    it("respects limit and offset", () => {
+      const now = Date.now();
+      for (let i = 0; i < 5; i++) {
+        storage.append(makeEvent({ ts_start: now + i }));
+      }
+      const result = storage.query({ days: 1, limit: 2, offset: 0 });
+      expect(result).toHaveLength(2);
+    });
+
+    it("filters by model after wrap-around", () => {
+      const now = Date.now();
+      for (let i = 0; i < 7; i++) {
+        storage.append(makeEvent({ ts_start: now + i, model_requested: i % 2 === 0 ? "model-a" : "model-b" }));
+      }
+      const result = storage.query({ days: 1, limit: 100, model: "model-a" });
+      for (const r of result) {
+        expect(r.model_requested).toBe("model-a");
+      }
+    });
+  });
+
+  describe("stats", () => {
+    it("aggregates tokens correctly after wrap-around", () => {
+      for (let i = 0; i < 7; i++) {
+        storage.append(makeEvent({ ts_start: Date.now(), input_tokens: 100, output_tokens: 50 }));
+      }
+      const result = storage.stats({ days: 1 });
+      expect(result.totalCalls).toBe(5);
+      expect(result.totalInputTokens).toBe(500);
+      expect(result.totalOutputTokens).toBe(250);
+      expect(result.totalTokens).toBe(750);
+    });
+
+    it("returns zero stats when empty", () => {
+      const result = storage.stats({ days: 1 });
+      expect(result.totalCalls).toBe(0);
+      expect(result.totalTokens).toBe(0);
+    });
+  });
+
+  describe("trend", () => {
+    it("produces correct buckets after wrap-around", () => {
+      const now = Date.now();
+      for (let i = 0; i < 7; i++) {
+        storage.append(makeEvent({ ts_start: now, input_tokens: 100, output_tokens: 50, cost: 0.01, latency_ms: 100 }));
+      }
+      const result = storage.trend({ days: 1, granularity: "day" });
+      expect(result.length).toBeGreaterThanOrEqual(1);
+      const totalCalls = result.reduce((sum, b) => sum + b.calls, 0);
+      expect(totalCalls).toBe(5);
+    });
+  });
+
+  describe("prune", () => {
+    it("removes old records and preserves newer ones", () => {
+      const now = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      storage.append(makeEvent({ ts_start: now - 10 * oneDay, request_id: "old-1" }));
+      storage.append(makeEvent({ ts_start: now - 5 * oneDay, request_id: "old-2" }));
+      storage.append(makeEvent({ ts_start: now - 1 * oneDay, request_id: "recent-1" }));
+      storage.append(makeEvent({ ts_start: now, request_id: "recent-2" }));
+
+      const removed = storage.prune(3);
+      expect(removed).toBe(2);
+
+      const result = storage.query({ days: 9999 });
+      expect(result).toHaveLength(2);
+      const ids = result.map(r => r.request_id);
+      expect(ids).toContain("recent-1");
+      expect(ids).toContain("recent-2");
+    });
+
+    it("returns 0 when nothing to prune", () => {
+      storage.append(makeEvent({ ts_start: Date.now() }));
+      const removed = storage.prune(30);
+      expect(removed).toBe(0);
+    });
+
+    it("prunes correctly after ring buffer wrap-around", () => {
+      const now = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      for (let i = 0; i < 7; i++) {
+        storage.append(makeEvent({ ts_start: now - (10 - i) * oneDay }));
+      }
+      const removed = storage.prune(5);
+      expect(removed).toBeGreaterThan(0);
+      const result = storage.query({ days: 9999 });
+      for (const r of result) {
+        expect(r.ts_start).toBeGreaterThanOrEqual(now - 5 * oneDay);
+      }
+    });
+  });
+
+  describe("default capacity", () => {
+    it("uses 10_000 as default capacity", () => {
+      const defaultStorage = new MemoryStorage();
+      const now = Date.now();
+      for (let i = 0; i < 10_001; i++) {
+        defaultStorage.append(makeEvent({ ts_start: now + i }));
+      }
+      const result = defaultStorage.query({ days: 1, limit: 10_001 });
+      expect(result).toHaveLength(10_000);
     });
   });
 });

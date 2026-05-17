@@ -7,6 +7,7 @@ import { DebugEvent, DebugMediaItem } from "../types";
 // Mock config
 vi.mock("../../config", () => ({
   config: {
+    bodySizeLimit: () => "10mb",
     proxyApiKey: "",
     opsPassword: "",
     server: { port: 3000, host: "0.0.0.0" },

@@ -51,6 +51,22 @@ export async function pipeSSEStream(
   };
   clientRes.on("close", onClientClose);
 
+  const writeWithBackpressure = (data: string): Promise<boolean> => {
+    const ok = clientRes.write(data);
+    if (ok) return Promise.resolve(true);
+
+    return new Promise<boolean>((resolve) => {
+      const onDrain = () => { cleanup(); resolve(true); };
+      const onClose = () => { cleanup(); resolve(false); };
+      const cleanup = () => {
+        clientRes.removeListener("drain", onDrain);
+        clientRes.removeListener("close", onClose);
+      };
+      clientRes.once("drain", onDrain);
+      clientRes.once("close", onClose);
+    });
+  };
+
   try {
     while (!cancelled) {
       const { done, value } = await reader.read();
@@ -62,6 +78,7 @@ export async function pipeSSEStream(
       buffer = lines.pop() ?? "";
 
       for (const line of lines) {
+        if (cancelled) break;
         const trimmed = line.trimEnd();
 
         if (skipEmptyLines && trimmed === "") {
@@ -71,25 +88,37 @@ export async function pipeSSEStream(
         if (onChunk) {
           const result = onChunk(trimmed);
           if (result === null) continue;
-          clientRes.write(`${result}\n`);
+          const dataContent = trimmed.startsWith("data: ") ? trimmed.slice(6) : trimmed;
+          if (dataContent && dataContent !== "[DONE]" && clientRes.locals) {
+            try {
+              clientRes.locals._sseChunk = { parsed: JSON.parse(dataContent), raw: dataContent };
+            } catch {
+              /* non-JSON chunk, skip sharing */
+            }
+          }
+          await writeWithBackpressure(`${result}\n`);
           continue;
         }
 
         if (!trimmed.startsWith("data:")) {
-          clientRes.write(`${trimmed}\n`);
+          await writeWithBackpressure(`${trimmed}\n`);
           continue;
         }
 
         const dataContent = trimmed.slice("data:".length).trimStart();
 
         if (dataContent === "[DONE]") {
-          clientRes.write("data: [DONE]\n\n");
+          await writeWithBackpressure("data: [DONE]\n\n");
           continue;
         }
 
         try {
           const parsed = JSON.parse(dataContent) as Record<string, unknown>;
           parsed["model"] = virtualModelId;
+
+          if (clientRes.locals) {
+            clientRes.locals._sseChunk = { parsed, raw: dataContent, model: virtualModelId };
+          }
 
           const usage = parsed["usage"];
           if (usage && typeof usage === "object") {
@@ -107,12 +136,12 @@ export async function pipeSSEStream(
               cacheHit;
           }
 
-          clientRes.write(`data: ${JSON.stringify(parsed)}\n\n`);
+          await writeWithBackpressure(`data: ${JSON.stringify(parsed)}\n\n`);
         } catch {
           logger.warn("Failed to parse SSE chunk JSON, forwarding as-is", {
             chunk: dataContent.slice(0, 200),
           });
-          clientRes.write(`data: ${dataContent}\n\n`);
+          await writeWithBackpressure(`data: ${dataContent}\n\n`);
         }
       }
     }

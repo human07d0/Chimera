@@ -735,6 +735,40 @@ describe("monitorMiddleware — res.write monkey-patch (SSE chunks)", () => {
     expect(event.chunks).toBe(1);
     expect(event.input_tokens).toBe(0);
   });
+
+  it("uses res.locals._sseChunk.parsed when available instead of re-parsing", () => {
+    const req = createMockReq("/chat/completions");
+    const res = createMockRes("/chat/completions");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res as any).locals._sseChunk = {
+      parsed: { usage: { prompt_tokens: 42, completion_tokens: 8 } },
+      raw: '{"usage":{"prompt_tokens":99,"completion_tokens":99}}',
+    };
+    (res.write as any)("data: {\"usage\":{\"prompt_tokens\":99,\"completion_tokens\":99}}\n\n");
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(42);
+    expect(event.output_tokens).toBe(8);
+  });
+
+  it("falls back to JSON.parse when res.locals._sseChunk is not set", () => {
+    const req = createMockReq("/chat/completions");
+    const res = createMockRes("/chat/completions");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.write as any)("data: {\"usage\":{\"prompt_tokens\":15,\"completion_tokens\":7}}\n\n");
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(15);
+    expect(event.output_tokens).toBe(7);
+  });
 });
 
 describe("monitorMiddleware — res.end monkey-patch", () => {

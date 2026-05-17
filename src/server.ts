@@ -16,7 +16,8 @@ import { logger } from "./utils/logger";
 import { extractApiKey } from "./utils/auth";
 import { debugMiddleware, debugRouter } from "./debug";
 
-let cleanupInterval: NodeJS.Timeout | null = null;
+  let cleanupInterval: NodeJS.Timeout | null = null;
+let cachedPlaygroundHtml: string | null = null;
 
 export async function createApp(): Promise<express.Application> {
   modelRegistry.init(config.configDir);
@@ -55,7 +56,7 @@ export async function createApp(): Promise<express.Application> {
     next();
   });
 
-  app.use(express.json({ limit: "100mb" }));
+  app.use(express.json({ limit: config.bodySizeLimit() }));
 
   // --------------------------------------------------------------------------
   // 静态文件服务 (PWA)
@@ -113,8 +114,10 @@ export async function createApp(): Promise<express.Application> {
   const playgroundDir = resolveStaticDir("playground");
   if (playgroundDir) {
     app.get("/playground", (_req: Request, res: Response) => {
-      const indexPath = path.join(playgroundDir, "index.html");
-      let html = fs.readFileSync(indexPath, "utf-8");
+      if (!cachedPlaygroundHtml) {
+        const indexPath = path.join(playgroundDir, "index.html");
+        cachedPlaygroundHtml = fs.readFileSync(indexPath, "utf-8");
+      }
 
       const config = buildPlaygroundConfig({
         getEndpoints: () => modelRegistry.getEndpoints(),
@@ -122,7 +125,7 @@ export async function createApp(): Promise<express.Application> {
         playgroundToken,
       });
       const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify(config)}</script>`;
-      html = html.replace("<head>", `<head>\n    ${configScript}`);
+      const html = cachedPlaygroundHtml.replace("<head>", `<head>\n    ${configScript}`);
 
       res.setHeader("Content-Type", "text/html");
       res.send(html);

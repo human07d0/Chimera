@@ -120,4 +120,89 @@ describe("DebugStore", () => {
       expect(store.size).toBe(0);
     });
   });
+
+  describe("setMaxRecords", () => {
+    it("should keep most recent records when shrinking", () => {
+      for (let i = 0; i < 5; i++) {
+        store.append(makeEvent({ request_id: `r-${i}`, ts_start: i * 100 }));
+      }
+      store.setMaxRecords(3);
+      expect(store.size).toBe(3);
+      expect(store.getById("r-0")).toBeUndefined();
+      expect(store.getById("r-1")).toBeUndefined();
+      expect(store.getById("r-2")).toBeDefined();
+      expect(store.getById("r-3")).toBeDefined();
+      expect(store.getById("r-4")).toBeDefined();
+    });
+
+    it("should allow more records when growing", () => {
+      for (let i = 0; i < 5; i++) {
+        store.append(makeEvent({ request_id: `r-${i}` }));
+      }
+      store.setMaxRecords(10);
+      expect(store.size).toBe(5);
+      for (let i = 0; i < 5; i++) {
+        store.append(makeEvent({ request_id: `new-${i}` }));
+      }
+      expect(store.size).toBe(10);
+      expect(store.getById("r-0")).toBeDefined();
+      expect(store.getById("new-4")).toBeDefined();
+    });
+
+    it("should ignore invalid values", () => {
+      for (let i = 0; i < 3; i++) {
+        store.append(makeEvent({ request_id: `r-${i}` }));
+      }
+      store.setMaxRecords(0);
+      expect(store.size).toBe(3);
+      store.setMaxRecords(-1);
+      expect(store.size).toBe(3);
+      store.setMaxRecords(NaN);
+      expect(store.size).toBe(3);
+      store.setMaxRecords(Infinity);
+      expect(store.size).toBe(3);
+    });
+
+    it("should handle shrinking to 1", () => {
+      for (let i = 0; i < 5; i++) {
+        store.append(makeEvent({ request_id: `r-${i}`, ts_start: i * 100 }));
+      }
+      store.setMaxRecords(1);
+      expect(store.size).toBe(1);
+      expect(store.getById("r-4")).toBeDefined();
+    });
+  });
+
+  describe("ring buffer wrapping", () => {
+    it("should maintain correct order after multiple wraps", () => {
+      const s = new DebugStore(3);
+      for (let i = 0; i < 10; i++) {
+        s.append(makeEvent({ request_id: `r-${i}`, ts_start: i * 100 }));
+      }
+      expect(s.size).toBe(3);
+      const { items } = s.query();
+      expect(items[0].request_id).toBe("r-9");
+      expect(items[1].request_id).toBe("r-8");
+      expect(items[2].request_id).toBe("r-7");
+    });
+
+    it("should find events by id after wrapping", () => {
+      const s = new DebugStore(3);
+      for (let i = 0; i < 10; i++) {
+        s.append(makeEvent({ request_id: `r-${i}` }));
+      }
+      expect(s.getById("r-9")).toBeDefined();
+      expect(s.getById("r-0")).toBeUndefined();
+    });
+
+    it("should prune correctly after wrapping", () => {
+      const s = new DebugStore(3);
+      for (let i = 0; i < 10; i++) {
+        s.append(makeEvent({ request_id: `r-${i}` }));
+      }
+      const count = s.prune();
+      expect(count).toBe(3);
+      expect(s.size).toBe(0);
+    });
+  });
 });
