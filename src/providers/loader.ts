@@ -144,7 +144,7 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
 
   const loadTime = Math.floor(Date.now() / 1000);
   const providers: ProviderConfig[] = [];
-  const modelIdMap = new Map<string, Set<string>>();
+  const modelIdMap = new Map<string, Map<string, string[]>>();
 
   const handlerMap = new Map<string, ProviderHandler>([...builtinHandlers, ...customHandlers]);
 
@@ -187,20 +187,18 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
     const endpoint = normalizeEndpoint(raw.endpoint);
 
     if (!modelIdMap.has(endpoint)) {
-      modelIdMap.set(endpoint, new Set());
+      modelIdMap.set(endpoint, new Map());
     }
-    const seenIds = modelIdMap.get(endpoint)!;
+    const endpointModels = modelIdMap.get(endpoint)!;
 
     const models: ModelConfig[] = [];
     for (const rawModel of raw.models) {
       validateDefaultKeys(rawModel.default, rawModel.id, raw.type);
 
-      if (seenIds.has(rawModel.id)) {
-        throw new Error(
-          `Duplicate model id '${rawModel.id}' at endpoint '${endpoint}'`,
-        );
+      if (!endpointModels.has(rawModel.id)) {
+        endpointModels.set(rawModel.id, []);
       }
-      seenIds.add(rawModel.id);
+      endpointModels.get(rawModel.id)!.push(file);
 
       models.push({
         id: rawModel.id,
@@ -255,6 +253,27 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
       endpoint: endpoint || "(default)",
       models: models.length,
     });
+  }
+
+  const conflicts: string[] = [];
+  for (const [endpoint, endpointModels] of modelIdMap) {
+    for (const [modelId, filenames] of endpointModels) {
+      if (filenames.length > 1) {
+        const countMap = new Map<string, number>();
+        for (const f of filenames) {
+          countMap.set(f, (countMap.get(f) ?? 0) + 1);
+        }
+        const details = [...countMap.entries()]
+          .map(([f, count]) => `'${path.basename(f, path.extname(f))}' (${f}) [${count} definition${count > 1 ? "s" : ""}]`)
+          .join(", ");
+        conflicts.push(`Model '${modelId}' at endpoint '${endpoint}': found in ${details}`);
+      }
+    }
+  }
+  if (conflicts.length > 0) {
+    throw new Error(
+      `Duplicate model IDs detected:\n${conflicts.map((c) => `  - ${c}`).join("\n")}`,
+    );
   }
 
   for (const provider of providers) {

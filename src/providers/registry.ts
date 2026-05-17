@@ -49,11 +49,7 @@ export class ProviderRegistry {
       const endpointModels = this.index.get(endpoint)!;
 
       for (const model of provider.models) {
-        if (endpointModels.has(model.id)) {
-          throw new Error(
-            `Duplicate model id '${model.id}' at endpoint '${endpoint}'`,
-          );
-        }
+        // Invariant: loadProviders() guarantees no duplicate model IDs per endpoint
         endpointModels.set(model.id, {
           handler,
           providerConfig: provider,

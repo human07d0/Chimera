@@ -428,7 +428,161 @@ models:
     max_output_tokens: 1000
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow("Duplicate model id 'same-id'");
+    expect(() => loadProviders(tmpDir)).toThrow("Duplicate model IDs detected:");
+  });
+
+  it("detects duplicate model id across different provider files", () => {
+    const yaml1 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: shared-id
+    upstream: a
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    const yaml2 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: shared-id
+    upstream: b
+    context_length: 2000
+    max_output_tokens: 1000
+`;
+    writeYaml("provider-a.yaml", yaml1);
+    writeYaml("provider-b.yaml", yaml2);
+    expect(() => loadProviders(tmpDir)).toThrow(/found in .*'provider-a' \(provider-a\.yaml\).*'provider-b' \(provider-b\.yaml\)/);
+  });
+
+  it("reports all providers when model id conflicts across 3+ files", () => {
+    const yaml1 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: clash
+    upstream: a
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    const yaml2 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: clash
+    upstream: b
+    context_length: 2000
+    max_output_tokens: 1000
+`;
+    const yaml3 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: clash
+    upstream: c
+    context_length: 3000
+    max_output_tokens: 1500
+`;
+    writeYaml("p1.yaml", yaml1);
+    writeYaml("p2.yaml", yaml2);
+    writeYaml("p3.yaml", yaml3);
+    const error = (() => {
+      try { loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
+    })();
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("Duplicate model IDs detected:");
+    expect(error!.message).toContain("'p1' (p1.yaml)");
+    expect(error!.message).toContain("'p2' (p2.yaml)");
+    expect(error!.message).toContain("'p3' (p3.yaml)");
+  });
+
+  it("reports mixed same-file and cross-file duplicates", () => {
+    const yaml1 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: clash
+    upstream: a
+    context_length: 1000
+    max_output_tokens: 500
+  - id: clash
+    upstream: b
+    context_length: 2000
+    max_output_tokens: 1000
+`;
+    const yaml2 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: clash
+    upstream: c
+    context_length: 3000
+    max_output_tokens: 1500
+`;
+    writeYaml("provider-a.yaml", yaml1);
+    writeYaml("provider-b.yaml", yaml2);
+    const error = (() => {
+      try { loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
+    })();
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("Duplicate model IDs detected:");
+    expect(error!.message).toContain("'provider-a' (provider-a.yaml) [2 definitions]");
+    expect(error!.message).toContain("'provider-b' (provider-b.yaml) [1 definition]");
+  });
+
+  it("reports multiple distinct model id conflicts in one error", () => {
+    const yaml1 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: model-a
+    upstream: a
+    context_length: 1000
+    max_output_tokens: 500
+  - id: model-b
+    upstream: b
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    const yaml2 = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: model-a
+    upstream: c
+    context_length: 2000
+    max_output_tokens: 1000
+  - id: model-b
+    upstream: d
+    context_length: 2000
+    max_output_tokens: 1000
+`;
+    writeYaml("p1.yaml", yaml1);
+    writeYaml("p2.yaml", yaml2);
+    const error = (() => {
+      try { loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
+    })();
+    expect(error).not.toBeNull();
+    expect(error!.message).toContain("Model 'model-a'");
+    expect(error!.message).toContain("Model 'model-b'");
   });
 
   it("allows same model id at different endpoints", () => {
