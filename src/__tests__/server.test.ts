@@ -1,4 +1,84 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+
+const { mockGetStorageAsync, mockGetStorage } = vi.hoisted(() => ({
+  mockGetStorageAsync: vi.fn().mockResolvedValue({} as any),
+  mockGetStorage: vi.fn(() => ({ prune: vi.fn() }) as any),
+}));
+
+vi.mock("../monitor/storage/factory", () => ({
+  getStorage: mockGetStorage,
+  getStorageAsync: mockGetStorageAsync,
+}));
+
+vi.mock("../utils/logger", () => ({
+  logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+}));
+
+vi.mock("../providers/registry", () => ({
+  modelRegistry: {
+    init: vi.fn(),
+    getEndpoints: () => [],
+    getProviders: () => [],
+    getAllModels: () => [],
+  },
+}));
+
+vi.mock("../monitor/index", () => ({
+  monitorRouter: vi.fn(),
+  monitorMiddleware: vi.fn(),
+}));
+
+vi.mock("../monitor/pricing", () => ({
+  registerProviderPricing: vi.fn(),
+}));
+
+vi.mock("../ops/index", () => ({
+  opsRouter: vi.fn(),
+}));
+
+vi.mock("../routes/chat", () => ({
+  chatRouter: vi.fn(),
+}));
+
+vi.mock("../routes/anthropic", () => ({
+  anthropicRouter: vi.fn(),
+}));
+
+vi.mock("../routes/models", () => ({
+  modelsRouter: vi.fn(),
+}));
+
+vi.mock("../utils/auth", () => ({
+  extractApiKey: vi.fn(),
+}));
+
+vi.mock("../debug", () => ({
+  debugMiddleware: vi.fn(),
+  debugRouter: vi.fn(),
+}));
+
+vi.mock("../config", () => ({
+  config: {
+    configDir: "/test/config",
+    proxyApiKey: undefined,
+    logLevel: "info",
+    bodySizeLimit: () => "1mb",
+    debug: { enabled: false },
+    monitor: {
+      storage: "memory",
+      sqlitePath: ":memory:",
+      retentionDays: 30,
+    },
+  },
+}));
+
+vi.mock("fs", () => ({
+  default: {
+    existsSync: vi.fn(() => false),
+    readFileSync: vi.fn(() => ""),
+  },
+}));
+
 import { buildPlaygroundConfig } from "../server";
 
 describe("buildPlaygroundConfig", () => {
@@ -58,5 +138,23 @@ describe("buildPlaygroundConfig", () => {
       search: "-search",
       json: "-json",
     });
+  });
+});
+
+describe("createApp", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env["NODE_ENV"] = "production";
+  });
+
+  it("calls getStorageAsync before mounting monitor routes", async () => {
+    const { createApp } = await import("../server");
+
+    expect(mockGetStorageAsync).not.toHaveBeenCalled();
+
+    const app = await createApp();
+
+    expect(mockGetStorageAsync).toHaveBeenCalledOnce();
+    expect(app).toBeDefined();
   });
 });

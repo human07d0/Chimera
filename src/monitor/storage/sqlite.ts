@@ -31,9 +31,13 @@ export class SqliteStorage implements MonitorStorage {
   private db: Database | null = null;
   private readonly dbPath: string;
   private static sqlModule: import('sql.js').SqlJsStatic | null = null;
+  private dirty = false;
+  private persistTimer: NodeJS.Timeout | null = null;
+  private readonly persistIntervalMs: number;
 
-  constructor(dbPath: string) {
+  constructor(dbPath: string, persistIntervalMs = 30_000) {
     this.dbPath = dbPath;
+    this.persistIntervalMs = persistIntervalMs;
   }
 
   static async initSqlModule(): Promise<void> {
@@ -72,6 +76,17 @@ export class SqliteStorage implements MonitorStorage {
 
     this.initTables();
     this.saveToFile();
+
+    if (this.persistTimer) {
+      clearInterval(this.persistTimer);
+    }
+    this.persistTimer = setInterval(() => {
+      if (this.dirty && this.db) {
+        this.saveToFile();
+        this.dirty = false;
+      }
+    }, this.persistIntervalMs);
+    this.persistTimer.unref();
 
     logger.info(`SQLite monitor storage initialized: ${this.dbPath}`);
   }
@@ -189,7 +204,7 @@ export class SqliteStorage implements MonitorStorage {
       throw err;
     }
 
-    this.saveToFile();
+    this.dirty = true;
   }
 
   query(params: QueryParams): MonitorEvent[] {
@@ -416,6 +431,7 @@ export class SqliteStorage implements MonitorStorage {
     stmt.free();
 
     this.saveToFile();
+    this.dirty = false;
 
     logger.info('Monitor prune completed (sql.js)', {
       deletedCount,
@@ -427,8 +443,15 @@ export class SqliteStorage implements MonitorStorage {
   }
 
   close(): void {
+    if (this.persistTimer) {
+      clearInterval(this.persistTimer);
+      this.persistTimer = null;
+    }
     if (this.db) {
-      this.saveToFile();
+      if (this.dirty) {
+        this.saveToFile();
+        this.dirty = false;
+      }
       this.db.close();
       this.db = null;
       logger.info('SQLite monitor storage closed', { dbPath: this.dbPath });

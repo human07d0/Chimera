@@ -171,4 +171,47 @@ describe("SqliteStorage", () => {
       expect(result[0].calls).toBe(1);
     });
   });
+
+  describe("persistent storage (dirty flag)", () => {
+    it("persists data after close() when append does not save immediately", () => {
+      const dbPath = path.resolve(__dirname, "../../data/test-persist.db");
+      if (existsSync(dbPath)) unlinkSync(dbPath);
+
+      const storage1 = new SqliteStorage(dbPath);
+      storage1.init();
+      storage1.append(makeEvent({ request_id: "persist-1", input_tokens: 42 }));
+      storage1.close();
+
+      const storage2 = new SqliteStorage(dbPath);
+      storage2.init();
+      const events = storage2.query({ days: 1 });
+      expect(events.length).toBeGreaterThanOrEqual(1);
+      const found = events.find((e) => e.request_id === "persist-1");
+      expect(found).toBeDefined();
+      expect(found!.input_tokens).toBe(42);
+      storage2.close();
+      if (existsSync(dbPath)) unlinkSync(dbPath);
+    });
+  });
+
+  describe("custom persistIntervalMs", () => {
+    it("accepts custom persistIntervalMs in constructor", () => {
+      const dbPath = path.resolve(__dirname, "../../data/test-interval.db");
+      if (existsSync(dbPath)) unlinkSync(dbPath);
+
+      const s = new SqliteStorage(dbPath, 60_000);
+      s.init();
+      s.append(makeEvent({ request_id: "interval-1", input_tokens: 99 }));
+      s.close();
+
+      const s2 = new SqliteStorage(dbPath);
+      s2.init();
+      const events = s2.query({ days: 1 });
+      const found = events.find((e) => e.request_id === "interval-1");
+      expect(found).toBeDefined();
+      expect(found!.input_tokens).toBe(99);
+      s2.close();
+      if (existsSync(dbPath)) unlinkSync(dbPath);
+    });
+  });
 });
