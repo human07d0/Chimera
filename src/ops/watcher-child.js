@@ -13,12 +13,6 @@ let newMainProcess = null;
 
 console.log(`[watcher] Started, monitoring main process PID: ${MAIN_PID}`);
 
-// 通知父进程准备就绪
-process.send?.({
-  type: "ready",
-  pid: process.pid,
-});
-
 /**
  * 检查进程是否存活
  */
@@ -43,11 +37,16 @@ function startNewMainProcess() {
   console.log("[watcher] Starting new main process...");
 
   newMainProcess = spawn("pnpm", ["start"], {
-    stdio: "inherit",
-    detached: false,
+    stdio: "ignore",
+    detached: true,
+    windowsHide: true,
     env: process.env,
     cwd: process.cwd(),
   });
+
+  newMainProcess.unref();
+  // 立即 unref() 是安全的：watcher 的轮询循环（setInterval）让事件循环保持活跃，
+  // 不会在子进程完成启动前意外退出。
 
   newMainProcess.on("error", (err) => {
     console.error(`[watcher] Failed to start main process: ${err.message}`);
@@ -130,16 +129,27 @@ process.on("message", (message) => {
   }
 });
 
-// 主循环
-setInterval(pollMainProcess, POLL_INTERVAL);
+// 仅作为主入口运行时执行入口逻辑（被 require 加载时跳过测试时避免 IPC 冲突）
+if (require.main === module) {
+  // 通知父进程准备就绪
+  process.send?.({
+    type: "ready",
+    pid: process.pid,
+  });
 
-// 处理退出信号
-process.on("SIGTERM", () => {
-  console.log("[watcher] Received SIGTERM, exiting");
-  process.exit(0);
-});
+  // 主循环
+  setInterval(pollMainProcess, POLL_INTERVAL);
 
-process.on("SIGINT", () => {
-  console.log("[watcher] Received SIGINT, exiting");
-  process.exit(0);
-});
+  // 处理退出信号
+  process.on("SIGTERM", () => {
+    console.log("[watcher] Received SIGTERM, exiting");
+    process.exit(0);
+  });
+
+  process.on("SIGINT", () => {
+    console.log("[watcher] Received SIGINT, exiting");
+    process.exit(0);
+  });
+}
+
+module.exports = { startNewMainProcess, isProcessAlive };

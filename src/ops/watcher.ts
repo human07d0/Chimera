@@ -145,7 +145,7 @@ export function performDirectRestart(): void {
   setTimeout(() => {
     const entryPath = path.join(process.cwd(), "dist", "index.js");
     const child = spawn(process.execPath, [entryPath], {
-      stdio: "inherit",
+      stdio: "ignore",
       detached: true,
       windowsHide: true,
       env: process.env,
@@ -154,8 +154,11 @@ export function performDirectRestart(): void {
     child.on("error", (err) => {
       // eslint-disable-next-line no-console
       console.error(`[restart] Failed to spawn new process: ${err.message}`);
+      process.exit(1);
     });
-    child.unref();
-    process.exit(0);
+    child.on("spawn", () => {
+      child.unref();
+      process.exit(0);
+    });
   }, 1500);
 }
