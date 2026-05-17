@@ -40,7 +40,7 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
       output: ["text"],
     },
     "mimo-v2-pro": {
-      input: ["text", "image"],
+      input: ["text"],
       output: ["text"],
     },
     "mimo-v2-omni": {
@@ -52,7 +52,7 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
       output: ["text"],
     },
     "mimo-v2.5-pro": {
-      input: ["text", "image"],
+      input: ["text"],
       output: ["text"],
     },
     "mimo-v2-flash-thinking": {
@@ -60,7 +60,7 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
       output: ["text"],
     },
     "mimo-v2-pro-thinking": {
-      input: ["text", "image"],
+      input: ["text"],
       output: ["text"],
     },
     "mimo-v2-omni-thinking": {
@@ -72,7 +72,7 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
       output: ["text"],
     },
     "mimo-v2.5-pro-thinking": {
-      input: ["text", "image"],
+      input: ["text"],
       output: ["text"],
     },
     "mimo-v2-flash-thinking-search": {
@@ -80,7 +80,7 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
       output: ["text"],
     },
     "mimo-v2-pro-thinking-search": {
-      input: ["text", "image"],
+      input: ["text"],
       output: ["text"],
     },
     "mimo-v2-omni-thinking-search": {
@@ -92,7 +92,7 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
       output: ["text"],
     },
     "mimo-v2.5-pro-thinking-search": {
-      input: ["text", "image"],
+      input: ["text"],
       output: ["text"],
     },
   };
