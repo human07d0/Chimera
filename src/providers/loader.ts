@@ -102,6 +102,7 @@ function resolveEnvVarsInObject(
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, val] of Object.entries(obj)) {
+    if (key === "__proto__" || key === "constructor") continue;
     result[key] = resolveEnvVarsInValue(val);
   }
   return result;
@@ -160,6 +161,13 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
     let rawYaml: unknown;
 
     try {
+      const MAX_CONFIG_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+      const stat = fs.statSync(filePath);
+      if (stat.size > MAX_CONFIG_FILE_SIZE) {
+        logger.warn(`Skipping oversized config file: ${file} (${stat.size} bytes)`);
+        continue;
+      }
+
       const content = fs.readFileSync(filePath, "utf-8");
       rawYaml = parseYaml(content);
     } catch (err) {

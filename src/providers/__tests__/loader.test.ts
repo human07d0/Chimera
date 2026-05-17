@@ -17,12 +17,23 @@ import { logger } from "../../utils/logger";
 
 let tmpDir: string;
 
+const envVarsToClean: string[] = [];
+
+function setTestEnv(key: string, value: string): void {
+  if (!(key in process.env)) envVarsToClean.push(key);
+  process.env[key] = value;
+}
+
 beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "loader-test-"));
 });
 
 afterEach(() => {
   fs.rmSync(tmpDir, { recursive: true, force: true });
+  for (const key of envVarsToClean) {
+    delete process.env[key];
+  }
+  envVarsToClean.length = 0;
   vi.restoreAllMocks();
 });
 
@@ -75,23 +86,19 @@ describe("normalizeEndpoint", () => {
 
 describe("resolveEnvVars", () => {
   it("resolves single variable", () => {
-    process.env["TEST_LOADER_VAR"] = "hello";
+    setTestEnv("TEST_LOADER_VAR", "hello");
     expect(resolveEnvVars("${TEST_LOADER_VAR}")).toBe("hello");
-    delete process.env["TEST_LOADER_VAR"];
   });
 
   it("resolves multiple variables in one string", () => {
-    process.env["A"] = "foo";
-    process.env["B"] = "bar";
+    setTestEnv("A", "foo");
+    setTestEnv("B", "bar");
     expect(resolveEnvVars("${A}-${B}")).toBe("foo-bar");
-    delete process.env["A"];
-    delete process.env["B"];
   });
 
   it("preserves text around variables", () => {
-    process.env["KEY"] = "secret";
+    setTestEnv("KEY", "secret");
     expect(resolveEnvVars("Bearer ${KEY}")).toBe("Bearer secret");
-    delete process.env["KEY"];
   });
 
   it("returns empty string for missing variable", () => {
@@ -100,9 +107,8 @@ describe("resolveEnvVars", () => {
   });
 
   it("resolves empty string env var to empty string", () => {
-    process.env["EMPTY"] = "";
+    setTestEnv("EMPTY", "");
     expect(resolveEnvVars("${EMPTY}")).toBe("");
-    delete process.env["EMPTY"];
   });
 });
 
@@ -184,7 +190,7 @@ models:
   });
 
   it("resolves ${VAR} references in api_key", () => {
-    process.env["MY_API_KEY"] = "resolved-key";
+    setTestEnv("MY_API_KEY", "resolved-key");
     const yaml = `
 version: 1
 type: mimo
@@ -199,11 +205,10 @@ models:
     writeYaml("test.yaml", yaml);
     const providers = loadProviders(tmpDir);
     expect(providers[0]!.api_key).toBe("resolved-key");
-    delete process.env["MY_API_KEY"];
   });
 
   it("resolves ${VAR} in nested model fields", () => {
-    process.env["MODEL_ID"] = "resolved-id";
+    setTestEnv("MODEL_ID", "resolved-id");
     const yaml = `
 version: 1
 type: mimo
@@ -218,7 +223,6 @@ models:
     writeYaml("test.yaml", yaml);
     const providers = loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.id).toBe("resolved-id");
-    delete process.env["MODEL_ID"];
   });
 
   it("loads provider with empty api_key when env var is missing", () => {
@@ -241,7 +245,7 @@ models:
   });
 
   it("loads provider with empty api_key when env var is empty string", () => {
-    process.env["EMPTY_KEY"] = "";
+    setTestEnv("EMPTY_KEY", "");
     const yaml = `
 version: 1
 type: mimo
@@ -257,7 +261,6 @@ models:
     const providers = loadProviders(tmpDir);
     expect(providers).toHaveLength(1);
     expect(providers[0]!.api_key).toBe("");
-    delete process.env["EMPTY_KEY"];
   });
 
   it("skips provider not in enabledProviderNames set", () => {
@@ -583,6 +586,57 @@ models:
     expect(error).not.toBeNull();
     expect(error!.message).toContain("Model 'model-a'");
     expect(error!.message).toContain("Model 'model-b'");
+  });
+
+  it("loads model with empty string id", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: ""
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir);
+    expect(providers[0]!.models[0]!.id).toBe("");
+  });
+
+  it("loads model with whitespace-only id", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: "   "
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir);
+    expect(providers[0]!.models[0]!.id).toBe("   ");
+  });
+
+  it("loads model with special characters in id", () => {
+    const yaml = `
+version: 1
+type: mimo
+api_key: k
+auth_header: Authorization
+models:
+  - id: "foo/bar-baz"
+    upstream: m1
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = loadProviders(tmpDir);
+    expect(providers[0]!.models[0]!.id).toBe("foo/bar-baz");
   });
 
   it("allows same model id at different endpoints", () => {
