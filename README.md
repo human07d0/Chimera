@@ -31,5 +31,5 @@ pnpm run build && pnpm start
 
 ## 文档
 
+- [安装手册](INSTALL.md) — zip 下载 / 源码安装及后台运行
 - [架构概览](ARCHITECTURE.md)
-- [安装手册](INSTALL.md)
