@@ -32,6 +32,7 @@ flowchart LR
 |------|---------|----------|------|
 | `mimo` | BuiltinMiMoHandler | OpenAI + Anthropic | 字段适配（`max_tokens` → `max_completion_tokens`） |
 | `deepseek` | BuiltinDeepSeekHandler | OpenAI + Anthropic | 工具过滤（非 function tools 移除） |
+| `chimera` | ChimeraHandler | OpenAI + Anthropic | 启动时自动发现上游端点和模型，纯透传（详见 [chimera-provider-type.md](../design/chimera-provider-type.md)） |
 | `openai` | CustomOpenAIHandler | OpenAI only | 纯透传 |
 | `anthropic` | CustomAnthropicHandler | Anthropic only | 纯透传 |
 

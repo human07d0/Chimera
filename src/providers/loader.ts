@@ -7,10 +7,9 @@ import { builtinHandlers } from "./builtin";
 import { customHandlers } from "./custom";
 import type { ProviderHandler } from "./types";
 import type { ProviderConfig, ModelConfig } from "./types";
+import { fetchWithTimeout } from "../utils/fetchWithTimeout";
 
 const CUSTOM_TYPES = new Set(["openai", "anthropic"]);
-
-const VALID_TYPES = ["mimo", "deepseek", "aliyun", "kimi", "openai", "anthropic"] as const;
 
 const flatPricingSchema = z.object({
   input: z.number(),
@@ -54,24 +53,40 @@ const modelSchema = z
   })
   .strict();
 
-const providerSchema = z
-  .object({
-    version: z.literal(1),
-    type: z.enum(VALID_TYPES),
-    api_key: z.string(),
-    base_url: z.string().optional(),
-    anthropic_url: z.string().nullable().optional(),
-    auth_header: z.string(),
-    auth_prefix: z.string().default(""),
-    timeout: z.number().default(120000),
-    endpoint: z.string().default(""),
-    models: z.array(modelSchema),
-    capabilities: z.record(z.string(), z.unknown()).default({}),
-    web_search: z.record(z.string(), z.unknown()).nullable().default(null),
-  })
-  .strict();
+const baseFields = {
+  version: z.literal(1),
+  api_key: z.string(),
+  base_url: z.string().optional(),
+  auth_prefix: z.string().default(""),
+  timeout: z.number().default(120000),
+  endpoint: z.string().default(""),
+  capabilities: z.record(z.string(), z.unknown()).default({}),
+  web_search: z.record(z.string(), z.unknown()).nullable().default(null),
+};
 
-type RawProvider = z.infer<typeof providerSchema>;
+const standardSchema = z.object({
+  ...baseFields,
+  type: z.enum(["mimo", "deepseek", "aliyun", "kimi", "openai", "anthropic"]),
+  models: z.array(modelSchema),
+  auth_header: z.string(),
+  anthropic_url: z.string().nullable().optional(),
+}).strict();
+
+const chimeraSchema = z.object({
+  ...baseFields,
+  type: z.literal("chimera"),
+  base_url: z.string(),
+  auth_header: z.string().default("Authorization"),
+}).strict();
+
+export const providerSchema = z.discriminatedUnion("type", [
+  standardSchema,
+  chimeraSchema,
+]);
+
+type StandardRaw = z.infer<typeof standardSchema>;
+type ChimeraRaw = z.infer<typeof chimeraSchema>;
+type RawProvider = StandardRaw | ChimeraRaw;
 
 export function normalizeEndpoint(endpoint: string): string {
   if (endpoint === "") return "";
@@ -125,7 +140,111 @@ function normalizeCapabilities(
   return { ...providerCaps, ...modelCaps };
 }
 
-export function loadProviders(configDir?: string, enabledProviderNames?: Set<string> | null): ProviderConfig[] {
+const DISCOVERY_TIMEOUT = 30_000;
+
+async function fetchEndpoints(baseUrl: string, apiKey: string): Promise<string[]> {
+  const res = await fetchWithTimeout(
+    `${baseUrl}/v1/endpoints`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+    DISCOVERY_TIMEOUT,
+  );
+  if (res.status === 404) return [""];
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  return (data.endpoints as Array<{ prefix: string }>).map(e => e.prefix);
+}
+
+async function fetchModels(baseUrl: string, prefix: string, apiKey: string): Promise<ModelConfig[]> {
+  const prefixPath = prefix ? `/${prefix}` : "";
+  const res = await fetchWithTimeout(
+    `${baseUrl}${prefixPath}/v1/models`,
+    { headers: { Authorization: `Bearer ${apiKey}` } },
+    DISCOVERY_TIMEOUT,
+  );
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+  const loadTime = Math.floor(Date.now() / 1000);
+  return (data.data as any[]).map(m => ({
+    id: m.id,
+    upstream: m.id,
+    context_length: m.context_length ?? 0,
+    max_output_tokens: m.max_output_tokens ?? 0,
+    description: m.description ?? m.id,
+    created: m.created ?? loadTime,
+    capabilities: m.capabilities ?? {},
+    modalities: m.architecture ? {
+      input: m.architecture.input_modalities ?? ["text"],
+      output: m.architecture.output_modalities ?? ["text"],
+    } : undefined,
+    pricing: m.pricing,
+  }));
+}
+
+function computeLocalPrefix(configEndpoint: string, upstreamPrefix: string): string {
+  if (!configEndpoint) return upstreamPrefix;
+  if (!upstreamPrefix) return configEndpoint;
+  return `${configEndpoint}/${upstreamPrefix}`;
+}
+
+function joinUrl(base: string, ...parts: string[]): string {
+  return [base, ...parts].filter(Boolean).join("/").replace(/([^:]\/)\/+/g, "$1");
+}
+
+async function discoverChimeraProviders(
+  raw: ChimeraRaw,
+  yamlName: string,
+  baseUrl: string,
+  configEndpoint: string,
+): Promise<ProviderConfig[]> {
+  const apiKey = raw.api_key;
+
+  let upstreamPrefixes: string[];
+  try {
+    upstreamPrefixes = await fetchEndpoints(baseUrl, apiKey);
+  } catch (err) {
+    logger.warn(`Chimera '${yamlName}': failed to discover endpoints, skipping`, {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return [];
+  }
+
+  const configs: ProviderConfig[] = [];
+  for (const prefix of upstreamPrefixes) {
+    let models: ModelConfig[];
+    try {
+      models = await fetchModels(baseUrl, prefix, apiKey);
+    } catch (err) {
+      logger.warn(`Chimera '${yamlName}': failed to discover models at '${prefix || "(default)"}', skipping endpoint`);
+      continue;
+    }
+    if (models.length === 0) {
+      logger.warn(`Chimera '${yamlName}': no models at '${prefix || "(default)"}', skipping endpoint`);
+      continue;
+    }
+
+    const localPrefix = computeLocalPrefix(configEndpoint, prefix);
+    const providerName = prefix ? `${yamlName}/${prefix}` : yamlName;
+
+    configs.push({
+      version: raw.version,
+      type: "chimera",
+      name: providerName,
+      api_key: apiKey,
+      base_url: joinUrl(baseUrl, prefix),
+      anthropic_url: null,
+      auth_header: raw.auth_header,
+      auth_prefix: raw.auth_prefix,
+      timeout: raw.timeout,
+      endpoint: localPrefix,
+      models,
+      capabilities: {},
+      web_search: null,
+    });
+  }
+  return configs;
+}
+
+export async function loadProviders(configDir?: string, enabledProviderNames?: Set<string> | null): Promise<ProviderConfig[]> {
   const dir = configDir ?? "./config/provider/";
   const resolvedDir = path.resolve(dir);
 
@@ -185,14 +304,56 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
       );
     }
 
-    const raw: RawProvider = parsed.data;
+    const raw = parsed.data;
 
-    if (raw.models.length === 0) {
+    // Chimera branch: async discovery, skip standard model iteration
+    if (raw.type === "chimera") {
+      const configEndpoint = normalizeEndpoint(raw.endpoint);
+      let baseUrl = raw.base_url;
+      if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+        baseUrl = "https://" + baseUrl;
+      }
+
+      const discovered = await discoverChimeraProviders(raw, name, baseUrl, configEndpoint);
+
+      // Add to modelIdMap for duplicate detection
+      for (const provider of discovered) {
+        if (!modelIdMap.has(provider.endpoint)) {
+          modelIdMap.set(provider.endpoint, new Map());
+        }
+        const endpointModels = modelIdMap.get(provider.endpoint)!;
+        for (const model of provider.models) {
+          if (!endpointModels.has(model.id)) {
+            endpointModels.set(model.id, []);
+          }
+          endpointModels.get(model.id)!.push(file);
+        }
+      }
+
+      providers.push(...discovered);
+
+      if (discovered.length > 0) {
+        const totalModels = discovered.reduce((sum, p) => sum + p.models.length, 0);
+        logger.info(`Chimera '${name}' discovered`, {
+          endpoints: discovered.length,
+          models: totalModels,
+        });
+      } else {
+        logger.warn(`Chimera '${name}' produced no providers, skipping`);
+      }
+
+      continue;
+    }
+
+    // Standard path (unchanged)
+    const standardRaw = raw as StandardRaw;
+
+    if (standardRaw.models.length === 0) {
       logger.warn(`Provider '${file}' has no models, skipping`);
       continue;
     }
 
-    const endpoint = normalizeEndpoint(raw.endpoint);
+    const endpoint = normalizeEndpoint(standardRaw.endpoint);
 
     if (!modelIdMap.has(endpoint)) {
       modelIdMap.set(endpoint, new Map());
@@ -200,8 +361,8 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
     const endpointModels = modelIdMap.get(endpoint)!;
 
     const models: ModelConfig[] = [];
-    for (const rawModel of raw.models) {
-      validateDefaultKeys(rawModel.default, rawModel.id, raw.type);
+    for (const rawModel of standardRaw.models) {
+      validateDefaultKeys(rawModel.default, rawModel.id, standardRaw.type);
 
       if (!endpointModels.has(rawModel.id)) {
         endpointModels.set(rawModel.id, []);
@@ -217,7 +378,7 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
         created: rawModel.created ?? loadTime,
         default: rawModel.default,
         capabilities: normalizeCapabilities(
-          raw.capabilities,
+          standardRaw.capabilities,
           rawModel.capabilities,
         ),
         modalities: rawModel.modalities,
@@ -225,9 +386,9 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
       });
     }
 
-    const handler = handlerMap.get(raw.type);
+    const handler = handlerMap.get(standardRaw.type);
 
-    let baseUrl = raw.base_url ?? "";
+    let baseUrl = standardRaw.base_url ?? "";
     if (!baseUrl && handler) {
       const defaultUrl = handler.getDefaultBaseUrl();
       if (defaultUrl) baseUrl = defaultUrl;
@@ -237,27 +398,27 @@ export function loadProviders(configDir?: string, enabledProviderNames?: Set<str
       baseUrl = "https://" + baseUrl;
     }
 
-    const isCustom = CUSTOM_TYPES.has(raw.type);
-    const anthropicUrl = isCustom ? null : (raw.anthropic_url ?? handler?.getDefaultAnthropicUrl() ?? null);
+    const isCustom = CUSTOM_TYPES.has(standardRaw.type);
+    const anthropicUrl = isCustom ? null : (standardRaw.anthropic_url ?? handler?.getDefaultAnthropicUrl() ?? null);
 
     providers.push({
-      version: raw.version,
-      type: raw.type,
+      version: standardRaw.version,
+      type: standardRaw.type,
       name,
-      api_key: raw.api_key,
+      api_key: standardRaw.api_key,
       base_url: baseUrl,
       anthropic_url: anthropicUrl,
-      auth_header: raw.auth_header,
-      auth_prefix: raw.auth_prefix,
-      timeout: raw.timeout,
+      auth_header: standardRaw.auth_header,
+      auth_prefix: standardRaw.auth_prefix,
+      timeout: standardRaw.timeout,
       endpoint,
       models,
-      capabilities: raw.capabilities,
-      web_search: raw.web_search,
+      capabilities: standardRaw.capabilities,
+      web_search: standardRaw.web_search,
     });
 
     logger.info(`Provider '${name}' loaded`, {
-      type: raw.type,
+      type: standardRaw.type,
       endpoint: endpoint || "(default)",
       models: models.length,
     });

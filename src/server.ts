@@ -9,6 +9,7 @@ import { getStorage, getStorageAsync } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
+import { endpointsRouter } from "./routes/endpoints";
 import { modelRegistry } from "./providers/registry";
 import { registerProviderPricing } from "./monitor/pricing";
 import { config } from "./config";
@@ -20,7 +21,7 @@ import { debugMiddleware, debugRouter } from "./debug";
 let cachedPlaygroundHtml: string | null = null;
 
 export async function createApp(): Promise<express.Application> {
-  modelRegistry.init(config.configDir);
+  await modelRegistry.init(config.configDir);
   registerProviderPricing(modelRegistry.getProviders());
 
   const app = express();
@@ -181,6 +182,7 @@ export async function createApp(): Promise<express.Application> {
     const prefix = endpoint || "";
 
     app.use(`${prefix}/v1`, modelsRouter);
+    app.use(`${prefix}/v1`, endpointsRouter);
 
     app.use(`${prefix}/v1`, authMiddleware);
     app.use(`${prefix}/anthropic/v1`, authMiddleware);

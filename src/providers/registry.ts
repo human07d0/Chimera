@@ -15,13 +15,13 @@ export class ProviderRegistry {
     this.handlers = new Map([...builtinHandlers, ...customHandlers]);
   }
 
-  init(configDir?: string): void {
+  async init(configDir?: string): Promise<void> {
     let enabledSet: Set<string> | null = null;
     if (config.enabledProviders) {
       const names = config.enabledProviders.split(",").map((s) => s.trim()).filter(Boolean);
       if (names.length > 0) enabledSet = new Set(names);
     }
-    this.providers = loadProviders(configDir, enabledSet);
+    this.providers = await loadProviders(configDir, enabledSet);
     this.buildIndex();
     this.initialized = true;
 

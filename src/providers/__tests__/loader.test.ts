@@ -55,67 +55,67 @@ models:
 `;
 
 describe("normalizeEndpoint", () => {
-  it("returns empty string for empty input", () => {
+  it("returns empty string for empty input", async () => {
     expect(normalizeEndpoint("")).toBe("");
   });
 
-  it("strips leading slashes", () => {
+  it("strips leading slashes", async () => {
     expect(normalizeEndpoint("/v1/chat")).toBe("/v1/chat");
   });
 
-  it("strips trailing slashes", () => {
+  it("strips trailing slashes", async () => {
     expect(normalizeEndpoint("v1/chat/")).toBe("/v1/chat");
   });
 
-  it("strips both leading and trailing slashes", () => {
+  it("strips both leading and trailing slashes", async () => {
     expect(normalizeEndpoint("/v1/chat/")).toBe("/v1/chat");
   });
 
-  it("collapses bare slash to empty", () => {
+  it("collapses bare slash to empty", async () => {
     expect(normalizeEndpoint("/")).toBe("");
   });
 
-  it("collapses multiple slashes to empty", () => {
+  it("collapses multiple slashes to empty", async () => {
     expect(normalizeEndpoint("///")).toBe("");
   });
 
-  it("handles path without leading slash", () => {
+  it("handles path without leading slash", async () => {
     expect(normalizeEndpoint("v1/chat")).toBe("/v1/chat");
   });
 });
 
 describe("resolveEnvVars", () => {
-  it("resolves single variable", () => {
+  it("resolves single variable", async () => {
     setTestEnv("TEST_LOADER_VAR", "hello");
     expect(resolveEnvVars("${TEST_LOADER_VAR}")).toBe("hello");
   });
 
-  it("resolves multiple variables in one string", () => {
+  it("resolves multiple variables in one string", async () => {
     setTestEnv("A", "foo");
     setTestEnv("B", "bar");
     expect(resolveEnvVars("${A}-${B}")).toBe("foo-bar");
   });
 
-  it("preserves text around variables", () => {
+  it("preserves text around variables", async () => {
     setTestEnv("KEY", "secret");
     expect(resolveEnvVars("Bearer ${KEY}")).toBe("Bearer secret");
   });
 
-  it("returns empty string for missing variable", () => {
+  it("returns empty string for missing variable", async () => {
     delete process.env["MISSING"];
     expect(resolveEnvVars("${MISSING}")).toBe("");
   });
 
-  it("resolves empty string env var to empty string", () => {
+  it("resolves empty string env var to empty string", async () => {
     setTestEnv("EMPTY", "");
     expect(resolveEnvVars("${EMPTY}")).toBe("");
   });
 });
 
 describe("loadProviders", () => {
-  it("loads a valid minimal provider", () => {
+  it("loads a valid minimal provider", async () => {
     writeYaml("test.yaml", MINIMAL_PROVIDER);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(1);
     expect(providers[0]!.name).toBe("test");
     expect(providers[0]!.type).toBe("mimo");
@@ -126,9 +126,9 @@ describe("loadProviders", () => {
     expect(providers[0]!.models[0]!.id).toBe("model-a");
   });
 
-  it("applies default values for optional fields", () => {
+  it("applies default values for optional fields", async () => {
     writeYaml("test.yaml", MINIMAL_PROVIDER);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     const p = providers[0]!;
     expect(p.timeout).toBe(120000);
     expect(p.endpoint).toBe("");
@@ -138,13 +138,13 @@ describe("loadProviders", () => {
     expect(p.anthropic_url).toBe("https://api.xiaomimimo.com/anthropic");
   });
 
-  it("generates description from id when absent", () => {
+  it("generates description from id when absent", async () => {
     writeYaml("test.yaml", MINIMAL_PROVIDER);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.description).toBe("model-a");
   });
 
-  it("uses provided description when present", () => {
+  it("uses provided description when present", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -158,20 +158,20 @@ models:
     description: My Model
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.description).toBe("My Model");
   });
 
-  it("sets created to load time when absent", () => {
+  it("sets created to load time when absent", async () => {
     const before = Math.floor(Date.now() / 1000);
     writeYaml("test.yaml", MINIMAL_PROVIDER);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     const after = Math.floor(Date.now() / 1000);
     expect(providers[0]!.models[0]!.created).toBeGreaterThanOrEqual(before);
     expect(providers[0]!.models[0]!.created).toBeLessThanOrEqual(after);
   });
 
-  it("uses provided created when present", () => {
+  it("uses provided created when present", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -185,11 +185,11 @@ models:
     created: 1700000000
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.created).toBe(1700000000);
   });
 
-  it("resolves ${VAR} references in api_key", () => {
+  it("resolves ${VAR} references in api_key", async () => {
     setTestEnv("MY_API_KEY", "resolved-key");
     const yaml = `
 version: 1
@@ -203,11 +203,11 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.api_key).toBe("resolved-key");
   });
 
-  it("resolves ${VAR} in nested model fields", () => {
+  it("resolves ${VAR} in nested model fields", async () => {
     setTestEnv("MODEL_ID", "resolved-id");
     const yaml = `
 version: 1
@@ -221,11 +221,11 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.id).toBe("resolved-id");
   });
 
-  it("loads provider with empty api_key when env var is missing", () => {
+  it("loads provider with empty api_key when env var is missing", async () => {
     delete process.env["NONEXISTENT_VAR"];
     const yaml = `
 version: 1
@@ -239,12 +239,12 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(1);
     expect(providers[0]!.api_key).toBe("");
   });
 
-  it("loads provider with empty api_key when env var is empty string", () => {
+  it("loads provider with empty api_key when env var is empty string", async () => {
     setTestEnv("EMPTY_KEY", "");
     const yaml = `
 version: 1
@@ -258,12 +258,12 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(1);
     expect(providers[0]!.api_key).toBe("");
   });
 
-  it("skips provider not in enabledProviderNames set", () => {
+  it("skips provider not in enabledProviderNames set", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -276,14 +276,14 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir, new Set(["other"]));
+    const providers = await loadProviders(tmpDir, new Set(["other"]));
     expect(providers).toHaveLength(0);
     expect(logger.debug).toHaveBeenCalledWith(
       expect.stringContaining("not in ENABLED_PROVIDERS"),
     );
   });
 
-  it("loads provider in enabledProviderNames set", () => {
+  it("loads provider in enabledProviderNames set", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -296,12 +296,12 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir, new Set(["test"]));
+    const providers = await loadProviders(tmpDir, new Set(["test"]));
     expect(providers).toHaveLength(1);
     expect(providers[0]!.name).toBe("test");
   });
 
-  it("loads all providers when enabledProviderNames is null", () => {
+  it("loads all providers when enabledProviderNames is null", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -314,16 +314,16 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir, null);
+    const providers = await loadProviders(tmpDir, null);
     expect(providers).toHaveLength(1);
   });
 
-  it("throws on malformed YAML", () => {
+  it("throws on malformed YAML", async () => {
     writeYaml("bad.yaml", ":\n  - :\n  invalid: [yaml");
-    expect(() => loadProviders(tmpDir)).toThrow("Failed to parse YAML file");
+    await expect(loadProviders(tmpDir)).rejects.toThrow("Failed to parse YAML file");
   });
 
-  it("throws on unknown type", () => {
+  it("throws on unknown type", async () => {
     const yaml = `
 version: 1
 type: unknown_handler
@@ -336,10 +336,10 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow();
+    await expect(loadProviders(tmpDir)).rejects.toThrow();
   });
 
-  it("throws on version != 1", () => {
+  it("throws on version != 1", async () => {
     const yaml = `
 version: 2
 type: mimo
@@ -352,10 +352,10 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow();
+    await expect(loadProviders(tmpDir)).rejects.toThrow();
   });
 
-  it("throws on default.max_tokens", () => {
+  it("throws on default.max_tokens", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -370,10 +370,10 @@ models:
       max_tokens: 100
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow("default.max_tokens is not allowed");
+    await expect(loadProviders(tmpDir)).rejects.toThrow("default.max_tokens is not allowed");
   });
 
-  it("allows default.max_tokens for non-MiMo providers (e.g. deepseek)", () => {
+  it("allows default.max_tokens for non-MiMo providers (e.g. deepseek)", async () => {
     const yaml = `
 version: 1
 type: deepseek
@@ -388,10 +388,10 @@ models:
       max_tokens: 100
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).not.toThrow();
+    await expect(loadProviders(tmpDir)).resolves.not.toThrow();
   });
 
-  it("allows provider-specific default keys like thinking", () => {
+  it("allows provider-specific default keys like thinking", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -407,14 +407,14 @@ models:
       response_format: { type: json_object }
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.default).toEqual({
       thinking: true,
       response_format: { type: "json_object" },
     });
   });
 
-  it("detects duplicate model id within same endpoint", () => {
+  it("detects duplicate model id within same endpoint", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -431,10 +431,10 @@ models:
     max_output_tokens: 1000
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow("Duplicate model IDs detected:");
+    await expect(loadProviders(tmpDir)).rejects.toThrow("Duplicate model IDs detected:");
   });
 
-  it("detects duplicate model id across different provider files", () => {
+  it("detects duplicate model id across different provider files", async () => {
     const yaml1 = `
 version: 1
 type: mimo
@@ -459,10 +459,10 @@ models:
 `;
     writeYaml("provider-a.yaml", yaml1);
     writeYaml("provider-b.yaml", yaml2);
-    expect(() => loadProviders(tmpDir)).toThrow(/found in .*'provider-a' \(provider-a\.yaml\).*'provider-b' \(provider-b\.yaml\)/);
+    await expect(loadProviders(tmpDir)).rejects.toThrow(/found in .*'provider-a' \(provider-a\.yaml\).*'provider-b' \(provider-b\.yaml\)/);
   });
 
-  it("reports all providers when model id conflicts across 3+ files", () => {
+  it("reports all providers when model id conflicts across 3+ files", async () => {
     const yaml1 = `
 version: 1
 type: mimo
@@ -499,8 +499,8 @@ models:
     writeYaml("p1.yaml", yaml1);
     writeYaml("p2.yaml", yaml2);
     writeYaml("p3.yaml", yaml3);
-    const error = (() => {
-      try { loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
+    const error = await (async () => {
+      try { await loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
     })();
     expect(error).not.toBeNull();
     expect(error!.message).toContain("Duplicate model IDs detected:");
@@ -509,7 +509,7 @@ models:
     expect(error!.message).toContain("'p3' (p3.yaml)");
   });
 
-  it("reports mixed same-file and cross-file duplicates", () => {
+  it("reports mixed same-file and cross-file duplicates", async () => {
     const yaml1 = `
 version: 1
 type: mimo
@@ -538,8 +538,8 @@ models:
 `;
     writeYaml("provider-a.yaml", yaml1);
     writeYaml("provider-b.yaml", yaml2);
-    const error = (() => {
-      try { loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
+    const error = await (async () => {
+      try { await loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
     })();
     expect(error).not.toBeNull();
     expect(error!.message).toContain("Duplicate model IDs detected:");
@@ -547,7 +547,7 @@ models:
     expect(error!.message).toContain("'provider-b' (provider-b.yaml) [1 definition]");
   });
 
-  it("reports multiple distinct model id conflicts in one error", () => {
+  it("reports multiple distinct model id conflicts in one error", async () => {
     const yaml1 = `
 version: 1
 type: mimo
@@ -580,15 +580,15 @@ models:
 `;
     writeYaml("p1.yaml", yaml1);
     writeYaml("p2.yaml", yaml2);
-    const error = (() => {
-      try { loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
+    const error = await (async () => {
+      try { await loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
     })();
     expect(error).not.toBeNull();
     expect(error!.message).toContain("Model 'model-a'");
     expect(error!.message).toContain("Model 'model-b'");
   });
 
-  it("loads model with empty string id", () => {
+  it("loads model with empty string id", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -601,11 +601,11 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.id).toBe("");
   });
 
-  it("loads model with whitespace-only id", () => {
+  it("loads model with whitespace-only id", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -618,11 +618,11 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.id).toBe("   ");
   });
 
-  it("loads model with special characters in id", () => {
+  it("loads model with special characters in id", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -635,11 +635,11 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.id).toBe("foo/bar-baz");
   });
 
-  it("allows same model id at different endpoints", () => {
+  it("allows same model id at different endpoints", async () => {
     const yaml1 = `
 version: 1
 type: mimo
@@ -666,13 +666,13 @@ models:
 `;
     writeYaml("p1.yaml", yaml1);
     writeYaml("p2.yaml", yaml2);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(2);
     expect(providers[0]!.models[0]!.id).toBe("shared-id");
     expect(providers[1]!.models[0]!.id).toBe("shared-id");
   });
 
-  it("performs capabilities shallow merge", () => {
+  it("performs capabilities shallow merge", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -692,7 +692,7 @@ models:
       tools: true
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     const caps = providers[0]!.models[0]!.capabilities!;
     expect(caps.thinking).toBe(true);
     expect(caps.json).toBe(true);
@@ -700,7 +700,7 @@ models:
     expect(caps.tools).toBe(true);
   });
 
-  it("preserves provider capabilities when model has none", () => {
+  it("preserves provider capabilities when model has none", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -716,14 +716,14 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.capabilities).toEqual({
       thinking: true,
       json: true,
     });
   });
 
-  it("logs warning and skips provider with empty models", () => {
+  it("logs warning and skips provider with empty models", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -732,37 +732,37 @@ auth_header: Authorization
 models: []
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(0);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("no models"),
     );
   });
 
-  it("returns empty array when config dir does not exist", () => {
-    const providers = loadProviders("/nonexistent/path");
+  it("returns empty array when config dir does not exist", async () => {
+    const providers = await loadProviders("/nonexistent/path");
     expect(providers).toHaveLength(0);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("not found"),
     );
   });
 
-  it("returns empty array when no yaml files exist", () => {
+  it("returns empty array when no yaml files exist", async () => {
     fs.writeFileSync(path.join(tmpDir, "readme.txt"), "no yaml here");
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(0);
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining("No YAML files"),
     );
   });
 
-  it("uses filename stem as provider name when name is absent", () => {
+  it("uses filename stem as provider name when name is absent", async () => {
     writeYaml("my-provider.yaml", MINIMAL_PROVIDER);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.name).toBe("my-provider");
   });
 
-  it("rejects YAML with name field due to strict mode", () => {
+  it("rejects YAML with name field due to strict mode", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -776,10 +776,10 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("file.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow(/unrecognized_keys|name/);
+    await expect(loadProviders(tmpDir)).rejects.toThrow(/unrecognized_keys|name/);
   });
 
-  it("normalizes endpoint", () => {
+  it("normalizes endpoint", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -793,11 +793,11 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.endpoint).toBe("/v1/chat/completions");
   });
 
-  it("loads pricing when present", () => {
+  it("loads pricing when present", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -814,7 +814,7 @@ models:
       output: 1.0
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.models[0]!.pricing).toEqual({
       input: 0.5,
       cached_input: 0.1,
@@ -822,7 +822,7 @@ models:
     });
   });
 
-  it("loads tiered pricing from YAML", () => {
+  it("loads tiered pricing from YAML", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -845,7 +845,7 @@ models:
           output: 42.0
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     const pricing = providers[0]!.models[0]!.pricing;
     expect(pricing).toBeDefined();
     expect("tiers" in pricing!).toBe(true);
@@ -858,7 +858,7 @@ models:
     }
   });
 
-  it("loads flat pricing (backward compatible)", () => {
+  it("loads flat pricing (backward compatible)", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -875,7 +875,7 @@ models:
       output: 1.0
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     const pricing = providers[0]!.models[0]!.pricing;
     expect(pricing).toEqual({
       input: 0.5,
@@ -884,7 +884,7 @@ models:
     });
   });
 
-  it("rejects pricing with both tiers and flat fields (ambiguous schema)", () => {
+  it("rejects pricing with both tiers and flat fields (ambiguous schema)", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -901,10 +901,10 @@ models:
       output: 2.0
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow();
+    await expect(loadProviders(tmpDir)).rejects.toThrow();
   });
 
-  it("rejects tiered pricing with empty tiers array", () => {
+  it("rejects tiered pricing with empty tiers array", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -919,10 +919,10 @@ models:
       tiers: []
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow();
+    await expect(loadProviders(tmpDir)).rejects.toThrow();
   });
 
-  it("loads multiple providers from multiple files", () => {
+  it("loads multiple providers from multiple files", async () => {
     const yaml1 = `
 version: 1
 type: mimo
@@ -948,13 +948,13 @@ models:
 `;
     writeYaml("p1.yaml", yaml1);
     writeYaml("p2.yml", yaml2);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(2);
     expect(providers[0]!.type).toBe("mimo");
     expect(providers[1]!.type).toBe("openai");
   });
 
-  it("accepts all valid handler types", () => {
+  it("accepts all valid handler types", async () => {
     for (const type of ["mimo", "deepseek", "openai", "anthropic"]) {
       fs.rmSync(tmpDir, { recursive: true, force: true });
       fs.mkdirSync(tmpDir, { recursive: true });
@@ -972,12 +972,12 @@ models:
     max_output_tokens: 500
 `;
       writeYaml("test.yaml", yaml);
-      const providers = loadProviders(tmpDir);
+      const providers = await loadProviders(tmpDir);
       expect(providers[0]!.type).toBe(type);
     }
   });
 
-  it("rejects unknown fields due to strict mode", () => {
+  it("rejects unknown fields due to strict mode", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -991,10 +991,10 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow();
+    await expect(loadProviders(tmpDir)).rejects.toThrow();
   });
 
-  it("rejects unknown fields in model schema", () => {
+  it("rejects unknown fields in model schema", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -1008,10 +1008,10 @@ models:
     unknown_model_field: surprise
 `;
     writeYaml("test.yaml", yaml);
-    expect(() => loadProviders(tmpDir)).toThrow();
+    await expect(loadProviders(tmpDir)).rejects.toThrow();
   });
 
-  it("loads web_search when present", () => {
+  it("loads web_search when present", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -1027,14 +1027,14 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.web_search).toEqual({
       maxKeyword: 3,
       forceSearch: true,
     });
   });
 
-  it("forces anthropic_url to null for custom types", () => {
+  it("forces anthropic_url to null for custom types", async () => {
     const yaml = `
 version: 1
 type: anthropic
@@ -1049,11 +1049,11 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.anthropic_url).toBeNull();
   });
 
-  it("uses anthropic_url from YAML for built-in types", () => {
+  it("uses anthropic_url from YAML for built-in types", async () => {
     const yaml = `
 version: 1
 type: mimo
@@ -1067,17 +1067,17 @@ models:
     max_output_tokens: 500
 `;
     writeYaml("test.yaml", yaml);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers[0]!.anthropic_url).toBe("https://example.com/anthropic");
   });
 
-  it("supports .yml extension", () => {
+  it("supports .yml extension", async () => {
     writeYaml("test.yml", MINIMAL_PROVIDER);
-    const providers = loadProviders(tmpDir);
+    const providers = await loadProviders(tmpDir);
     expect(providers).toHaveLength(1);
   });
 
-  it("derives provider name from filename", () => {
+  it("derives provider name from filename", async () => {
     for (const type of ["mimo", "deepseek"]) {
       fs.rmSync(tmpDir, { recursive: true, force: true });
       fs.mkdirSync(tmpDir, { recursive: true });
@@ -1092,13 +1092,13 @@ models:
     context_length: 1000
     max_output_tokens: 500
 `);
-      const providers = loadProviders(tmpDir);
+      const providers = await loadProviders(tmpDir);
       expect(providers[0]!.name).toBe(`my-${type}`);
     }
   });
 
   describe("modalities validation", () => {
-    it("loads valid modalities", () => {
+    it("loads valid modalities", async () => {
       const yaml = `
 version: 1
 type: mimo
@@ -1114,14 +1114,14 @@ models:
       output: [text]
 `;
       writeYaml("test.yaml", yaml);
-      const providers = loadProviders(tmpDir);
+      const providers = await loadProviders(tmpDir);
       const mods = providers[0]!.models[0]!.modalities;
       expect(mods).toBeDefined();
       expect(mods!.input).toEqual(["text", "image", "audio", "video"]);
       expect(mods!.output).toEqual(["text"]);
     });
 
-    it("rejects invalid input modality", () => {
+    it("rejects invalid input modality", async () => {
       const yaml = `
 version: 1
 type: mimo
@@ -1137,10 +1137,10 @@ models:
       output: [text]
 `;
       writeYaml("test.yaml", yaml);
-      expect(() => loadProviders(tmpDir)).toThrow("Invalid");
+      await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
     });
 
-    it("rejects invalid output modality", () => {
+    it("rejects invalid output modality", async () => {
       const yaml = `
 version: 1
 type: mimo
@@ -1156,10 +1156,10 @@ models:
       output: [pdf]
 `;
       writeYaml("test.yaml", yaml);
-      expect(() => loadProviders(tmpDir)).toThrow("Invalid");
+      await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
     });
 
-    it("rejects typos like vdieo", () => {
+    it("rejects typos like vdieo", async () => {
       const yaml = `
 version: 1
 type: mimo
@@ -1175,7 +1175,69 @@ models:
       output: [text]
 `;
       writeYaml("test.yaml", yaml);
-      expect(() => loadProviders(tmpDir)).toThrow("Invalid");
+      await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
     });
+  });
+});
+
+describe("chimera provider type", () => {
+  const CHIMERA_MINIMAL = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+`;
+
+  it("validates minimal chimera YAML (no models required)", async () => {
+    writeYaml("test.yaml", CHIMERA_MINIMAL);
+    const providers = await loadProviders(tmpDir);
+    expect(providers).toHaveLength(0); // no models discovered, so skipped
+  });
+
+  it("rejects chimera YAML without base_url", async () => {
+    const yaml = `
+version: 1
+type: chimera
+api_key: test-key
+`;
+    writeYaml("test.yaml", yaml);
+    await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
+  });
+
+  it("rejects chimera YAML with models field (strict mode)", async () => {
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+models:
+  - id: manual-model
+    upstream: manual-model
+    context_length: 1000
+    max_output_tokens: 500
+`;
+    writeYaml("test.yaml", yaml);
+    await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
+  });
+
+  it("applies default auth_header for chimera when omitted", async () => {
+    writeYaml("test.yaml", CHIMERA_MINIMAL);
+    // This won't crash on validation. The provider will be skipped
+    // because there are no models (discovery fails in test env).
+    // The key test is that it doesn't throw a validation error.
+    await expect(loadProviders(tmpDir)).resolves.not.toThrow();
+  });
+
+  it("allows explicit auth_header override for chimera", async () => {
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+auth_header: x-api-key
+`;
+    writeYaml("test.yaml", yaml);
+    // Should not throw validation error
+    await expect(loadProviders(tmpDir)).resolves.not.toThrow();
   });
 });

@@ -46,7 +46,7 @@ flowchart TD
     EP_CUSTOM --> ROUTES
 
     ROUTES --> PIPE["Request Pipeline"]
-    PIPE --> BUILTIN["Builtin Handlers<br/>mimo, deepseek"]
+    PIPE --> BUILTIN["Builtin Handlers<br/>mimo, deepseek, chimera"]
     PIPE --> CUSTOM["Custom Handlers<br/>openai, anthropic passthrough"]
 
     ROUTES -. telemetry .-> MM["monitor middleware"]
@@ -70,12 +70,13 @@ src/
 │   ├── registry.ts          #   模型查找 + handler 分发
 │   ├── loader.ts            #   YAML 加载 + 验证
 │   ├── types.ts             #   接口定义
-│   ├── builtin/             #   内置 handler（mimo, deepseek）
+│   ├── builtin/             #   内置 handler（mimo, deepseek, chimera）
 │   └── custom/              #   自定义 handler（openai, anthropic 透传）
 ├── routes/                  # API 路由（详见 docs/architecture/pipeline.md）
 │   ├── chat.ts              #   /v1/chat/completions
 │   ├── anthropic.ts         #   /anthropic/v1/messages
-│   └── models.ts            #   /v1/models
+│   ├── models.ts            #   /v1/models
+│   └── endpoints.ts         #   /v1/endpoints（端点拓扑发现）
 ├── proxy/                   # 代理核心
 │   ├── streaming.ts         #   SSE 流式透传 + token 用量追踪
 │   └── transformer.ts       #   结构适配（字段重命名）
@@ -107,10 +108,12 @@ src/
 │                                                 │
 │  /v1/chat/completions                           │
 │  /v1/models               (含 architecture 模态) │
+│  /v1/endpoints            (端点拓扑发现)          │
 │  /anthropic/v1/messages                         │
 │                                                 │
 │  /{custom-endpoint}/v1/chat/completions         │
 │  /{custom-endpoint}/v1/models  (含 architecture 模态) │
+│  /{custom-endpoint}/v1/endpoints (端点拓扑发现)  │
 │  /{custom-endpoint}/anthropic/v1/messages       │
 └─────────────────────────────────────────────────┘
 ```
@@ -150,6 +153,14 @@ Client → POST /anthropic/v1/messages
 Client → GET /v1/models
        → registry 返回该 endpoint 前缀下所有模型
        → 返回字段遵循 OpenRouter 扩展格式
+```
+
+### 端点发现
+
+```text
+Client → GET /v1/endpoints
+       → registry 返回所有端点前缀
+       → 用于 chimera 实例间启动时拓扑发现
 ```
 
 响应结构（单个模型对象）：
