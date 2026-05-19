@@ -12,6 +12,10 @@ vi.mock("../../utils/logger", () => ({
   },
 }));
 
+vi.mock("../../utils/fetchWithTimeout", () => ({
+  fetchWithTimeout: vi.fn(),
+}));
+
 import { loadProviders, normalizeEndpoint, resolveEnvVars } from "../loader";
 import { logger } from "../../utils/logger";
 
