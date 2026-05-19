@@ -6,3 +6,5 @@ data/
 localworkspace/
 config/provider/
 .worktrees/
+
+test-results/
