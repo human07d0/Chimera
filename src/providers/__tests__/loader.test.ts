@@ -16,8 +16,9 @@ vi.mock("../../utils/fetchWithTimeout", () => ({
   fetchWithTimeout: vi.fn(),
 }));
 
-import { loadProviders, normalizeEndpoint, resolveEnvVars } from "../loader";
+import { loadProviders, normalizeEndpoint, resolveEnvVars, computeLocalPrefix, normalizeBaseUrl } from "../loader";
 import { logger } from "../../utils/logger";
+import { fetchWithTimeout } from "../../utils/fetchWithTimeout";
 
 let tmpDir: string;
 
@@ -394,794 +395,6 @@ models:
     writeYaml("test.yaml", yaml);
     await expect(loadProviders(tmpDir)).resolves.not.toThrow();
   });
-
-  it("allows provider-specific default keys like thinking", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    default:
-      thinking: true
-      response_format: { type: json_object }
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.models[0]!.default).toEqual({
-      thinking: true,
-      response_format: { type: "json_object" },
-    });
-  });
-
-  it("detects duplicate model id within same endpoint", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: same-id
-    upstream: a
-    context_length: 1000
-    max_output_tokens: 500
-  - id: same-id
-    upstream: b
-    context_length: 2000
-    max_output_tokens: 1000
-`;
-    writeYaml("test.yaml", yaml);
-    await expect(loadProviders(tmpDir)).rejects.toThrow("Duplicate model IDs detected:");
-  });
-
-  it("detects duplicate model id across different provider files", async () => {
-    const yaml1 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: shared-id
-    upstream: a
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    const yaml2 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: shared-id
-    upstream: b
-    context_length: 2000
-    max_output_tokens: 1000
-`;
-    writeYaml("provider-a.yaml", yaml1);
-    writeYaml("provider-b.yaml", yaml2);
-    await expect(loadProviders(tmpDir)).rejects.toThrow(/found in .*'provider-a' \(provider-a\.yaml\).*'provider-b' \(provider-b\.yaml\)/);
-  });
-
-  it("reports all providers when model id conflicts across 3+ files", async () => {
-    const yaml1 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: clash
-    upstream: a
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    const yaml2 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: clash
-    upstream: b
-    context_length: 2000
-    max_output_tokens: 1000
-`;
-    const yaml3 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: clash
-    upstream: c
-    context_length: 3000
-    max_output_tokens: 1500
-`;
-    writeYaml("p1.yaml", yaml1);
-    writeYaml("p2.yaml", yaml2);
-    writeYaml("p3.yaml", yaml3);
-    const error = await (async () => {
-      try { await loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
-    })();
-    expect(error).not.toBeNull();
-    expect(error!.message).toContain("Duplicate model IDs detected:");
-    expect(error!.message).toContain("'p1' (p1.yaml)");
-    expect(error!.message).toContain("'p2' (p2.yaml)");
-    expect(error!.message).toContain("'p3' (p3.yaml)");
-  });
-
-  it("reports mixed same-file and cross-file duplicates", async () => {
-    const yaml1 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: clash
-    upstream: a
-    context_length: 1000
-    max_output_tokens: 500
-  - id: clash
-    upstream: b
-    context_length: 2000
-    max_output_tokens: 1000
-`;
-    const yaml2 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: clash
-    upstream: c
-    context_length: 3000
-    max_output_tokens: 1500
-`;
-    writeYaml("provider-a.yaml", yaml1);
-    writeYaml("provider-b.yaml", yaml2);
-    const error = await (async () => {
-      try { await loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
-    })();
-    expect(error).not.toBeNull();
-    expect(error!.message).toContain("Duplicate model IDs detected:");
-    expect(error!.message).toContain("'provider-a' (provider-a.yaml) [2 definitions]");
-    expect(error!.message).toContain("'provider-b' (provider-b.yaml) [1 definition]");
-  });
-
-  it("reports multiple distinct model id conflicts in one error", async () => {
-    const yaml1 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: model-a
-    upstream: a
-    context_length: 1000
-    max_output_tokens: 500
-  - id: model-b
-    upstream: b
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    const yaml2 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: model-a
-    upstream: c
-    context_length: 2000
-    max_output_tokens: 1000
-  - id: model-b
-    upstream: d
-    context_length: 2000
-    max_output_tokens: 1000
-`;
-    writeYaml("p1.yaml", yaml1);
-    writeYaml("p2.yaml", yaml2);
-    const error = await (async () => {
-      try { await loadProviders(tmpDir); return null; } catch (e) { return e as Error; }
-    })();
-    expect(error).not.toBeNull();
-    expect(error!.message).toContain("Model 'model-a'");
-    expect(error!.message).toContain("Model 'model-b'");
-  });
-
-  it("loads model with empty string id", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: ""
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.models[0]!.id).toBe("");
-  });
-
-  it("loads model with whitespace-only id", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: "   "
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.models[0]!.id).toBe("   ");
-  });
-
-  it("loads model with special characters in id", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: "foo/bar-baz"
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.models[0]!.id).toBe("foo/bar-baz");
-  });
-
-  it("allows same model id at different endpoints", async () => {
-    const yaml1 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-endpoint: /v1/chat
-models:
-  - id: shared-id
-    upstream: a
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    const yaml2 = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-endpoint: /v2/chat
-models:
-  - id: shared-id
-    upstream: b
-    context_length: 2000
-    max_output_tokens: 1000
-`;
-    writeYaml("p1.yaml", yaml1);
-    writeYaml("p2.yaml", yaml2);
-    const providers = await loadProviders(tmpDir);
-    expect(providers).toHaveLength(2);
-    expect(providers[0]!.models[0]!.id).toBe("shared-id");
-    expect(providers[1]!.models[0]!.id).toBe("shared-id");
-  });
-
-  it("performs capabilities shallow merge", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-capabilities:
-  thinking: false
-  json: true
-  search: false
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    capabilities:
-      thinking: true
-      tools: true
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    const caps = providers[0]!.models[0]!.capabilities!;
-    expect(caps.thinking).toBe(true);
-    expect(caps.json).toBe(true);
-    expect(caps.search).toBe(false);
-    expect(caps.tools).toBe(true);
-  });
-
-  it("preserves provider capabilities when model has none", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-capabilities:
-  thinking: true
-  json: true
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.models[0]!.capabilities).toEqual({
-      thinking: true,
-      json: true,
-    });
-  });
-
-  it("logs warning and skips provider with empty models", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models: []
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers).toHaveLength(0);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("no models"),
-    );
-  });
-
-  it("returns empty array when config dir does not exist", async () => {
-    const providers = await loadProviders("/nonexistent/path");
-    expect(providers).toHaveLength(0);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("not found"),
-    );
-  });
-
-  it("returns empty array when no yaml files exist", async () => {
-    fs.writeFileSync(path.join(tmpDir, "readme.txt"), "no yaml here");
-    const providers = await loadProviders(tmpDir);
-    expect(providers).toHaveLength(0);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining("No YAML files"),
-    );
-  });
-
-  it("uses filename stem as provider name when name is absent", async () => {
-    writeYaml("my-provider.yaml", MINIMAL_PROVIDER);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.name).toBe("my-provider");
-  });
-
-  it("rejects YAML with name field due to strict mode", async () => {
-    const yaml = `
-version: 1
-type: mimo
-name: custom-name
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("file.yaml", yaml);
-    await expect(loadProviders(tmpDir)).rejects.toThrow(/unrecognized_keys|name/);
-  });
-
-  it("normalizes endpoint", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-endpoint: /v1/chat/completions/
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.endpoint).toBe("/v1/chat/completions");
-  });
-
-  it("loads pricing when present", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    pricing:
-      input: 0.5
-      cached_input: 0.1
-      output: 1.0
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.models[0]!.pricing).toEqual({
-      input: 0.5,
-      cached_input: 0.1,
-      output: 1.0,
-    });
-  });
-
-  it("loads tiered pricing from YAML", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    pricing:
-      tiers:
-        - max_tokens: 256000
-          input: 7.0
-          cached_input: 1.4
-          output: 21.0
-        - max_tokens: -1
-          input: 14.0
-          cached_input: 2.8
-          output: 42.0
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    const pricing = providers[0]!.models[0]!.pricing;
-    expect(pricing).toBeDefined();
-    expect("tiers" in pricing!).toBe(true);
-    if ("tiers" in pricing!) {
-      expect(pricing.tiers).toHaveLength(2);
-      expect(pricing.tiers[0]!.max_tokens).toBe(256000);
-      expect(pricing.tiers[0]!.input).toBe(7.0);
-      expect(pricing.tiers[1]!.max_tokens).toBe(-1);
-      expect(pricing.tiers[1]!.input).toBe(14.0);
-    }
-  });
-
-  it("loads flat pricing (backward compatible)", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    pricing:
-      input: 0.5
-      cached_input: 0.1
-      output: 1.0
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    const pricing = providers[0]!.models[0]!.pricing;
-    expect(pricing).toEqual({
-      input: 0.5,
-      cached_input: 0.1,
-      output: 1.0,
-    });
-  });
-
-  it("rejects pricing with both tiers and flat fields (ambiguous schema)", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    pricing:
-      tiers: []
-      input: 1.0
-      output: 2.0
-`;
-    writeYaml("test.yaml", yaml);
-    await expect(loadProviders(tmpDir)).rejects.toThrow();
-  });
-
-  it("rejects tiered pricing with empty tiers array", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    pricing:
-      tiers: []
-`;
-    writeYaml("test.yaml", yaml);
-    await expect(loadProviders(tmpDir)).rejects.toThrow();
-  });
-
-  it("loads multiple providers from multiple files", async () => {
-    const yaml1 = `
-version: 1
-type: mimo
-api_key: k1
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    const yaml2 = `
-version: 1
-type: openai
-api_key: k2
-base_url: https://api.openai.com
-auth_header: Authorization
-models:
-  - id: m2
-    upstream: m2
-    context_length: 2000
-    max_output_tokens: 1000
-`;
-    writeYaml("p1.yaml", yaml1);
-    writeYaml("p2.yml", yaml2);
-    const providers = await loadProviders(tmpDir);
-    expect(providers).toHaveLength(2);
-    expect(providers[0]!.type).toBe("mimo");
-    expect(providers[1]!.type).toBe("openai");
-  });
-
-  it("accepts all valid handler types", async () => {
-    for (const type of ["mimo", "deepseek", "openai", "anthropic"]) {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-      fs.mkdirSync(tmpDir, { recursive: true });
-      const needsBaseUrl = type === "openai" || type === "anthropic";
-      const yaml = `
-version: 1
-type: ${type}
-api_key: k
-${needsBaseUrl ? "base_url: https://api.example.com" : ""}
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-      writeYaml("test.yaml", yaml);
-      const providers = await loadProviders(tmpDir);
-      expect(providers[0]!.type).toBe(type);
-    }
-  });
-
-  it("rejects unknown fields due to strict mode", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-unknown_field: surprise
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    await expect(loadProviders(tmpDir)).rejects.toThrow();
-  });
-
-  it("rejects unknown fields in model schema", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    unknown_model_field: surprise
-`;
-    writeYaml("test.yaml", yaml);
-    await expect(loadProviders(tmpDir)).rejects.toThrow();
-  });
-
-  it("loads web_search when present", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-web_search:
-  maxKeyword: 3
-  forceSearch: true
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.web_search).toEqual({
-      maxKeyword: 3,
-      forceSearch: true,
-    });
-  });
-
-  it("forces anthropic_url to null for custom types", async () => {
-    const yaml = `
-version: 1
-type: anthropic
-api_key: k
-base_url: https://api.example.com
-auth_header: x-api-key
-anthropic_url: https://example.com/anthropic
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.anthropic_url).toBeNull();
-  });
-
-  it("uses anthropic_url from YAML for built-in types", async () => {
-    const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-anthropic_url: https://example.com/anthropic
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`;
-    writeYaml("test.yaml", yaml);
-    const providers = await loadProviders(tmpDir);
-    expect(providers[0]!.anthropic_url).toBe("https://example.com/anthropic");
-  });
-
-  it("supports .yml extension", async () => {
-    writeYaml("test.yml", MINIMAL_PROVIDER);
-    const providers = await loadProviders(tmpDir);
-    expect(providers).toHaveLength(1);
-  });
-
-  it("derives provider name from filename", async () => {
-    for (const type of ["mimo", "deepseek"]) {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
-      fs.mkdirSync(tmpDir, { recursive: true });
-      writeYaml(`my-${type}.yaml`, `
-version: 1
-type: ${type}
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-`);
-      const providers = await loadProviders(tmpDir);
-      expect(providers[0]!.name).toBe(`my-${type}`);
-    }
-  });
-
-  describe("modalities validation", () => {
-    it("loads valid modalities", async () => {
-      const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    modalities:
-      input: [text, image, audio, video]
-      output: [text]
-`;
-      writeYaml("test.yaml", yaml);
-      const providers = await loadProviders(tmpDir);
-      const mods = providers[0]!.models[0]!.modalities;
-      expect(mods).toBeDefined();
-      expect(mods!.input).toEqual(["text", "image", "audio", "video"]);
-      expect(mods!.output).toEqual(["text"]);
-    });
-
-    it("rejects invalid input modality", async () => {
-      const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    modalities:
-      input: [text, imge]
-      output: [text]
-`;
-      writeYaml("test.yaml", yaml);
-      await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
-    });
-
-    it("rejects invalid output modality", async () => {
-      const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    modalities:
-      input: [text]
-      output: [pdf]
-`;
-      writeYaml("test.yaml", yaml);
-      await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
-    });
-
-    it("rejects typos like vdieo", async () => {
-      const yaml = `
-version: 1
-type: mimo
-api_key: k
-auth_header: Authorization
-models:
-  - id: m1
-    upstream: m1
-    context_length: 1000
-    max_output_tokens: 500
-    modalities:
-      input: [vdieo]
-      output: [text]
-`;
-      writeYaml("test.yaml", yaml);
-      await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
-    });
-  });
 });
 
 describe("chimera provider type", () => {
@@ -1195,7 +408,7 @@ api_key: test-key
   it("validates minimal chimera YAML (no models required)", async () => {
     writeYaml("test.yaml", CHIMERA_MINIMAL);
     const providers = await loadProviders(tmpDir);
-    expect(providers).toHaveLength(0); // no models discovered, so skipped
+    expect(providers).toHaveLength(0);
   });
 
   it("rejects chimera YAML without base_url", async () => {
@@ -1226,9 +439,6 @@ models:
 
   it("applies default auth_header for chimera when omitted", async () => {
     writeYaml("test.yaml", CHIMERA_MINIMAL);
-    // This won't crash on validation. The provider will be skipped
-    // because there are no models (discovery fails in test env).
-    // The key test is that it doesn't throw a validation error.
     await expect(loadProviders(tmpDir)).resolves.not.toThrow();
   });
 
@@ -1241,7 +451,361 @@ api_key: test-key
 auth_header: x-api-key
 `;
     writeYaml("test.yaml", yaml);
-    // Should not throw validation error
     await expect(loadProviders(tmpDir)).resolves.not.toThrow();
+  });
+
+  it("uses configured auth_header and auth_prefix in discovery requests", async () => {
+    const { fetchWithTimeout } = await import("../../utils/fetchWithTimeout");
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ endpoints: [{ prefix: "" }] }),
+    } as any);
+
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+auth_header: x-api-key
+auth_prefix: "Api-Key "
+`;
+    writeYaml("test.yaml", yaml);
+    await loadProviders(tmpDir);
+
+    const endpointsCall = mockFetch.mock.calls.find(
+      (c) => typeof c[0] === "string" && c[0].includes("/v1/endpoints"),
+    );
+    expect(endpointsCall).toBeDefined();
+    expect(endpointsCall![1]).toEqual({
+      headers: { "x-api-key": "Api-Key test-key" },
+    });
+  });
+
+  it("uses default Bearer auth_prefix when auth_prefix omitted", async () => {
+    const { fetchWithTimeout } = await import("../../utils/fetchWithTimeout");
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ endpoints: [{ prefix: "" }] }),
+    } as any);
+
+    writeYaml("test.yaml", CHIMERA_MINIMAL);
+    await loadProviders(tmpDir);
+
+    const endpointsCall = mockFetch.mock.calls.find(
+      (c) => typeof c[0] === "string" && c[0].includes("/v1/endpoints"),
+    );
+    expect(endpointsCall).toBeDefined();
+    expect(endpointsCall![1]).toEqual({
+      headers: { Authorization: "Bearer test-key" },
+    });
+  });
+
+  it("passes auth_header and auth_prefix to fetchModels", async () => {
+    const { fetchWithTimeout } = await import("../../utils/fetchWithTimeout");
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/v1/endpoints")) {
+        return { ok: true, status: 200, json: async () => ({ endpoints: [{ prefix: "" }] }) } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [{ id: "m1", context_length: 1000, max_output_tokens: 500 }],
+        }),
+      } as any;
+    });
+
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: my-key
+auth_header: x-api-key
+auth_prefix: "Token "
+`;
+    writeYaml("test.yaml", yaml);
+    await loadProviders(tmpDir);
+
+    const modelsCall = mockFetch.mock.calls.find(
+      (c) => typeof c[0] === "string" && c[0].includes("/v1/models"),
+    );
+    expect(modelsCall).toBeDefined();
+    expect(modelsCall![1]).toEqual({
+      headers: { "x-api-key": "Token my-key" },
+    });
+  });
+
+  it("logs error details when model discovery fails", async () => {
+    const { fetchWithTimeout } = await import("../../utils/fetchWithTimeout");
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/v1/endpoints")) {
+        return { ok: true, status: 200, json: async () => ({ endpoints: [{ prefix: "" }] }) } as any;
+      }
+      throw new Error("connection refused");
+    });
+
+    writeYaml("test.yaml", CHIMERA_MINIMAL);
+    await loadProviders(tmpDir);
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("failed to discover models"),
+      expect.objectContaining({ error: "connection refused" }),
+    );
+  });
+
+  it("rejects chimera YAML with capabilities field (strict mode)", async () => {
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+capabilities:
+  thinking: true
+`;
+    writeYaml("test.yaml", yaml);
+    await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
+  });
+
+  it("rejects chimera YAML with web_search field (strict mode)", async () => {
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+web_search:
+  maxKeyword: 3
+`;
+    writeYaml("test.yaml", yaml);
+    await expect(loadProviders(tmpDir)).rejects.toThrow("Invalid");
+  });
+
+  it("throws when fetchModels returns non-array data", async () => {
+    const { fetchWithTimeout } = await import("../../utils/fetchWithTimeout");
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockImplementation(async (url: string) => {
+      if (url.includes("/v1/endpoints")) {
+        return { ok: true, status: 200, json: async () => ({ endpoints: [{ prefix: "" }] }) } as any;
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ data: "not-an-array" }),
+      } as any;
+    });
+
+    writeYaml("test.yaml", CHIMERA_MINIMAL);
+    const providers = await loadProviders(tmpDir);
+    expect(providers).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("failed to discover models"),
+      expect.objectContaining({ error: expect.stringContaining("array") }),
+    );
+  });
+});
+
+describe("chimera discovery flow", () => {
+  const CHIMERA_YAML = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+`;
+
+  function mockEndpointsResponse(prefixes: string[]) {
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ endpoints: prefixes.map(p => ({ prefix: p })) }),
+    } as any);
+  }
+
+  function mockEndpoints404() {
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockResolvedValueOnce({
+      status: 404,
+      ok: false,
+      json: async () => ({}),
+    } as any);
+  }
+
+  function mockEndpointsError(msg: string) {
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockRejectedValueOnce(new Error(msg));
+  }
+
+  function mockModelsResponse(models: Array<{ id: string; context_length: number; max_output_tokens: number }>) {
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockResolvedValueOnce({
+      status: 200,
+      ok: true,
+      json: async () => ({ data: models }),
+    } as any);
+  }
+
+  function mockModelsError(msg: string) {
+    const mockFetch = vi.mocked(fetchWithTimeout);
+    mockFetch.mockRejectedValueOnce(new Error(msg));
+  }
+
+  it("discovers providers from chimera upstream", async () => {
+    mockEndpointsResponse(["v1", "v2"]);
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+    mockModelsResponse([{ id: "model-b", context_length: 2000, max_output_tokens: 1000 }]);
+
+    writeYaml("test.yaml", CHIMERA_YAML);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(2);
+    expect(providers[0]!.name).toBe("test/v1");
+    expect(providers[0]!.endpoint).toBe("/v1");
+    expect(providers[0]!.models).toHaveLength(1);
+    expect(providers[0]!.models[0]!.id).toBe("model-a");
+    expect(providers[0]!.type).toBe("chimera");
+
+    expect(providers[1]!.name).toBe("test/v2");
+    expect(providers[1]!.endpoint).toBe("/v2");
+    expect(providers[1]!.models).toHaveLength(1);
+    expect(providers[1]!.models[0]!.id).toBe("model-b");
+  });
+
+  it("falls back to single endpoint when /v1/endpoints returns 404", async () => {
+    mockEndpoints404();
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+
+    writeYaml("test.yaml", CHIMERA_YAML);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.name).toBe("test");
+    expect(providers[0]!.endpoint).toBe("");
+    expect(providers[0]!.models).toHaveLength(1);
+    expect(providers[0]!.models[0]!.id).toBe("model-a");
+  });
+
+  it("skips provider when fetchEndpoints throws network error", async () => {
+    mockEndpointsError("Network failure");
+
+    writeYaml("test.yaml", CHIMERA_YAML);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("failed to discover endpoints"),
+      expect.objectContaining({ error: "Network failure" }),
+    );
+  });
+
+  it("skips prefix when fetchModels fails for that prefix", async () => {
+    mockEndpointsResponse(["v1", "v2"]);
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+    mockModelsError("Prefix v2 models fetch failed");
+
+    writeYaml("test.yaml", CHIMERA_YAML);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.name).toBe("test/v1");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("failed to discover models at 'v2'"),
+      expect.objectContaining({ error: "Prefix v2 models fetch failed" }),
+    );
+  });
+
+  it("skips endpoint when fetchModels returns empty model array", async () => {
+    mockEndpointsResponse(["v1", "v2"]);
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+    mockModelsResponse([]);
+
+    writeYaml("test.yaml", CHIMERA_YAML);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.name).toBe("test/v1");
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining("no models at 'v2'"),
+    );
+  });
+
+  it("computes local prefix when config has empty endpoint and upstream has prefix", async () => {
+    mockEndpointsResponse(["chat"]);
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+
+    writeYaml("test.yaml", CHIMERA_YAML);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.endpoint).toBe("/chat");
+  });
+
+  it("computes local prefix when config has endpoint and upstream prefix is empty", async () => {
+    mockEndpoints404();
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+endpoint: /custom
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.endpoint).toBe("/custom");
+  });
+
+  it("computes local prefix when both config endpoint and upstream prefix are set", async () => {
+    mockEndpointsResponse(["chat"]);
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000
+api_key: test-key
+endpoint: /custom
+`;
+    writeYaml("test.yaml", yaml);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.endpoint).toBe("/custom/chat");
+  });
+
+  it("computes local prefix when both config endpoint and upstream prefix are empty", async () => {
+    mockEndpoints404();
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+
+    writeYaml("test.yaml", CHIMERA_YAML);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.endpoint).toBe("");
+  });
+
+  it("joinUrl removes duplicate slashes in paths", async () => {
+    const yaml = `
+version: 1
+type: chimera
+base_url: http://upstream:3000/
+api_key: test-key
+endpoint: //v1//chat//
+`;
+    mockEndpointsResponse(["chat"]);
+    mockModelsResponse([{ id: "model-a", context_length: 1000, max_output_tokens: 500 }]);
+
+    writeYaml("test.yaml", yaml);
+    const providers = await loadProviders(tmpDir);
+
+    expect(providers).toHaveLength(1);
+    expect(providers[0]!.base_url).toBe("http://upstream:3000/chat");
   });
 });

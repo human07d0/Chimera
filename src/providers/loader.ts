@@ -7,7 +7,8 @@ import { builtinHandlers } from "./builtin";
 import { customHandlers } from "./custom";
 import type { ProviderHandler } from "./types";
 import type { ProviderConfig, ModelConfig } from "./types";
-import { fetchWithTimeout } from "../utils/fetchWithTimeout";
+import { normalizeEndpoint, computeLocalPrefix, discoverChimeraProviders } from "./discovery";
+export { normalizeEndpoint, computeLocalPrefix };
 
 const CUSTOM_TYPES = new Set(["openai", "anthropic"]);
 
@@ -77,7 +78,8 @@ const chimeraSchema = z.object({
   type: z.literal("chimera"),
   base_url: z.string(),
   auth_header: z.string().default("Authorization"),
-}).strict();
+  auth_prefix: z.string().default("Bearer "),
+}).omit({ capabilities: true, web_search: true }).strict();
 
 export const providerSchema = z.discriminatedUnion("type", [
   standardSchema,
@@ -88,11 +90,11 @@ type StandardRaw = z.infer<typeof standardSchema>;
 type ChimeraRaw = z.infer<typeof chimeraSchema>;
 type RawProvider = StandardRaw | ChimeraRaw;
 
-export function normalizeEndpoint(endpoint: string): string {
-  if (endpoint === "") return "";
-  const result = "/" + endpoint.replace(/^\/+/, "").replace(/\/+$/, "");
-  if (result === "/") return "";
-  return result;
+export function normalizeBaseUrl(url: string): string {
+  if (!url.startsWith("http://") && !url.startsWith("https://")) {
+    return "https://" + url;
+  }
+  return url;
 }
 
 export function resolveEnvVars(value: string): string {
@@ -138,110 +140,6 @@ function normalizeCapabilities(
 ): Record<string, unknown> {
   if (!modelCaps) return { ...providerCaps };
   return { ...providerCaps, ...modelCaps };
-}
-
-const DISCOVERY_TIMEOUT = 30_000;
-
-async function fetchEndpoints(baseUrl: string, apiKey: string): Promise<string[]> {
-  const res = await fetchWithTimeout(
-    `${baseUrl}/v1/endpoints`,
-    { headers: { Authorization: `Bearer ${apiKey}` } },
-    DISCOVERY_TIMEOUT,
-  );
-  if (res.status === 404) return [""];
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  return (data.endpoints as Array<{ prefix: string }>).map(e => e.prefix);
-}
-
-async function fetchModels(baseUrl: string, prefix: string, apiKey: string): Promise<ModelConfig[]> {
-  const prefixPath = prefix ? `/${prefix}` : "";
-  const res = await fetchWithTimeout(
-    `${baseUrl}${prefixPath}/v1/models`,
-    { headers: { Authorization: `Bearer ${apiKey}` } },
-    DISCOVERY_TIMEOUT,
-  );
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const data = await res.json();
-  const loadTime = Math.floor(Date.now() / 1000);
-  return (data.data as any[]).map(m => ({
-    id: m.id,
-    upstream: m.id,
-    context_length: m.context_length ?? 0,
-    max_output_tokens: m.max_output_tokens ?? 0,
-    description: m.description ?? m.id,
-    created: m.created ?? loadTime,
-    capabilities: m.capabilities ?? {},
-    modalities: m.architecture ? {
-      input: m.architecture.input_modalities ?? ["text"],
-      output: m.architecture.output_modalities ?? ["text"],
-    } : undefined,
-    pricing: m.pricing,
-  }));
-}
-
-function computeLocalPrefix(configEndpoint: string, upstreamPrefix: string): string {
-  if (!configEndpoint) return upstreamPrefix;
-  if (!upstreamPrefix) return configEndpoint;
-  return `${configEndpoint}/${upstreamPrefix}`;
-}
-
-function joinUrl(base: string, ...parts: string[]): string {
-  return [base, ...parts].filter(Boolean).join("/").replace(/([^:]\/)\/+/g, "$1");
-}
-
-async function discoverChimeraProviders(
-  raw: ChimeraRaw,
-  yamlName: string,
-  baseUrl: string,
-  configEndpoint: string,
-): Promise<ProviderConfig[]> {
-  const apiKey = raw.api_key;
-
-  let upstreamPrefixes: string[];
-  try {
-    upstreamPrefixes = await fetchEndpoints(baseUrl, apiKey);
-  } catch (err) {
-    logger.warn(`Chimera '${yamlName}': failed to discover endpoints, skipping`, {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return [];
-  }
-
-  const configs: ProviderConfig[] = [];
-  for (const prefix of upstreamPrefixes) {
-    let models: ModelConfig[];
-    try {
-      models = await fetchModels(baseUrl, prefix, apiKey);
-    } catch (err) {
-      logger.warn(`Chimera '${yamlName}': failed to discover models at '${prefix || "(default)"}', skipping endpoint`);
-      continue;
-    }
-    if (models.length === 0) {
-      logger.warn(`Chimera '${yamlName}': no models at '${prefix || "(default)"}', skipping endpoint`);
-      continue;
-    }
-
-    const localPrefix = computeLocalPrefix(configEndpoint, prefix);
-    const providerName = prefix ? `${yamlName}/${prefix}` : yamlName;
-
-    configs.push({
-      version: raw.version,
-      type: "chimera",
-      name: providerName,
-      api_key: apiKey,
-      base_url: joinUrl(baseUrl, prefix),
-      anthropic_url: null,
-      auth_header: raw.auth_header,
-      auth_prefix: raw.auth_prefix,
-      timeout: raw.timeout,
-      endpoint: localPrefix,
-      models,
-      capabilities: {},
-      web_search: null,
-    });
-  }
-  return configs;
 }
 
 export async function loadProviders(configDir?: string, enabledProviderNames?: Set<string> | null): Promise<ProviderConfig[]> {
@@ -309,10 +207,7 @@ export async function loadProviders(configDir?: string, enabledProviderNames?: S
     // Chimera branch: async discovery, skip standard model iteration
     if (raw.type === "chimera") {
       const configEndpoint = normalizeEndpoint(raw.endpoint);
-      let baseUrl = raw.base_url;
-      if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-        baseUrl = "https://" + baseUrl;
-      }
+      const baseUrl = normalizeBaseUrl(raw.base_url);
 
       const discovered = await discoverChimeraProviders(raw, name, baseUrl, configEndpoint);
 
@@ -394,9 +289,7 @@ export async function loadProviders(configDir?: string, enabledProviderNames?: S
       if (defaultUrl) baseUrl = defaultUrl;
     }
 
-    if (baseUrl && !baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
-      baseUrl = "https://" + baseUrl;
-    }
+    if (baseUrl) baseUrl = normalizeBaseUrl(baseUrl);
 
     const isCustom = CUSTOM_TYPES.has(standardRaw.type);
     const anthropicUrl = isCustom ? null : (standardRaw.anthropic_url ?? handler?.getDefaultAnthropicUrl() ?? null);

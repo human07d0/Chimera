@@ -20,8 +20,8 @@
 {
   "object": "list",
   "endpoints": [
-    { "prefix": "", "path": "/v1" },
-    { "prefix": "team-a", "path": "/team-a/v1" }
+    { "prefix": "/", "path": "/v1" },
+    { "prefix": "/team-a", "path": "/team-a/v1" }
   ]
 }
 ```
@@ -46,14 +46,29 @@ endpointsRouter.get("/endpoints", (_req, res) => {
 
 ```typescript
 // src/providers/builtin/chimera.ts
-class ChimeraHandler implements ProviderHandler {
-  readonly type = "chimera";
-  getOpenAIUrl(baseUrl: string): string { return `${baseUrl}/v1/chat/completions`; }
-  getAnthropicUrl(baseUrl: string): string { return `${baseUrl}/anthropic/v1/messages`; }
-  getDefaultBaseUrl(): string | null { return null; }
-  getDefaultAnthropicUrl(): string | null { return null; }
-  transformRequest(): void {} // 无操作：上游 chimera 自行处理 transform
-}
+export const chimeraHandler: ProviderHandler = {
+  type: "chimera",
+
+  getOpenAIUrl(baseUrl: string): string | null {
+    return `${baseUrl}/v1/chat/completions`;
+  },
+
+  getAnthropicUrl(baseUrl: string): string | null {
+    return `${baseUrl}/anthropic/v1/messages`;
+  },
+
+  getDefaultBaseUrl(): string | null {
+    return null;
+  },
+
+  getDefaultAnthropicUrl(): string | null {
+    return null;
+  },
+
+  transformRequest(): void {
+    // No-op: upstream chimera handles its own transforms
+  },
+};
 ```
 
 注册于 `builtinHandlers`（非 `CUSTOM_TYPES`）。同时支持 OpenAI 和 Anthropic 端点。

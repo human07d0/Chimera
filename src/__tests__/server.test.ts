@@ -1,8 +1,18 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import http from "http";
 
-const { mockGetStorageAsync, mockGetStorage } = vi.hoisted(() => ({
+const { mockGetStorageAsync, mockGetStorage, mockEndpointsRouter, mockPassThroughRouter } = vi.hoisted(() => ({
   mockGetStorageAsync: vi.fn().mockResolvedValue({} as any),
   mockGetStorage: vi.fn(() => ({ prune: vi.fn() }) as any),
+  mockEndpointsRouter: (() => {
+    const express = require("express");
+    const router = express.Router();
+    router.get("/endpoints", (_req: any, res: any) => {
+      res.json({ object: "list", endpoints: [] });
+    });
+    return router;
+  })(),
+  mockPassThroughRouter: require("express").Router(),
 }));
 
 vi.mock("../monitor/storage/factory", () => ({
@@ -17,15 +27,15 @@ vi.mock("../utils/logger", () => ({
 vi.mock("../providers/registry", () => ({
   modelRegistry: {
     init: vi.fn(),
-    getEndpoints: () => [],
+    getEndpoints: () => [""],
     getProviders: () => [],
     getAllModels: () => [],
   },
 }));
 
 vi.mock("../monitor/index", () => ({
-  monitorRouter: vi.fn(),
-  monitorMiddleware: vi.fn(),
+  monitorRouter: mockPassThroughRouter,
+  monitorMiddleware: (_req: any, _res: any, next: any) => next(),
 }));
 
 vi.mock("../monitor/pricing", () => ({
@@ -33,23 +43,41 @@ vi.mock("../monitor/pricing", () => ({
 }));
 
 vi.mock("../ops/index", () => ({
-  opsRouter: vi.fn(),
+  opsRouter: mockPassThroughRouter,
 }));
 
 vi.mock("../routes/chat", () => ({
-  chatRouter: vi.fn(),
+  chatRouter: mockPassThroughRouter,
 }));
 
 vi.mock("../routes/anthropic", () => ({
-  anthropicRouter: vi.fn(),
+  anthropicRouter: mockPassThroughRouter,
 }));
 
 vi.mock("../routes/models", () => ({
-  modelsRouter: vi.fn(),
+  modelsRouter: mockPassThroughRouter,
+}));
+
+vi.mock("../routes/endpoints", () => ({
+  endpointsRouter: mockEndpointsRouter,
 }));
 
 vi.mock("../utils/auth", () => ({
-  extractApiKey: vi.fn(),
+  extractApiKey: (req: any) => {
+    const authHeader = req.headers?.["authorization"];
+    if (typeof authHeader === "string" && authHeader.startsWith("Bearer ")) {
+      return authHeader.slice("Bearer ".length).trim();
+    }
+    const apiKeyHeader = req.headers?.["api-key"];
+    if (typeof apiKeyHeader === "string" && apiKeyHeader.trim()) {
+      return apiKeyHeader.trim();
+    }
+    const xApiKeyHeader = req.headers?.["x-api-key"];
+    if (typeof xApiKeyHeader === "string" && xApiKeyHeader.trim()) {
+      return xApiKeyHeader.trim();
+    }
+    return null;
+  },
 }));
 
 vi.mock("../debug", () => ({
@@ -57,10 +85,10 @@ vi.mock("../debug", () => ({
   debugRouter: vi.fn(),
 }));
 
-vi.mock("../config", () => ({
-  config: {
+const { mockedConfig } = vi.hoisted(() => ({
+  mockedConfig: {
     configDir: "/test/config",
-    proxyApiKey: undefined,
+    proxyApiKey: undefined as string | undefined,
     logLevel: "info",
     bodySizeLimit: () => "1mb",
     debug: { enabled: false },
@@ -70,6 +98,10 @@ vi.mock("../config", () => ({
       retentionDays: 30,
     },
   },
+}));
+
+vi.mock("../config", () => ({
+  config: mockedConfig,
 }));
 
 vi.mock("fs", () => ({
@@ -156,5 +188,121 @@ describe("createApp", () => {
 
     expect(mockGetStorageAsync).toHaveBeenCalledOnce();
     expect(app).toBeDefined();
+  });
+});
+
+describe("authMiddleware on /v1/endpoints", () => {
+  let server: http.Server;
+
+  afterEach(() => {
+    if (server) {
+      server.close();
+    }
+    mockedConfig.proxyApiKey = undefined;
+  });
+
+  async function httpGet(
+    path: string,
+    headers?: Record<string, string>,
+  ): Promise<{ status: number; body: any }> {
+    return new Promise((resolve, reject) => {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}${path}`;
+      const options: http.RequestOptions = {};
+      if (headers) {
+        options.headers = headers;
+      }
+      http
+        .get(url, options, (res) => {
+          let data = "";
+          res.on("data", (chunk: Buffer) => {
+            data += chunk.toString();
+          });
+          res.on("end", () => {
+            let parsed: any;
+            try {
+              parsed = JSON.parse(data);
+            } catch {
+              parsed = data;
+            }
+            resolve({ status: res.statusCode!, body: parsed });
+          });
+        })
+        .on("error", reject);
+    });
+  }
+
+  it("returns 401 when proxyApiKey is set and no API key is provided", async () => {
+    mockedConfig.proxyApiKey = "test-api-key";
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+
+    server = app.listen(0);
+
+    const res = await httpGet("/v1/endpoints");
+
+    expect(res.status).toBe(401);
+    expect(res.body.error.code).toBe("missing_api_key");
+  });
+
+  it("returns 200 when proxyApiKey is set and correct API key is provided", async () => {
+    mockedConfig.proxyApiKey = "test-api-key";
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+
+    server = app.listen(0);
+
+    const res = await httpGet("/v1/endpoints", {
+      Authorization: "Bearer test-api-key",
+    });
+
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("health endpoint", () => {
+  let server: http.Server;
+
+  afterEach(() => {
+    if (server) {
+      server.close();
+    }
+  });
+
+  it("does not expose auth configuration status", async () => {
+    mockedConfig.proxyApiKey = undefined;
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+
+    server = app.listen(0);
+
+    const res = await new Promise<{ status: number; body: any }>(
+      (resolve, reject) => {
+        const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/health`;
+        http
+          .get(url, (res) => {
+            let data = "";
+            res.on("data", (chunk: Buffer) => {
+              data += chunk.toString();
+            });
+            res.on("end", () => {
+              let parsed: any;
+              try {
+                parsed = JSON.parse(data);
+              } catch {
+                parsed = data;
+              }
+              resolve({ status: res.statusCode!, body: parsed });
+            });
+          })
+          .on("error", reject);
+      },
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).not.toHaveProperty("auth");
+    expect(res.body).toHaveProperty("status", "ok");
   });
 });

@@ -85,7 +85,6 @@ export async function createApp(): Promise<express.Application> {
       timestamp: new Date().toISOString(),
       providers: providers.map((p) => p.name),
       totalModels,
-      auth: config.proxyApiKey ? "enabled" : "disabled",
     });
   });
 
@@ -182,10 +181,11 @@ export async function createApp(): Promise<express.Application> {
     const prefix = endpoint || "";
 
     app.use(`${prefix}/v1`, modelsRouter);
-    app.use(`${prefix}/v1`, endpointsRouter);
 
     app.use(`${prefix}/v1`, authMiddleware);
     app.use(`${prefix}/anthropic/v1`, authMiddleware);
+
+    app.use(`${prefix}/v1`, endpointsRouter);
 
     if (config.debug.enabled) {
       app.use(`${prefix}/v1`, debugMiddleware);
