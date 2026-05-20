@@ -5,18 +5,20 @@ import { isWatcherActive } from "./watcher";
 import { requestShutdown, requestRestart } from "../shutdownManager";
 import { logger } from "../utils/logger";
 import { config } from "../config";
+import { isLocalRequest } from "../utils/isLocalRequest";
 import { generateSchema } from "./configSchema";
 import { modelRegistry } from "../providers/registry";
 
 export const opsRouter: Router = Router();
 
 // 获取服务基本信息（公开，无需鉴权）- 必须在鉴权中间件之前定义
-opsRouter.get("/info", (_req: Request, res: Response) => {
+opsRouter.get("/info", (req: Request, res: Response) => {
   res.json({
     success: true,
     data: {
       enabled: !!config.opsPassword,
       debugEnabled: config.debug.enabled,
+      debugAccessible: config.debug.enabled && isLocalRequest(req),
       version: process.env.npm_package_version || "unknown",
     },
   });

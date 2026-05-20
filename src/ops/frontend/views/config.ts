@@ -202,12 +202,7 @@ export async function saveConfig(): Promise<void> {
     resetSaveButton();
 
     if ("debugEnabled" in updates) {
-      const enabled = !!updates.debugEnabled;
-      store.setState({ debugEnabled: enabled });
-      const debugLink = document.getElementById("nav-debug");
-      if (debugLink) {
-        debugLink.hidden = !enabled;
-      }
+      store.setState({ debugEnabled: !!updates.debugEnabled });
     }
   } else {
     toast.error(response.error || "Save failed");

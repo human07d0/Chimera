@@ -8,6 +8,7 @@ export interface AppState {
   initialized: boolean;
   opsEnabled: boolean;
   debugEnabled: boolean;
+  debugAccessible: boolean;
   loggedIn: boolean;
   token: string | null;
   status: OpsStatus | null;
@@ -24,6 +25,7 @@ class Store {
     initialized: false,
     opsEnabled: false,
     debugEnabled: false,
+    debugAccessible: false,
     loggedIn: false,
     token: null,
     status: null,

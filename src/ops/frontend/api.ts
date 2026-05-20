@@ -5,6 +5,7 @@
 export interface OpsInfo {
   enabled: boolean;
   debugEnabled: boolean;
+  debugAccessible: boolean;
   version: string;
 }
 

@@ -33,7 +33,8 @@ async function init(): Promise<void> {
     const infoRes = await opsApi.getInfo();
 
     const debugEnabled = infoRes.data?.debugEnabled ?? false;
-    store.setState({ initialized: true, debugEnabled });
+    const debugAccessible = infoRes.data?.debugAccessible ?? false;
+    store.setState({ initialized: true, debugEnabled, debugAccessible });
 
     if (!infoRes.success || !infoRes.data?.enabled) {
       renderDisabledView();
@@ -110,7 +111,7 @@ async function renderDashboard(): Promise<void> {
   const app = document.getElementById("app");
   if (!app) return;
 
-  const debugHidden = store.getState().debugEnabled ? "" : " hidden";
+  const debugHidden = store.getState().debugAccessible ? "" : " hidden";
 
   app.innerHTML = `
     <header class="header">

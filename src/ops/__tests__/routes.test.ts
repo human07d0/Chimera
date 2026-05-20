@@ -80,6 +80,7 @@ function mockReq(overrides: Record<string, unknown> = {}): Request {
   return {
     headers: {},
     ip: "127.0.0.1",
+    socket: { remoteAddress: "127.0.0.1" },
     ...overrides,
   } as unknown as Request;
 }
@@ -152,6 +153,7 @@ describe("Ops Routes", () => {
         data: {
           enabled: true,
           debugEnabled: expect.any(Boolean),
+          debugAccessible: true,
           version: expect.any(String),
         },
       });
@@ -174,6 +176,14 @@ describe("Ops Routes", () => {
         (l: any) => l.route?.path === "/info",
       );
       expect(layer.route.stack).toHaveLength(1);
+    });
+
+    it("returns debugAccessible: false for non-local requests", () => {
+      const res2 = mockRes();
+      const nonLocalReq = mockReq({ socket: { remoteAddress: "10.0.0.1" } });
+      findRouteHandler(opsRouter, "get", "/info")(nonLocalReq, res2);
+
+      expect((res2.body as any).data.debugAccessible).toBe(false);
     });
   });
 

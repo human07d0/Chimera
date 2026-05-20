@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import http from "http";
+import fs from "fs";
 
-const { mockGetStorageAsync, mockGetStorage, mockEndpointsRouter, mockPassThroughRouter } = vi.hoisted(() => ({
+const { mockGetStorageAsync, mockGetStorage, mockEndpointsRouter, mockPassThroughRouter, mockLocalhostGuard } = vi.hoisted(() => ({
   mockGetStorageAsync: vi.fn().mockResolvedValue({} as any),
   mockGetStorage: vi.fn(() => ({ prune: vi.fn() }) as any),
   mockEndpointsRouter: (() => {
@@ -13,6 +14,7 @@ const { mockGetStorageAsync, mockGetStorage, mockEndpointsRouter, mockPassThroug
     return router;
   })(),
   mockPassThroughRouter: require("express").Router(),
+  mockLocalhostGuard: vi.fn((_req: any, _res: any, next: any) => next()),
 }));
 
 vi.mock("../monitor/storage/factory", () => ({
@@ -82,7 +84,11 @@ vi.mock("../utils/auth", () => ({
 
 vi.mock("../debug", () => ({
   debugMiddleware: vi.fn(),
-  debugRouter: vi.fn(),
+  debugRouter: require("express").Router(),
+}));
+
+vi.mock("../utils/localhostGuard", () => ({
+  localhostGuard: mockLocalhostGuard,
 }));
 
 const { mockedConfig } = vi.hoisted(() => ({
@@ -170,6 +176,16 @@ describe("buildPlaygroundConfig", () => {
       search: "-search",
       json: "-json",
     });
+  });
+
+  it("includes debugAccessible in config (defaults to false)", () => {
+    const result = buildPlaygroundConfig({
+      getEndpoints: () => [],
+      getAllModels: () => [],
+      playgroundToken: "token",
+    });
+
+    expect(result.debugAccessible).toBe(false);
   });
 });
 
@@ -304,5 +320,280 @@ describe("health endpoint", () => {
     expect(res.status).toBe(200);
     expect(res.body).not.toHaveProperty("auth");
     expect(res.body).toHaveProperty("status", "ok");
+  });
+});
+
+describe("CORS middleware skips /debug and /monitor", () => {
+  let server: http.Server;
+
+  afterEach(() => {
+    if (server) {
+      server.close();
+    }
+  });
+
+  async function httpGetHeaders(path: string): Promise<{ status: number; headers: http.IncomingHttpHeaders }> {
+    return new Promise((resolve, reject) => {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}${path}`;
+      http.get(url, (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => {
+          resolve({ status: res.statusCode!, headers: res.headers });
+        });
+      }).on("error", reject);
+    });
+  }
+
+  it("does not set CORS headers for /debug", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/debug");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("does not set CORS headers for /Debug (case insensitive)", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/Debug");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("does not set CORS headers for /debug/something", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/debug/something");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("does not set CORS headers for /monitor", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/monitor");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("does not set CORS headers for /MONITOR (case insensitive)", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/MONITOR");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("does not set CORS headers for /monitor/something", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/monitor/something");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+  });
+
+  it("still sets CORS headers for normal paths like /health", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/health");
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+  });
+
+  it("still sets CORS headers for /debugger (not a /debug prefix)", async () => {
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetHeaders("/debugger");
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+  });
+});
+
+describe("localhostGuard on /debug routes", () => {
+  let server: http.Server;
+
+  afterEach(() => {
+    if (server) {
+      server.close();
+    }
+    mockedConfig.debug.enabled = false;
+    mockLocalhostGuard.mockClear();
+  });
+
+  async function httpGet(path: string): Promise<{ status: number; body: any }> {
+    return new Promise((resolve, reject) => {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}${path}`;
+      http.get(url, (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => {
+          let parsed: any;
+          try { parsed = JSON.parse(data); } catch { parsed = data; }
+          resolve({ status: res.statusCode!, body: parsed });
+        });
+      }).on("error", reject);
+    });
+  }
+
+  it("applies localhostGuard to /debug when debug is enabled", async () => {
+    mockedConfig.debug.enabled = true;
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    await httpGet("/debug");
+    expect(mockLocalhostGuard).toHaveBeenCalled();
+  });
+
+  it("applies localhostGuard to /debug/foo when debug is enabled", async () => {
+    mockedConfig.debug.enabled = true;
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    await httpGet("/debug/foo");
+    expect(mockLocalhostGuard).toHaveBeenCalled();
+  });
+
+  it("does not apply localhostGuard when debug is disabled", async () => {
+    mockedConfig.debug.enabled = false;
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    await httpGet("/debug");
+    expect(mockLocalhostGuard).not.toHaveBeenCalled();
+  });
+});
+
+describe("Root / route — Debug link server-side injection", () => {
+  let server: http.Server;
+
+  const minHtml = '<!DOCTYPE html><html><head></head><body><a class="nav-link" href="./debug/">Debug</a></body></html>';
+
+  afterEach(() => {
+    if (server) {
+      server.close();
+    }
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.readFileSync).mockReturnValue("");
+    mockedConfig.debug.enabled = false;
+  });
+
+  async function httpGetRoot(): Promise<{ status: number; body: string }> {
+    return new Promise((resolve, reject) => {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/`;
+      http.get(url, (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => resolve({ status: res.statusCode!, body: data }));
+      }).on("error", reject);
+    });
+  }
+
+  it("hides Debug link when debug is disabled", async () => {
+    mockedConfig.debug.enabled = false;
+    vi.mocked(fs.existsSync).mockImplementation((p) => {
+      const pathStr = String(p);
+      return pathStr.includes("public") && pathStr.endsWith("index.html");
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(minHtml);
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetRoot();
+    expect(res.status).toBe(200);
+    expect(res.body).toContain("hidden");
+  });
+
+  it("shows Debug link when debug is enabled and request is local", async () => {
+    mockedConfig.debug.enabled = true;
+    vi.mocked(fs.existsSync).mockImplementation((p) => {
+      const pathStr = String(p);
+      return pathStr.includes("public") && pathStr.endsWith("index.html");
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(minHtml);
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetRoot();
+    expect(res.status).toBe(200);
+    expect(res.body).not.toContain("hidden");
+  });
+});
+
+describe("Playground — debugAccessible injection", () => {
+  let server: http.Server;
+
+  const minPlaygroundHtml = '<!DOCTYPE html><html><head></head><body><a class="nav-link" href="/debug/" id="nav-debug">Debug</a></body></html>';
+
+  afterEach(() => {
+    if (server) {
+      server.close();
+    }
+    vi.mocked(fs.existsSync).mockReturnValue(false);
+    vi.mocked(fs.readFileSync).mockReturnValue("");
+    mockedConfig.debug.enabled = false;
+  });
+
+  async function httpGetPlayground(): Promise<{ status: number; body: string }> {
+    return new Promise((resolve, reject) => {
+      const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/playground`;
+      http.get(url, (res) => {
+        let data = "";
+        res.on("data", (chunk: Buffer) => { data += chunk.toString(); });
+        res.on("end", () => resolve({ status: res.statusCode!, body: data }));
+      }).on("error", reject);
+    });
+  }
+
+  it("injects debugAccessible:false when debug is disabled", async () => {
+    mockedConfig.debug.enabled = false;
+    vi.mocked(fs.existsSync).mockImplementation((p) => {
+      const pathStr = String(p);
+      return pathStr.includes("playground") && pathStr.endsWith("index.html");
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(minPlaygroundHtml);
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetPlayground();
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('"debugAccessible":false');
+  });
+
+  it("injects debugAccessible:true when debug is enabled and request is local", async () => {
+    mockedConfig.debug.enabled = true;
+    vi.mocked(fs.existsSync).mockImplementation((p) => {
+      const pathStr = String(p);
+      return pathStr.includes("playground") && pathStr.endsWith("index.html");
+    });
+    vi.mocked(fs.readFileSync).mockReturnValue(minPlaygroundHtml);
+
+    const { createApp } = await import("../server");
+    const app = await createApp();
+    server = app.listen(0);
+
+    const res = await httpGetPlayground();
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('"debugAccessible":true');
   });
 });

@@ -16,6 +16,8 @@ import { config } from "./config";
 import { logger } from "./utils/logger";
 import { extractApiKey } from "./utils/auth";
 import { debugMiddleware, debugRouter } from "./debug";
+import { localhostGuard } from "./utils/localhostGuard";
+import { isLocalRequest } from "./utils/isLocalRequest";
 
   let cleanupInterval: NodeJS.Timeout | null = null;
 let cachedPlaygroundHtml: string | null = null;
@@ -33,6 +35,11 @@ export async function createApp(): Promise<express.Application> {
   // 基础中间件
   // --------------------------------------------------------------------------
   app.use((_req: Request, res: Response, next: NextFunction) => {
+    const p = _req.path.toLowerCase();
+    if (p === "/debug" || p.startsWith("/debug/") || p === "/monitor" || p.startsWith("/monitor/")) {
+      next();
+      return;
+    }
     res.header("Access-Control-Allow-Origin", "*");
     res.header(
       "Access-Control-Allow-Methods",
@@ -64,6 +71,19 @@ export async function createApp(): Promise<express.Application> {
   // --------------------------------------------------------------------------
   const publicDir = resolveStaticDir("public");
   if (publicDir) {
+    app.get("/", (_req: Request, res: Response) => {
+      const indexPath = path.join(publicDir, "index.html");
+      let html = fs.readFileSync(indexPath, "utf-8");
+      const debugAccessible = config.debug.enabled && isLocalRequest(_req);
+      if (!debugAccessible) {
+        html = html.replace(
+          '<a class="nav-link" href="./debug/">Debug</a>',
+          '<a class="nav-link" href="./debug/" hidden>Debug</a>'
+        );
+      }
+      res.setHeader("Content-Type", "text/html");
+      res.send(html);
+    });
     app.use(express.static(publicDir));
   }
 
@@ -96,15 +116,15 @@ export async function createApp(): Promise<express.Application> {
   app.use("/monitor", monitorRouter);
 
   // --------------------------------------------------------------------------
-  // 调试路由（设计上不需要鉴权，仅 DEBUG_ENABLED=true 时挂载）
+  // 调试路由（仅允许本地环回地址访问，通过 localhostGuard 中间件控制）
   // --------------------------------------------------------------------------
   if (config.debug.enabled) {
-    app.use("/debug", debugRouter);
+    app.use("/debug", localhostGuard, debugRouter);
 
     const debugPublicDir = resolveStaticDir("debug");
     if (debugPublicDir) {
-      app.use("/debug", express.static(debugPublicDir));
-      app.use("/debug", (_req: Request, res: Response) => {
+      app.use("/debug", localhostGuard, express.static(debugPublicDir));
+      app.use("/debug", localhostGuard, (_req: Request, res: Response) => {
         res.sendFile(path.join(debugPublicDir, "index.html"));
       });
     }
@@ -121,12 +141,13 @@ export async function createApp(): Promise<express.Application> {
         cachedPlaygroundHtml = fs.readFileSync(indexPath, "utf-8");
       }
 
-      const config = buildPlaygroundConfig({
+      const playgroundConfig = buildPlaygroundConfig({
         getEndpoints: () => modelRegistry.getEndpoints(),
         getAllModels: (ep) => modelRegistry.getAllModels(ep),
         playgroundToken,
       });
-      const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify(config)}</script>`;
+      playgroundConfig.debugAccessible = config.debug.enabled && isLocalRequest(_req);
+      const configScript = `<script>window.PLAYGROUND_CONFIG = ${JSON.stringify(playgroundConfig)}</script>`;
       const html = cachedPlaygroundHtml.replace("<head>", `<head>\n    ${configScript}`);
 
       res.setHeader("Content-Type", "text/html");
@@ -286,6 +307,7 @@ export function buildPlaygroundConfig(options: {
   endpointModels: Record<string, string[]>;
   playgroundToken: string;
   featureSuffixes: { thinking: string; search: string; json: string };
+  debugAccessible: boolean;
 } {
   const endpointModels: Record<string, string[]> = {};
   for (const endpoint of options.getEndpoints()) {
@@ -296,6 +318,7 @@ export function buildPlaygroundConfig(options: {
     endpointModels,
     playgroundToken: options.playgroundToken,
     featureSuffixes: { thinking: "-thinking", search: "-search", json: "-json" },
+    debugAccessible: false,
   };
 }
 

@@ -256,7 +256,7 @@
         <h1>Chimera <span>Playground</span></h1>
         <div class="header-actions">
             <a class="nav-link" href="/">Monitor</a>
-            <a class="nav-link" href="/debug/">Debug</a>
+            <a class="nav-link" href="/debug/" id="nav-debug">Debug</a>
             <a class="nav-link" href="/ops/">Ops</a>
             <a class="nav-link active" href="/playground/">Playground</a>
         </div>
@@ -661,6 +661,11 @@
         });
 
         onEndpointChange();
+    </script>
+    <script>
+if (window.PLAYGROUND_CONFIG && !window.PLAYGROUND_CONFIG.debugAccessible) {
+  document.getElementById('nav-debug')?.setAttribute('hidden', '');
+}
     </script>
 </body>
 </html>

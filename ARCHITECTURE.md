@@ -90,7 +90,11 @@ src/
 └── utils/
     ├── logger.ts
     ├── auth.ts
-    └── fetchWithTimeout.ts
+    ├── fetchWithTimeout.ts
+    ├── isLocalRequest.ts
+    ├── localhostGuard.ts
+    ├── requestId.ts
+    └── sanitizeForLog.ts
 ```
 
 ## 部署视图

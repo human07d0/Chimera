@@ -11,7 +11,7 @@ export function renderLoginView(): void {
   const app = document.getElementById("app");
   if (!app) return;
 
-  const debugHidden = store.getState().debugEnabled ? "" : " hidden";
+  const debugHidden = store.getState().debugAccessible ? "" : " hidden";
 
   app.innerHTML = `
     <header class="header">
@@ -82,7 +82,7 @@ export function renderDisabledView(): void {
   const app = document.getElementById("app");
   if (!app) return;
 
-  const debugHidden = store.getState().debugEnabled ? "" : " hidden";
+  const debugHidden = store.getState().debugAccessible ? "" : " hidden";
 
   app.innerHTML = `
     <header class="header">
