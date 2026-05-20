@@ -15,7 +15,7 @@ import { registerProviderPricing } from "./monitor/pricing";
 import { config } from "./config";
 import { logger } from "./utils/logger";
 import { extractApiKey } from "./utils/auth";
-import { debugMiddleware, debugRouter } from "./debug";
+import { debugMiddleware, debugRouter, agentRouter } from "./debug";
 import { localhostGuard } from "./utils/localhostGuard";
 import { isLocalRequest } from "./utils/isLocalRequest";
 
@@ -120,6 +120,7 @@ export async function createApp(): Promise<express.Application> {
   // --------------------------------------------------------------------------
   if (config.debug.enabled) {
     app.use("/debug", localhostGuard, debugRouter);
+    app.use("/debug/agent", localhostGuard, agentRouter);
 
     const debugPublicDir = resolveStaticDir("debug");
     if (debugPublicDir) {

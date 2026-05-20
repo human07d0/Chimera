@@ -85,6 +85,7 @@ vi.mock("../utils/auth", () => ({
 vi.mock("../debug", () => ({
   debugMiddleware: vi.fn(),
   debugRouter: require("express").Router(),
+  agentRouter: require("express").Router(),
 }));
 
 vi.mock("../utils/localhostGuard", () => ({
