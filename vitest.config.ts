@@ -3,6 +3,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     silent: "passed-only",
+    pool: "forks",
     include: [
       "src/proxy/**/*.test.ts",
       "src/debug/**/*.test.ts",
