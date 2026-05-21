@@ -12,20 +12,41 @@ function extractUsage(payload: unknown): {
     return { input_tokens: 0, output_tokens: 0, cached_prompt_tokens: 0 };
   }
 
-  const usage = (payload as Record<string, unknown>)["usage"];
-  if (!usage || typeof usage !== "object") {
+  const top = payload as Record<string, unknown>;
+
+  let usageObj = top["usage"] as Record<string, unknown> | undefined;
+
+  if (!usageObj || typeof usageObj !== "object") {
+    const message = top["message"];
+    if (message && typeof message === "object") {
+      const msgUsage = (message as Record<string, unknown>)["usage"];
+      if (msgUsage && typeof msgUsage === "object") {
+        usageObj = msgUsage as Record<string, unknown>;
+      }
+    }
+  }
+
+  if (!usageObj || typeof usageObj !== "object") {
     return { input_tokens: 0, output_tokens: 0, cached_prompt_tokens: 0 };
   }
 
-  const usageObj = usage as Record<string, unknown>;
+  const input_tokens =
+    ((usageObj["prompt_tokens"] as number) ?? (usageObj["input_tokens"] as number) ?? 0);
+  const output_tokens =
+    ((usageObj["completion_tokens"] as number) ?? (usageObj["output_tokens"] as number) ?? 0);
+
   const promptDetails = (usageObj["prompt_tokens_details"] ?? {}) as Record<string, unknown>;
+  const openaiCached = (promptDetails["cached_tokens"] as number) ?? 0;
+
+  const anthropicCacheCreation = Math.max(Number(usageObj["cache_creation_input_tokens"]) || 0, 0);
+  const anthropicCacheRead = Math.max(Number(usageObj["cache_read_input_tokens"]) || 0, 0);
 
   return {
-    input_tokens:
-      ((usageObj["prompt_tokens"] as number) ?? (usageObj["input_tokens"] as number) ?? 0),
-    output_tokens:
-      ((usageObj["completion_tokens"] as number) ?? (usageObj["output_tokens"] as number) ?? 0),
-    cached_prompt_tokens: (promptDetails["cached_tokens"] as number) ?? 0,
+    input_tokens,
+    output_tokens,
+    cached_prompt_tokens: openaiCached > 0
+      ? openaiCached
+      : anthropicCacheCreation + anthropicCacheRead,
   };
 }
 
@@ -109,9 +130,9 @@ export function monitorMiddleware(req: Request, res: Response, next: NextFunctio
           const shared = (res as any)?.locals?._sseChunk;
           const parsed = shared?.parsed ?? JSON.parse(dataContent) as Record<string, unknown>;
           const usage = extractUsage(parsed);
-          inputTokens = usage.input_tokens ?? inputTokens;
-          outputTokens = usage.output_tokens ?? outputTokens;
-          cachedPromptTokens = usage.cached_prompt_tokens ?? cachedPromptTokens;
+          inputTokens = usage.input_tokens || inputTokens;
+          outputTokens = usage.output_tokens || outputTokens;
+          cachedPromptTokens = usage.cached_prompt_tokens || cachedPromptTokens;
 
           const chunkError = parsed["error"];
           if (chunkError && typeof chunkError === "object") {

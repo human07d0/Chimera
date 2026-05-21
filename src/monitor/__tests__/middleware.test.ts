@@ -197,6 +197,179 @@ describe("extractUsage", () => {
     const event = (storageWorker.append as any).mock.calls[0][0];
     expect(event.cached_prompt_tokens).toBe(0);
   });
+
+  it("extracts Anthropic cache_read_input_tokens", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      usage: { input_tokens: 200, output_tokens: 80, cache_read_input_tokens: 50 },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(50);
+  });
+
+  it("extracts Anthropic cache_creation_input_tokens", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      usage: { input_tokens: 200, output_tokens: 80, cache_creation_input_tokens: 100 },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(100);
+  });
+
+  it("sums both Anthropic cache types", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      usage: {
+        input_tokens: 200,
+        output_tokens: 80,
+        cache_creation_input_tokens: 100,
+        cache_read_input_tokens: 50,
+      },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(150);
+  });
+
+  it("OpenAI cache takes precedence when > 0", () => {
+    const req = createMockReq("/chat/completions");
+    const res = createMockRes("/chat/completions");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      usage: {
+        prompt_tokens: 100,
+        completion_tokens: 50,
+        prompt_tokens_details: { cached_tokens: 30 },
+        cache_read_input_tokens: 50,
+      },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(30);
+  });
+
+  it("extracts usage from message.usage fallback (Anthropic message_start)", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      message: { usage: { input_tokens: 100, output_tokens: 0 } },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(100);
+    expect(event.output_tokens).toBe(0);
+  });
+
+  it("coerces string cache values via Number()", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      usage: { input_tokens: 200, output_tokens: 80, cache_creation_input_tokens: "50" },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(50);
+  });
+
+  it("guards negative cache_creation_input_tokens to 0", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      usage: { input_tokens: 100, output_tokens: 50, cache_creation_input_tokens: -5 },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(0);
+  });
+
+  it("guards negative cache_read_input_tokens to 0", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: -10 },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(0);
+  });
+
+  it("returns zeros when message has no usage", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({ message: {} });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(0);
+    expect(event.output_tokens).toBe(0);
+    expect(event.cached_prompt_tokens).toBe(0);
+  });
+
+  it("extracts cache tokens through message.usage path", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.json as any)({
+      message: {
+        usage: { input_tokens: 100, output_tokens: 0, cache_read_input_tokens: 50 },
+      },
+    });
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.cached_prompt_tokens).toBe(50);
+  });
 });
 
 describe("validateSource", () => {
@@ -768,6 +941,57 @@ describe("monitorMiddleware — res.write monkey-patch (SSE chunks)", () => {
     const event = (storageWorker.append as any).mock.calls[0][0];
     expect(event.input_tokens).toBe(15);
     expect(event.output_tokens).toBe(7);
+  });
+
+  it("Anthropic streaming sequence preserves input_tokens across chunks", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.write as any)('data: {"usage":{"input_tokens":100,"output_tokens":0}}\n\n');
+    (res.write as any)('data: {"delta":{"text":"Hello"}}\n\n');
+    (res.write as any)('data: {"delta":{"text":" world"}}\n\n');
+    (res.write as any)('data: {"usage":{"output_tokens":50}}\n\n');
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(100);
+    expect(event.output_tokens).toBe(50);
+  });
+
+  it("preserves accumulated values when chunk has no usage", () => {
+    const req = createMockReq("/chat/completions");
+    const res = createMockRes("/chat/completions");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.write as any)('data: {"usage":{"prompt_tokens":100,"completion_tokens":50}}\n\n');
+    (res.write as any)('data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n');
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(100);
+    expect(event.output_tokens).toBe(50);
+  });
+
+  it("Anthropic streaming with cache tokens", () => {
+    const req = createMockReq("/messages");
+    const res = createMockRes("/messages");
+    const next = vi.fn();
+
+    monitorMiddleware(req, res, next);
+
+    (res.write as any)('data: {"usage":{"input_tokens":200,"output_tokens":0}}\n\n');
+    (res.write as any)('data: {"usage":{"output_tokens":80,"cache_read_input_tokens":50}}\n\n');
+    (res.end as any)();
+
+    const event = (storageWorker.append as any).mock.calls[0][0];
+    expect(event.input_tokens).toBe(200);
+    expect(event.output_tokens).toBe(80);
+    expect(event.cached_prompt_tokens).toBe(50);
   });
 });
 
