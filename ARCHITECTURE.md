@@ -63,7 +63,7 @@ flowchart TD
 ```text
 src/
 ├── index.ts                 # 启动入口
-├── server.ts                # Express 应用 + 中间件 + 路由挂载
+├── server.ts                # Express 应用工厂 + 路由挂载 + resolveStaticDir
 ├── config.ts                # 环境变量统一消费
 ├── shutdownManager.ts       # 优雅关闭
 ├── providers/               # 提供商系统（详见 docs/architecture/provider-system.md）
@@ -76,6 +76,7 @@ src/
 │   ├── chat.ts              #   /v1/chat/completions
 │   ├── anthropic.ts         #   /anthropic/v1/messages
 │   ├── models.ts            #   /v1/models
+│   ├── auth.ts              #   鉴权中间件（PROXY_API_KEY 验证）
 │   └── endpoints.ts         #   /v1/endpoints（端点拓扑发现）
 ├── proxy/                   # 代理核心
 │   ├── streaming.ts         #   SSE 流式透传 + token 用量追踪
@@ -84,6 +85,7 @@ src/
 │   ├── middleware.ts
 │   ├── routes.ts
 │   ├── pricing.ts
+│   ├── cleanup.ts           #   定时清理任务（过期监控数据）
 │   └── storage/
 ├── debug/                   # 调试模块
 ├── ops/                     # 运维界面
