@@ -6,7 +6,7 @@ const stopWatcher = vi.fn();
 const performDirectRestart = vi.fn();
 const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
-vi.mock("../server", () => ({ stopCleanupTask }));
+vi.mock("../monitor/cleanup", () => ({ stopCleanupTask }));
 vi.mock("../monitor/storage/worker", () => ({ storageWorker: { shutdown: storageShutdown } }));
 vi.mock("../ops", () => ({ stopWatcher, performDirectRestart }));
 vi.mock("../utils/logger", () => ({ logger }));

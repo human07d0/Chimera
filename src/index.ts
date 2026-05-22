@@ -1,7 +1,8 @@
 import http from "http";
 
 import { config } from "./config";
-import { createApp, stopCleanupTask } from "./server";
+import { createApp } from "./server";
+import { stopCleanupTask } from "./monitor/cleanup";
 import {
   gracefulShutdown,
   isShuttingDownNow,

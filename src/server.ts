@@ -5,7 +5,7 @@ import crypto from "crypto";
 
 import { monitorRouter, monitorMiddleware } from "./monitor";
 import { opsRouter } from "./ops/index";
-import { getStorage, getStorageAsync } from "./monitor/storage/factory";
+import { getStorageAsync } from "./monitor/storage/factory";
 import { chatRouter } from "./routes/chat";
 import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
@@ -18,8 +18,7 @@ import { authMiddleware } from "./routes/auth";
 import { debugMiddleware, debugRouter, agentRouter } from "./debug";
 import { localhostGuard } from "./utils/localhostGuard";
 import { isLocalRequest } from "./utils/isLocalRequest";
-
-  let cleanupInterval: NodeJS.Timeout | null = null;
+import { startCleanupTask } from "./monitor/cleanup";
 let cachedPlaygroundHtml: string | null = null;
 
 export async function createApp(): Promise<express.Application> {
@@ -254,49 +253,6 @@ export async function createApp(): Promise<express.Application> {
   startCleanupTask();
 
   return app;
-}
-
-function startCleanupTask(): void {
-  const cleanup = () => {
-    try {
-      const storage = getStorage();
-      const retentionDays = config.monitor.retentionDays;
-      const startTime = Date.now();
-      const deletedCount = storage.prune(retentionDays);
-
-      logger.info("Daily cleanup completed", {
-        retentionDays,
-        deletedCount,
-        durationMs: Date.now() - startTime,
-      });
-    } catch (error) {
-      logger.error("Daily cleanup failed", {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  };
-
-  void cleanup();
-
-  if (cleanupInterval) {
-    clearInterval(cleanupInterval);
-    cleanupInterval = null;
-  }
-
-  const oneDayMs = 24 * 60 * 60 * 1000;
-  cleanupInterval = setInterval(() => {
-    void cleanup();
-  }, oneDayMs);
-
-  logger.info(`Daily cleanup task scheduled (every ${oneDayMs}ms)`);
-}
-
-export function stopCleanupTask(): void {
-  if (cleanupInterval) {
-    clearInterval(cleanupInterval);
-    cleanupInterval = null;
-    logger.info("Daily cleanup task stopped");
-  }
 }
 
 export function buildPlaygroundConfig(options: {

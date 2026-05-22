@@ -1,5 +1,5 @@
 import http from "http";
-import { stopCleanupTask } from "./server";
+import { stopCleanupTask } from "./monitor/cleanup";
 import { storageWorker } from "./monitor/storage/worker";
 import {
   stopWatcher,
