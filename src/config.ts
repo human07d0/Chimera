@@ -65,6 +65,13 @@ export const config = {
 
   opsPassword: process.env["OPS_PASSWORD"] || "",
 
+  nodeEnv: optionalEnumEnv("NODE_ENV", ["development", "production", "test"] as const, "production"),
+
+  version: ((): string => {
+    try { return require("../package.json").version || "unknown"; }
+    catch { return "unknown"; }
+  })(),
+
   server: {
     port: optionalIntEnv("PORT", 3000),
     host: optionalEnv("HOST", "0.0.0.0"),

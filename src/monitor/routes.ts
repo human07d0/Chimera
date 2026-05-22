@@ -49,7 +49,7 @@ function parseSourceParam(value: unknown): string | undefined {
 
 function isPruneAuthorized(req: Request): boolean {
   // 默认仅开发环境开放，避免匿名误删
-  if (process.env.NODE_ENV === "development") {
+  if (config.nodeEnv === "development") {
     return true;
   }
 
@@ -219,7 +219,7 @@ monitorRouter.post("/prune", (req: Request, res: Response) => {
   if (!isPruneAuthorized(req)) {
     logger.warn("Blocked unauthorized monitor prune request", {
       ip: req.ip,
-      nodeEnv: process.env.NODE_ENV || "undefined",
+      nodeEnv: config.nodeEnv,
     });
     res.status(403).json({
       success: false,

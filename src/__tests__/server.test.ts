@@ -99,6 +99,7 @@ const { mockedConfig } = vi.hoisted(() => ({
     logLevel: "info",
     bodySizeLimit: () => "1mb",
     debug: { enabled: false },
+    nodeEnv: "production",
     monitor: {
       storage: "memory",
       sqlitePath: ":memory:",
@@ -193,7 +194,6 @@ describe("buildPlaygroundConfig", () => {
 describe("createApp", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env["NODE_ENV"] = "production";
   });
 
   it("calls getStorageAsync before mounting monitor routes", async () => {

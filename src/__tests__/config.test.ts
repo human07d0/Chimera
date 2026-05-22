@@ -18,6 +18,7 @@ describe("config module", () => {
       "DEBUG_MAX_RECORDS",
       "DEBUG_MAX_BODY_SIZE",
       "DEBUG_MAX_MEDIA_BYTES",
+      "NODE_ENV",
     ].forEach((k) => { process.env[k] = ""; });
   });
 
@@ -115,6 +116,35 @@ describe("config module", () => {
     expect(config.debug.maxBodySize).toBe(2097152);
     expect(config.debug.maxMediaBytes).toBe(52428800);
     expect(config.debug.maxRecords).toBe(100);
+  });
+
+  it("default nodeEnv is production", async () => {
+    const { config } = await import("../config");
+    expect(config.nodeEnv).toBe("production");
+  });
+
+  it("NODE_ENV=development override works", async () => {
+    process.env.NODE_ENV = "development";
+    vi.resetModules();
+    const { config } = await import("../config");
+    expect(config.nodeEnv).toBe("development");
+  });
+
+  it("NODE_ENV=invalid warns and falls back to production", async () => {
+    process.env.NODE_ENV = "bogus";
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.resetModules();
+    const { config } = await import("../config");
+    expect(config.nodeEnv).toBe("production");
+    expect(warnSpy).toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("version comes from package.json correctly", async () => {
+    vi.resetModules();
+    const { config } = await import("../config");
+    const pkg = require("../../package.json");
+    expect(config.version).toBe(pkg.version);
   });
 });
 

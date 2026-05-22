@@ -45,6 +45,8 @@ vi.mock("../../config", () => ({
   config: {
     proxyApiKey: "",
     opsPassword: "test-password",
+    nodeEnv: "test",
+    version: "2.5.1",
     server: { port: 3000, host: "0.0.0.0" },
     monitor: {
       storage: "memory",

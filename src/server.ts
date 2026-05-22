@@ -29,7 +29,7 @@ export async function createApp(): Promise<express.Application> {
   const app = express();
   const playgroundToken = crypto.randomUUID();
 
-  const isDev = process.env["NODE_ENV"] !== "production";
+  const isDev = config.nodeEnv !== "production";
 
   // --------------------------------------------------------------------------
   // 基础中间件

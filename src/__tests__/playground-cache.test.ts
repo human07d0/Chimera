@@ -50,6 +50,7 @@ vi.mock("../config", () => ({
     debug: { enabled: false },
     proxyApiKey: undefined as string | undefined,
     logLevel: "info",
+    nodeEnv: "production",
   },
 }));
 
@@ -142,8 +143,6 @@ describe("Playground HTML template caching", () => {
       }
       return false;
     });
-
-    process.env["NODE_ENV"] = "production";
 
     const app = await createApp();
 

@@ -19,7 +19,7 @@ opsRouter.get("/info", (req: Request, res: Response) => {
       enabled: !!config.opsPassword,
       debugEnabled: config.debug.enabled,
       debugAccessible: config.debug.enabled && isLocalRequest(req),
-      version: process.env.npm_package_version || "unknown",
+      version: config.version,
     },
   });
 });
