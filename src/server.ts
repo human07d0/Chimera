@@ -14,7 +14,7 @@ import { modelRegistry } from "./providers/registry";
 import { registerProviderPricing } from "./monitor/pricing";
 import { config } from "./config";
 import { logger } from "./utils/logger";
-import { extractApiKey } from "./utils/auth";
+import { authMiddleware } from "./routes/auth";
 import { debugMiddleware, debugRouter, agentRouter } from "./debug";
 import { localhostGuard } from "./utils/localhostGuard";
 import { isLocalRequest } from "./utils/isLocalRequest";
@@ -345,41 +345,4 @@ function resolveStaticDir(dirName: string): string | null {
   return null;
 }
 
-// --------------------------------------------------------------------------
-// 鉴权逻辑
-// --------------------------------------------------------------------------
-function authMiddleware(req: Request, res: Response, next: NextFunction): void {
-  // 未配置 PROXY_API_KEY 时跳过鉴权
-  if (!config.proxyApiKey) {
-    next();
-    return;
-  }
-
-  const providedKey = extractApiKey(req);
-
-  if (!providedKey) {
-    res.status(401).json({
-      error: {
-        message:
-          "Missing API key. Provide it via 'Authorization: Bearer <key>', 'api-key: <key>' or 'x-api-key: <key>' header.",
-        type: "authentication_error",
-        code: "missing_api_key",
-      },
-    });
-    return;
-  }
-
-  if (providedKey !== config.proxyApiKey) {
-    res.status(401).json({
-      error: {
-        message: "Invalid API key.",
-        type: "authentication_error",
-        code: "invalid_api_key",
-      },
-    });
-    return;
-  }
-
-  next();
-}
 
