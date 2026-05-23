@@ -1,6 +1,6 @@
 {
   "name": "chimeraproxy",
-  "version": "2.5.4",
+  "version": "2.5.5",
   "description": "Multi-provider LLM proxy with OpenAI & Anthropic compatibility",
   "repository": {
     "type": "git",
