@@ -10,6 +10,7 @@ import { chatRouter } from "./routes/chat";
 import { anthropicRouter } from "./routes/anthropic";
 import { modelsRouter } from "./routes/models";
 import { endpointsRouter } from "./routes/endpoints";
+import { apiRouter } from "./routes/api";
 import { modelRegistry } from "./providers/registry";
 import { registerProviderPricing } from "./monitor/pricing";
 import { config } from "./config";
@@ -106,6 +107,11 @@ export async function createApp(): Promise<express.Application> {
       totalModels,
     });
   });
+
+  // --------------------------------------------------------------------------
+  // API 端点目录（无需鉴权 — 供 agent/人发现可用 API）
+  // --------------------------------------------------------------------------
+  app.use(apiRouter);
 
   // --------------------------------------------------------------------------
   // 监控路由（设计上不需要鉴权 — 本地可观测性端点）

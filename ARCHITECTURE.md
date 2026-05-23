@@ -70,6 +70,7 @@ src/
 │   ├── registry.ts          #   模型查找 + handler 分发
 │   ├── loader.ts            #   YAML 加载 + 验证
 │   ├── types.ts             #   接口定义
+│   ├── discovery.ts         #   chimera 提供商自动发现（端点 + 模型）
 │   ├── builtin/             #   内置 handler（mimo, deepseek, chimera）
 │   └── custom/              #   自定义 handler（openai, anthropic 透传）
 ├── routes/                  # API 路由（详见 docs/architecture/pipeline.md）
@@ -77,10 +78,13 @@ src/
 │   ├── anthropic.ts         #   /anthropic/v1/messages
 │   ├── models.ts            #   /v1/models
 │   ├── auth.ts              #   鉴权中间件（PROXY_API_KEY 验证）
-│   └── endpoints.ts         #   /v1/endpoints（端点拓扑发现）
+│   ├── endpoints.ts         #   /v1/endpoints（端点拓扑发现）
+│   ├── endpointPrefix.ts    #   从 req.baseUrl 提取端点前缀
+│   └── api.ts               #   /api（API 端点目录，无需鉴权）
 ├── proxy/                   # 代理核心
 │   ├── streaming.ts         #   SSE 流式透传 + token 用量追踪
-│   └── transformer.ts       #   结构适配（字段重命名）
+│   ├── transformer.ts       #   结构适配（字段重命名）
+│   └── applyDefaults.ts     #   对客户端缺失的 key 应用 modelConfig.default
 ├── monitor/                 # 监控（详见 docs/architecture/monitoring.md）
 │   ├── middleware.ts
 │   ├── routes.ts
@@ -97,6 +101,7 @@ src/
     ├── localhostGuard.ts
     ├── requestId.ts
     └── sanitizeForLog.ts
+
 ```
 
 ## 部署视图
