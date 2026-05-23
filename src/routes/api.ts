@@ -28,14 +28,25 @@ apiRouter.get("/api", (_req: Request, res: Response) => {
   // Dynamic endpoints based on provider registry
   const providerEndpoints = modelRegistry.getEndpoints();
 
+  const endpointProviders = new Map<string, string[]>();
+  for (const provider of modelRegistry.getProviders()) {
+    const ep = provider.endpoint || "";
+    if (!endpointProviders.has(ep)) {
+      endpointProviders.set(ep, []);
+    }
+    endpointProviders.get(ep)!.push(provider.name);
+  }
+
   for (const endpoint of providerEndpoints) {
     const prefix = endpoint || "";
+    const names = endpointProviders.get(endpoint) || [];
+    const providerSuffix = names.length > 0 ? ` (providers: ${names.join(", ")})` : "";
 
     endpoints.push(
-      { method: "GET", path: `${prefix}/v1/models`, description: "List models (OpenAI compatible)", auth: false },
-      { method: "POST", path: `${prefix}/v1/chat/completions`, description: "Chat completions (OpenAI compatible)", auth: true },
-      { method: "POST", path: `${prefix}/anthropic/v1/messages`, description: "Messages (Anthropic compatible)", auth: true },
-      { method: "GET", path: `${prefix}/v1/endpoints`, description: "List provider endpoints", auth: true },
+      { method: "GET", path: `${prefix}/v1/models`, description: `List models (OpenAI compatible)${providerSuffix}`, auth: false },
+      { method: "POST", path: `${prefix}/v1/chat/completions`, description: `Chat completions (OpenAI compatible)${providerSuffix}`, auth: true },
+      { method: "POST", path: `${prefix}/anthropic/v1/messages`, description: `Messages (Anthropic compatible)${providerSuffix}`, auth: true },
+      { method: "GET", path: `${prefix}/v1/endpoints`, description: `List provider endpoints${providerSuffix}`, auth: true },
     );
   }
 
