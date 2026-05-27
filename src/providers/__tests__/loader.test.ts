@@ -117,6 +117,40 @@ describe("resolveEnvVars", () => {
   });
 });
 
+describe("normalizeBaseUrl", () => {
+  it("adds https:// when scheme is missing", () => {
+    expect(normalizeBaseUrl("api.example.com")).toBe("https://api.example.com");
+  });
+
+  it("preserves https:// scheme", () => {
+    expect(normalizeBaseUrl("https://api.example.com")).toBe("https://api.example.com");
+  });
+
+  it("preserves http:// scheme", () => {
+    expect(normalizeBaseUrl("http://localhost:3000")).toBe("http://localhost:3000");
+  });
+
+  it("strips trailing /v1", () => {
+    expect(normalizeBaseUrl("https://api.example.com/v1")).toBe("https://api.example.com");
+  });
+
+  it("strips trailing /v1/", () => {
+    expect(normalizeBaseUrl("https://api.example.com/v1/")).toBe("https://api.example.com");
+  });
+
+  it("does not strip /v1 in the middle of path", () => {
+    expect(normalizeBaseUrl("https://api.example.com/v1/chat")).toBe("https://api.example.com/v1/chat");
+  });
+
+  it("strips /v1 when scheme is missing", () => {
+    expect(normalizeBaseUrl("api.example.com/v1")).toBe("https://api.example.com");
+  });
+
+  it("handles http:// with trailing /v1", () => {
+    expect(normalizeBaseUrl("http://localhost:3000/v1")).toBe("http://localhost:3000");
+  });
+});
+
 describe("loadProviders", () => {
   it("loads a valid minimal provider", async () => {
     writeYaml("test.yaml", MINIMAL_PROVIDER);
