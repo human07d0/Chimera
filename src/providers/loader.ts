@@ -92,9 +92,9 @@ type RawProvider = StandardRaw | ChimeraRaw;
 
 export function normalizeBaseUrl(url: string): string {
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    return "https://" + url;
+    url = "https://" + url;
   }
-  return url;
+  return url.replace(/\/v1\/?$/, "");
 }
 
 export function resolveEnvVars(value: string): string {
