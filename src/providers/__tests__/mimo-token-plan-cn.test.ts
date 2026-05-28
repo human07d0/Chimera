@@ -30,23 +30,11 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
 
   const modelIds = config.models.map((m) => m.id);
 
-  it("has exactly 15 models", () => {
-    expect(config.models).toHaveLength(15);
+  it("has exactly 6 models", () => {
+    expect(config.models).toHaveLength(6);
   });
 
   const expectedModalities: Record<string, { input: string[]; output: string[] }> = {
-    "mimo-v2-flash": {
-      input: ["text"],
-      output: ["text"],
-    },
-    "mimo-v2-pro": {
-      input: ["text"],
-      output: ["text"],
-    },
-    "mimo-v2-omni": {
-      input: ["text", "image", "video", "audio"],
-      output: ["text"],
-    },
     "mimo-v2.5": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
@@ -55,36 +43,12 @@ describe("mimo-token-plan-cn.yaml modalities", () => {
       input: ["text"],
       output: ["text"],
     },
-    "mimo-v2-flash-thinking": {
-      input: ["text"],
-      output: ["text"],
-    },
-    "mimo-v2-pro-thinking": {
-      input: ["text"],
-      output: ["text"],
-    },
-    "mimo-v2-omni-thinking": {
-      input: ["text", "image", "video", "audio"],
-      output: ["text"],
-    },
     "mimo-v2.5-thinking": {
       input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
     "mimo-v2.5-pro-thinking": {
       input: ["text"],
-      output: ["text"],
-    },
-    "mimo-v2-flash-thinking-search": {
-      input: ["text"],
-      output: ["text"],
-    },
-    "mimo-v2-pro-thinking-search": {
-      input: ["text"],
-      output: ["text"],
-    },
-    "mimo-v2-omni-thinking-search": {
-      input: ["text", "image", "video", "audio"],
       output: ["text"],
     },
     "mimo-v2.5-thinking-search": {
